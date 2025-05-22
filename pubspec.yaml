@@ -1,0 +1,77 @@
+name: myapp_flutter
+description: "A Flutter version of the Task Dominion application."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.1+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0' # Adjusted to a more recent stable SDK range
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.13.1
+  firebase_core_platform_interface: ^5.4.0
+  firebase_auth: ^5.5.4
+  cloud_firestore: ^5.6.8
+
+  # State Management
+  provider: ^6.1.2
+
+  # AI
+  google_generative_ai: ^0.4.0 # Check pub.dev for the latest version
+
+  # UI & Utilities
+  cupertino_icons: ^1.0.6
+  intl: ^0.20.2 # For date formatting
+  fl_chart: ^1.0.0 # For charts
+  material_design_icons_flutter: ^7.0.7296 # For extra icons
+  collection: ^1.18.0 # For mapEquals, listEquals, firstWhereOrNull etc.
+  # http: ^1.2.1 # If direct HTTP calls are needed
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  mockito: ^5.4.4 # For mocking firebase services in tests
+  change_app_package_name: ^1.1.0 # Or the latest version
+  flutter_app_name: ^0.1.1
+
+flutter_app_name:
+  name: "Epic"
+
+flutter:
+  uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  assets: []
+  #   # - assets/images/ # Example if you add images - Commented out as dir might be empty
+  #   - assets/images/carbon-fibre.png # For background texture
+  #   - assets/images/worn-dots.png    # For background texture
+  #   - assets/images/vite.svg
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  fonts:
+    - family: RobotoCondensed
+      fonts:
+        - asset: assets/fonts/RobotoCondensed-Regular.ttf
+        - asset: assets/fonts/RobotoCondensed-Bold.ttf
+          weight: 700
+        # Add Italic if needed
+    - family: OpenSans
+      fonts:
+        - asset: assets/fonts/OpenSans-Regular.ttf
+        - asset: assets/fonts/OpenSans-SemiBold.ttf
+          weight: 600
+        # Add Bold, Italic if needed
+
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package

@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "1059901273076",
+    "firebase_url": "https://task-dominion-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "task-dominion",
+    "storage_bucket": "task-dominion.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1059901273076:android:749d4c8f9c5aeb9e843fa1",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBeZsAoZiV38vUrdzbZP4wBGbOCBGluAZg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1059901273076:android:0cb9d16dea4f2201843fa1",
+        "android_client_info": {
+          "package_name": "com.example.myapp_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBeZsAoZiV38vUrdzbZP4wBGbOCBGluAZg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1059901273076:android:9bbc5d654d40408c843fa1",
+        "android_client_info": {
+          "package_name": "me.ihjas.dominion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBeZsAoZiV38vUrdzbZP4wBGbOCBGluAZg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

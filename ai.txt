@@ -1,0 +1,4 @@
+Make the following changes:
+
+
+Now, recreate projrct_snapshot.txt only for the files that are changed in the original format
