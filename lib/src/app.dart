@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
     print("[MyApp] Building MaterialApp"); // DEBUG
     return MaterialApp(
       title: 'Task Dominion',
-      theme: AppTheme.themeData,
+      theme: AppTheme.getThemeData(primaryAccent: AppTheme.fhAccentTealFixed),
       debugShowCheckedModeBanner: false,
       home: Consumer<GameProvider>(
         builder: (context, gameProvider, child) {

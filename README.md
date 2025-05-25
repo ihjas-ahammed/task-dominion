@@ -18,7 +18,7 @@ samples, guidance on mobile development, and a full API reference.
 ## Firebase Setup
 
 This project uses Firebase. To configure it:
-1. Make sure you have the FlutterFire CLI installed: `dart pub global activate flutterfire_cli`
+1. Make sure you have the FlutterFire CLI installed: `flutter`
 2. Run `flutterfire configure` in the project root and select your Firebase project. This will generate `lib/firebase_options.dart`.
 
 ## API Keys

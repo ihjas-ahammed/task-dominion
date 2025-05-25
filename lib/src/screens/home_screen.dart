@@ -3,8 +3,14 @@ import 'package:myapp_flutter/src/providers/game_provider.dart';
 import 'package:myapp_flutter/src/widgets/header_widget.dart';
 import 'package:myapp_flutter/src/widgets/middle_panel_widget.dart';
 import 'package:myapp_flutter/src/widgets/player_stats_drawer.dart';
-import 'package:myapp_flutter/src/widgets/task_navigation_drawer.dart'; // New Task Drawer
+import 'package:myapp_flutter/src/widgets/task_navigation_drawer.dart';
 import 'package:myapp_flutter/src/theme/app_theme.dart';
+import 'package:myapp_flutter/src/widgets/views/artifact_shop_view.dart';
+import 'package:myapp_flutter/src/widgets/views/blacksmith_view.dart';
+// import 'package:myapp_flutter/src/widgets/views/daily_summary_view.dart'; // No longer directly in MiddlePanel
+import 'package:myapp_flutter/src/widgets/views/game_view.dart';
+// import 'package:myapp_flutter/src/widgets/views/settings_view.dart'; // No longer directly in MiddlePanel
+import 'package:myapp_flutter/src/widgets/views/task_details_view.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
@@ -15,59 +21,149 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0; // For BottomNavigationBar
   late GameProvider _gameProvider;
   final ScrollController _scrollController = ScrollController();
+  bool _isUsernameDialogShowing = false;
 
-  final List<Map<String, dynamic>> _viewTabs = [
-    {'label': 'Details', 'value': 'task-details', 'icon': MdiIcons.textBoxSearchOutline},
-    {'label': 'Wares', 'value': 'artifact-shop', 'icon': MdiIcons.storefrontOutline},
-    {'label': 'Forge', 'value': 'blacksmith', 'icon': MdiIcons.hammerWrench},
-    {'label': 'Arena', 'value': 'game', 'icon': MdiIcons.swordCross},
-    {'label': 'Logbook', 'value': 'daily-summary', 'icon': MdiIcons.bookOpenPageVariantOutline},
-    {'label': 'Settings', 'value': 'settings', 'icon': MdiIcons.cogOutline},
+  // Updated: Removed Logbook and Settings from main views
+  final List<Map<String, dynamic>> _views = [
+    {'label': 'MISSIONS', 'value': 'task-details', 'icon': MdiIcons.clipboardListOutline},
+    {'label': 'ARMORY', 'value': 'artifact-shop', 'icon': MdiIcons.storefrontOutline},
+    {'label': 'FORGE', 'value': 'blacksmith', 'icon': MdiIcons.hammerWrench}, // Changed label
+    {'label': 'ARENA', 'value': 'game', 'icon': MdiIcons.swordCross}, // Changed label
   ];
 
   @override
   void initState() {
     super.initState();
     _gameProvider = Provider.of<GameProvider>(context, listen: false);
-    int initialIndex = _viewTabs.indexWhere((tab) => tab['value'] == _gameProvider.currentView);
-    if (initialIndex == -1) initialIndex = 0;
+    // Ensure currentView is valid for the new _views list
+    _selectedIndex = _views.indexWhere((view) => view['value'] == _gameProvider.currentView);
+    if (_selectedIndex == -1) { // If currentView was settings or logbook, default to first tab
+        _selectedIndex = 0;
+        _gameProvider.setCurrentView(_views[0]['value'] as String);
+    }
 
-    _tabController = TabController(length: _viewTabs.length, vsync: this, initialIndex: initialIndex);
-    _tabController.addListener(_handleTabSelection);
 
-    // Ensure a task is selected if none is, and tasks are available
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_gameProvider.selectedTaskId == null && _gameProvider.mainTasks.isNotEmpty) {
         _gameProvider.setSelectedTaskId(_gameProvider.mainTasks.first.id);
       }
+      _checkAndPromptForUsername(_gameProvider);
     });
+    _gameProvider.addListener(_handleProviderForUsernamePrompt);
+    _gameProvider.addListener(_handleCurrentViewChangeFromProvider);
+
+    print("[HomeScreen] initState: Initial selectedIndex: $_selectedIndex, currentView: ${_gameProvider.currentView}");
   }
 
-  void _handleTabSelection() {
-    if (_tabController.indexIsChanging) {
-      _gameProvider.setCurrentView(_viewTabs[_tabController.index]['value'] as String);
+  void _handleProviderForUsernamePrompt() {
+    _checkAndPromptForUsername(Provider.of<GameProvider>(context, listen: false));
+  }
+
+  void _handleCurrentViewChangeFromProvider() {
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
+    final newIndex = _views.indexWhere((view) => view['value'] == gameProvider.currentView);
+    if (newIndex != -1 && newIndex != _selectedIndex) {
+      if (mounted) {
+        setState(() {
+          _selectedIndex = newIndex;
+          print("[HomeScreen] _handleCurrentViewChangeFromProvider: Updated selectedIndex to $newIndex for view ${gameProvider.currentView}");
+        });
+      }
+    } else if (newIndex == -1 && _views.indexWhere((v) => v['value'] == gameProvider.currentView) == -1) {
+      // If currentView is set to something not in _views (e.g. old 'settings' view),
+      // default to the first tab to avoid error.
+      if (mounted && _selectedIndex != 0) {
+        setState(() {
+          _selectedIndex = 0;
+        });
+         // gameProvider.setCurrentView(_views[0]['value'] as String); // Let provider update itself
+         print("[HomeScreen] _handleCurrentViewChangeFromProvider: currentView '${gameProvider.currentView}' not in tabs, defaulting to index 0.");
+      }
     }
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Update TabController if currentView changes from provider
-    context.watch<GameProvider>(); // Rebuilds when GameProvider notifies
-    int newIndex = _viewTabs.indexWhere((tab) => tab['value'] == _gameProvider.currentView);
-    if (newIndex != -1 && newIndex != _tabController.index) {
-      _tabController.index = newIndex;
+
+  void _checkAndPromptForUsername(GameProvider gameProvider) {
+    if (mounted && gameProvider.isUsernameMissing && gameProvider.currentUser != null && !_isUsernameDialogShowing && !gameProvider.authLoading && !gameProvider.isDataLoadingAfterLogin) {
+      print("[HomeScreen] Prompting for username.");
+      setState(() {
+        _isUsernameDialogShowing = true;
+      });
+      _showUsernameDialog(context, gameProvider).then((_) {
+        if (mounted) {
+          setState(() {
+            _isUsernameDialogShowing = false;
+          });
+        }
+      });
     }
   }
 
+  Future<void> _showUsernameDialog(BuildContext context, GameProvider gameProvider) async {
+    final TextEditingController usernameController = TextEditingController();
+    final GlobalKey<FormState> dialogFormKey = GlobalKey<FormState>();
+    print("[HomeScreen] Showing username dialog.");
+    final Color currentAccentColor = gameProvider.getSelectedTask()?.taskColor ?? Theme.of(context).colorScheme.secondary;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('Set Your Callsign', style: TextStyle(color: currentAccentColor)),
+          content: Form(
+            key: dialogFormKey,
+            child: TextFormField(
+              controller: usernameController,
+              decoration: const InputDecoration(hintText: "Enter callsign (username)"),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) return 'Callsign cannot be empty.';
+                if (value.trim().length < 3) return 'Must be at least 3 characters.';
+                return null;
+              },
+            ),
+          ),
+          actions: <Widget>[
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: currentAccentColor),
+              child: Text('CONFIRM CALLSIGN', style: TextStyle(color: ThemeData.estimateBrightnessForColor(currentAccentColor) == Brightness.dark ? AppTheme.fhTextPrimary : AppTheme.fhBgDark)),
+              onPressed: () async {
+                if (dialogFormKey.currentState!.validate()) {
+                  String newUsername = usernameController.text.trim();
+                  Navigator.of(dialogContext).pop();
+                  print("[HomeScreen] Username dialog confirmed with: $newUsername");
+                  await gameProvider.updateUserDisplayName(newUsername);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Callsign updated!'), backgroundColor: AppTheme.fhAccentGreen),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _onItemTapped(int index) {
+    if (index < 0 || index >= _views.length) return; // Boundary check
+    print("[HomeScreen] _onItemTapped: index $index, view value: ${_views[index]['value']}");
+    setState(() {
+      _selectedIndex = index;
+    });
+    _gameProvider.setCurrentView(_views[index]['value'] as String);
+  }
+  
   @override
   void dispose() {
-    _tabController.removeListener(_handleTabSelection);
-    _tabController.dispose();
+    _gameProvider.removeListener(_handleProviderForUsernamePrompt);
+    _gameProvider.removeListener(_handleCurrentViewChangeFromProvider);
     _scrollController.dispose();
     super.dispose();
   }
@@ -75,94 +171,84 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isLargeScreen = screenWidth > 800; // Example breakpoint, adjust as needed.
+    final bool isLargeScreen = screenWidth > 900;
+    
+    // Rebuild the entire MaterialApp when the theme accent color changes
+    // This is done by watching gameProvider for selectedTask changes
+    final gameProvider = context.watch<GameProvider>();
+    final Color currentTaskColor = gameProvider.getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed; // Default if no task selected
+    final ThemeData dynamicTheme = AppTheme.getThemeData(primaryAccent: currentTaskColor);
 
-    return Scaffold(
-      backgroundColor: AppTheme.fhBgDark,
-      appBar: const PreferredSize(
-        preferredSize: Size.fromHeight(kToolbarHeight),
-        child: HeaderWidget(),
-      ),
-      drawer: isLargeScreen ? null : const PlayerStatsDrawer(), // Left drawer for player stats
-      endDrawer: isLargeScreen ? null : const TaskNavigationDrawer(), // Right drawer for task selection
-      body: OrientationBuilder(
-        builder: (context, orientation) {
-          if (isLargeScreen) {
-            // Horizontal layout for larger screens
-            return Row(
-              children: [
-                const PlayerStatsDrawer(), // Show drawer content as a panel
-                Expanded(
-                  child: Column(
-                    children: [
-                      _buildTopNavigationBar(), // Top navigation bar
-                      Expanded(
-                        child: MiddlePanelWidget(tabController: _tabController),
-                      ),
-                    ],
-                  ),
-                ),
-                const TaskNavigationDrawer(), // Show task drawer content as panel
-              ],
+
+    print("[HomeScreen] build: SelectedIndex: $_selectedIndex, CurrentView from provider: ${gameProvider.currentView}");
+
+
+    return Theme(
+      data: dynamicTheme,
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              HeaderWidget(currentViewLabel: _views.isNotEmpty && _selectedIndex >= 0 && _selectedIndex < _views.length ? _views[_selectedIndex]['label'] as String : "MISSIONS" ), 
+              Expanded(
+                child: isLargeScreen
+                    ? Row(
+                        children: [
+                          Container(
+                            width: 280,
+                            decoration: BoxDecoration(
+                              color: dynamicTheme.cardTheme.color, // Use dynamic theme
+                              border: Border(right: BorderSide(color: dynamicTheme.dividerTheme.color ?? AppTheme.fhBorderColor, width: 1))
+                            ),
+                            child: const TaskNavigationDrawer(),
+                          ),
+                          Expanded(
+                            child: MiddlePanelWidget(selectedIndex: _selectedIndex, views: _views.map<Widget>((v) => _getViewWidget(v['value'] as String)).toList()),
+                          ),
+                          Container(
+                             width: 320,
+                             decoration: BoxDecoration(
+                              color: dynamicTheme.cardTheme.color, // Use dynamic theme
+                              border: Border(left: BorderSide(color: dynamicTheme.dividerTheme.color ?? AppTheme.fhBorderColor, width: 1))
+                            ),
+                            child: const PlayerStatsDrawer(),
+                          ),
+                        ],
+                      )
+                    : MiddlePanelWidget(selectedIndex: _selectedIndex, views: _views.map<Widget>((v) => _getViewWidget(v['value'] as String)).toList()),
+              ),
+            ],
+          ),
+        ),
+        drawer: isLargeScreen ? null : const TaskNavigationDrawer(),
+        endDrawer: isLargeScreen ? null : const PlayerStatsDrawer(),
+        bottomNavigationBar:  BottomNavigationBar(
+          items: _views.map((view) {
+            return BottomNavigationBarItem(
+              icon: Icon(view['icon'] as IconData),
+              label: view['label'] as String,
             );
-          } else {
-            // Vertical layout for smaller screens
-            return MiddlePanelWidget(tabController: _tabController);
-          }
-        },
+          }).toList(),
+          currentIndex: _selectedIndex.clamp(0, _views.length -1), 
+          onTap: _onItemTapped,
+        ),
       ),
-      bottomNavigationBar: isLargeScreen
-          ? null
-          : BottomNavigationBar(
-              // only show on small screens
-              currentIndex: _tabController.index,
-              onTap: (index) {
-                _tabController.animateTo(index);
-              },
-              items: _viewTabs.map((tab) {
-                bool isSelected = _viewTabs[_tabController.index]['value'] == tab['value'];
-                return BottomNavigationBarItem(
-                  icon: Icon(tab['icon'] as IconData,
-                      size: 20,
-                      color: isSelected
-                          ? AppTheme.fhAccentTeal
-                          : AppTheme.fhTextSecondary.withOpacity(0.7)),
-                  activeIcon: Icon(tab['icon'] as IconData,
-                      size: 22, color: AppTheme.fhAccentTeal),
-                  label: tab['label'] as String,
-                );
-              }).toList(),
-            ),
     );
   }
 
-  Widget _buildTopNavigationBar() {
-    return Container(
-      //  color: AppTheme.fhBgDark, // Background color for the nav bar
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      constraints: const BoxConstraints(maxWidth: 800),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        indicatorColor: AppTheme.fhAccentTeal,
-        indicatorWeight: 3,
-        labelColor: AppTheme.fhAccentTeal,
-        unselectedLabelColor: AppTheme.fhTextSecondary.withOpacity(0.7),
-        labelStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-        ),
-        tabs: _viewTabs.map((tab) {
-          return Tab(
-            text: tab['label'] as String,
-            icon: Icon(tab['icon'] as IconData, size: 20),
-          );
-        }).toList(),
-      ),
-    );
+  Widget _getViewWidget(String viewValue) {
+    switch (viewValue) {
+      case 'task-details':
+        return const TaskDetailsView();
+      case 'artifact-shop':
+        return const ArtifactShopView();
+      case 'blacksmith':
+        return const BlacksmithView();
+      case 'game':
+        return const GameView();
+      default:
+        if (_views.isNotEmpty) return _getViewWidget(_views[0]['value'] as String);
+        return const Center(child: Text('Unknown View'));
+    }
   }
 }

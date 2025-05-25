@@ -3,12 +3,44 @@ import 'package:myapp_flutter/src/providers/game_provider.dart';
 import 'package:myapp_flutter/src/utils/constants.dart';
 import 'package:myapp_flutter/src/models/game_models.dart';
 import 'package:myapp_flutter/src/utils/helpers.dart';
-import 'package:collection/collection.dart'; // For firstWhereOrNull
+import 'package:collection/collection.dart'; 
 
 class TaskActions {
   final GameProvider _provider;
 
   TaskActions(this._provider);
+
+  void addMainTask({required String name, required String description, required String theme, required String colorHex}) {
+    final newTask = MainTask(
+      id: 'mt_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      description: description,
+      theme: theme,
+      colorHex: colorHex,
+    );
+    _provider.setProviderState(mainTasks: [..._provider.mainTasks, newTask]);
+  }
+
+  void editMainTask(String taskId, {required String name, required String description, required String theme, required String colorHex}) {
+    final newMainTasks = _provider.mainTasks.map((task) {
+      if (task.id == taskId) {
+        return MainTask(
+          id: task.id,
+          name: name,
+          description: description,
+          theme: theme,
+          colorHex: colorHex,
+          streak: task.streak,
+          dailyTimeSpent: task.dailyTimeSpent,
+          lastWorkedDate: task.lastWorkedDate,
+          subTasks: task.subTasks,
+        );
+      }
+      return task;
+    }).toList();
+    _provider.setProviderState(mainTasks: newMainTasks);
+  }
+
 
   void logToDailySummary(String type, Map<String, dynamic> data) {
     final today = getTodayDateString();
@@ -16,7 +48,7 @@ class TaskActions {
     final dayData = Map<String, dynamic>.from(newCompletedByDay[today] ?? {
       'taskTimes': <String, int>{},
       'subtasksCompleted': <Map<String, dynamic>>[],
-      'checkpointsCompleted': <Map<String, dynamic>>[] // Ensure this list exists
+      'checkpointsCompleted': <Map<String, dynamic>>[] 
     });
 
     if (type == 'taskTime') {
@@ -27,7 +59,7 @@ class TaskActions {
       final subtasksCompleted = List<Map<String, dynamic>>.from(dayData['subtasksCompleted'] as List? ?? []);
       subtasksCompleted.add(data);
       dayData['subtasksCompleted'] = subtasksCompleted;
-    } else if (type == 'subSubtaskCompleted') { // Handle new type for checkpoints
+    } else if (type == 'subSubtaskCompleted') { 
       final checkpointsCompleted = List<Map<String, dynamic>>.from(dayData['checkpointsCompleted'] as List? ?? []);
       checkpointsCompleted.add(data);
       dayData['checkpointsCompleted'] = checkpointsCompleted;
@@ -57,7 +89,7 @@ class TaskActions {
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
-          id: task.id, name: task.name, description: task.description, theme: task.theme,
+          id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
           streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
           subTasks: [...task.subTasks, newSubtask],
         );
@@ -104,7 +136,7 @@ class TaskActions {
     final int oldDailyTotalBeforeThisChange = taskToUpdate.dailyTimeSpent - timeDifference;
     if (oldDailyTotalBeforeThisChange < dailyTaskGoalMinutes && taskToUpdate.dailyTimeSpent >= dailyTaskGoalMinutes) {
       final double luckBonus = 1 + (_provider.playerGameStats['luck']!.value / 100);
-      final double xpBonusFromArtifact = _provider.playerGameStats['bonusXPMod']!.value; // Access value directly
+      final double xpBonusFromArtifact = _provider.playerGameStats['bonusXPMod']?.value ?? 0.0;
       final double totalXPMultiplier = luckBonus * (1 + xpBonusFromArtifact);
 
       stateUpdatesForSetAndPersist['coins'] = _provider.coins + (streakBonusCoins * luckBonus).floor();
@@ -119,7 +151,6 @@ class TaskActions {
       xp: stateUpdatesForSetAndPersist['xp'] as double?,
       playerEnergy: stateUpdatesForSetAndPersist['playerEnergy'] as double?,
       mainTasks: newMainTasks,
-      // doPersist is true by default, which will mark for auto-save
     );
   }
 
@@ -133,16 +164,14 @@ class TaskActions {
       return false;
     }
     if (subTask.currentTimeSpent <= 0 && !subTask.isCountable) {
-      // Allow completing zero-time non-countable tasks if all sub-subtasks are done (implicit progress)
       bool allSubSubTasksDone = subTask.subSubTasks.every((sss) => sss.completed);
       if (subTask.subSubTasks.isNotEmpty && !allSubSubTasksDone) {
           return false;
       }
       if (subTask.subSubTasks.isEmpty && subTask.currentTimeSpent <= 0) {
-          return false; // If no sub-subtasks and no time, can't complete
+          return false; 
       }
     }
-
 
     ActiveTimerInfo? timerForSubtask = _provider.activeTimers[subtaskId];
     SubTask updatedSubTaskForRewards = SubTask(
@@ -150,7 +179,6 @@ class TaskActions {
       isCountable: subTask.isCountable, targetCount: subTask.targetCount, currentCount: subTask.currentCount,
       subSubTasks: subTask.subSubTasks
     );
-
 
     if (timerForSubtask != null) {
         double totalSecondsToLog = timerForSubtask.accumulatedDisplayTime;
@@ -161,7 +189,6 @@ class TaskActions {
 
         if (elapsedMinutes > 0) {
             updateSubtask(mainTaskId, subtaskId, {'currentTimeSpent': subTask.currentTimeSpent + elapsedMinutes});
-            // Re-fetch the subtask as updateSubtask might have modified it and the provider's state
             final MainTask? refetchedMainTask = _provider.mainTasks.firstWhereOrNull((t) => t.id == mainTaskId);
              if (refetchedMainTask != null) {
                 updatedSubTaskForRewards = refetchedMainTask.subTasks.firstWhereOrNull((st) => st.id == subtaskId) ?? subTask;
@@ -169,14 +196,11 @@ class TaskActions {
         }
         final newActiveTimers = Map<String, ActiveTimerInfo>.from(_provider.activeTimers);
         newActiveTimers.remove(subtaskId);
-        // This setProviderState should not trigger a full persist, only update timers.
-        // The main persist happens after rewards.
         _provider.setProviderState(activeTimers: newActiveTimers, doPersist: false);
     }
 
-
     final double luckBonus = 1 + (_provider.playerGameStats['luck']!.value / 100);
-    final double xpBonusFromArtifact = _provider.playerGameStats['bonusXPMod']!.value;
+    final double xpBonusFromArtifact = _provider.playerGameStats['bonusXPMod']?.value ?? 0.0;
     final double totalXPMultiplier = luckBonus * (1 + xpBonusFromArtifact);
 
     double proportionalXp = 0;
@@ -185,7 +209,7 @@ class TaskActions {
     if (updatedSubTaskForRewards.isCountable) {
         proportionalXp = updatedSubTaskForRewards.targetCount * xpPerCountUnitSubtask;
         proportionalCoins = updatedSubTaskForRewards.targetCount * coinsPerCountUnitSubtask;
-    } else { // Time-based
+    } else { 
         proportionalXp = updatedSubTaskForRewards.currentTimeSpent * xpPerMinuteSubtask;
         proportionalCoins = updatedSubTaskForRewards.currentTimeSpent * coinsPerMinuteSubtask;
     }
@@ -196,11 +220,10 @@ class TaskActions {
     final int finalXpReward = ((baseCompletionXp + proportionalXp) * totalXPMultiplier).floor();
     final int finalCoinReward = ((baseCompletionCoins + proportionalCoins) * luckBonus).floor();
 
-
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
-          id: task.id, name: task.name, description: task.description, theme: task.theme,
+          id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
           streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
           subTasks: task.subTasks.map((st) {
             if (st.id == subtaskId) {
@@ -221,7 +244,6 @@ class TaskActions {
       mainTasks: newMainTasks,
       xp: _provider.xp + finalXpReward,
       coins: _provider.coins + finalCoinReward,
-      // doPersist is true by default, will mark for auto-save
     );
 
     logToDailySummary('subtaskCompleted', {
@@ -239,7 +261,7 @@ class TaskActions {
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
-          id: task.id, name: task.name, description: task.description, theme: task.theme,
+          id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
           streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
           subTasks: task.subTasks.where((st) => st.id != subtaskId).toList(),
         );
@@ -281,7 +303,7 @@ class TaskActions {
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
-          id: task.id, name: task.name, description: task.description, theme: task.theme,
+          id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
           streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
           subTasks: [...task.subTasks, newSubtask],
         );
@@ -302,7 +324,7 @@ class TaskActions {
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
-          id: task.id, name: task.name, description: task.description, theme: task.theme,
+          id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
           streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
           subTasks: task.subTasks.map((st) {
             if (st.id == parentSubtaskId) {
@@ -326,7 +348,7 @@ class TaskActions {
       final newMainTasks = _provider.mainTasks.map((task) {
         if (task.id == mainTaskId) {
             return MainTask(
-                id: task.id, name: task.name, description: task.description, theme: task.theme,
+                id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
                 streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
                 subTasks: task.subTasks.map((st) {
                     if (st.id == parentSubtaskId) {
@@ -368,11 +390,10 @@ class TaskActions {
     bool subSubTaskCompletedSuccessfully = false;
     SubSubTask? completedSubSubTaskInstance;
 
-
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
-          id: task.id, name: task.name, description: task.description, theme: task.theme,
+          id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
           streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
           subTasks: task.subTasks.map((st) {
             if (st.id == parentSubtaskId) {
@@ -387,7 +408,7 @@ class TaskActions {
                       return sss;
                     }
                     final double luckBonus = 1 + (_provider.playerGameStats['luck']!.value / 100);
-                    final double xpBonusFromArtifact = _provider.playerGameStats['bonusXPMod']!.value;
+                    final double xpBonusFromArtifact = _provider.playerGameStats['bonusXPMod']?.value ?? 0.0;
                     final double totalXPMultiplier = luckBonus * (1 + xpBonusFromArtifact);
                     
                     double proportionalXp = 0;
@@ -425,9 +446,7 @@ class TaskActions {
         mainTasks: newMainTasks,
         xp: _provider.xp + xpReward,
         coins: _provider.coins + coinReward,
-        // doPersist is true by default
       );
-      // Log completion
       logToDailySummary('subSubtaskCompleted', {
         'mainTaskId': mainTaskId,
         'parentSubtaskId': parentSubtaskId,
@@ -446,7 +465,7 @@ class TaskActions {
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
-          id: task.id, name: task.name, description: task.description, theme: task.theme,
+          id: task.id, name: task.name, description: task.description, theme: task.theme, colorHex: task.colorHex,
           streak: task.streak, dailyTimeSpent: task.dailyTimeSpent, lastWorkedDate: task.lastWorkedDate,
           subTasks: task.subTasks.map((st) {
             if (st.id == parentSubtaskId) {

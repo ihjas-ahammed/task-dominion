@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:myapp_flutter/src/providers/game_provider.dart';
 import 'package:myapp_flutter/src/theme/app_theme.dart';
-import 'package:myapp_flutter/src/models/game_models.dart';
 import 'package:myapp_flutter/src/widgets/ui/artifact_card.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
@@ -16,17 +15,18 @@ class ArtifactShopView extends StatelessWidget {
     final theme = Theme.of(context);
     final currentTask = gameProvider.getSelectedTask();
     final String? currentTaskTheme = currentTask?.theme;
+    final Color dynamicAccent = currentTask?.taskColor ?? theme.colorScheme.secondary;
+    final Color buttonTextColor = ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fhTextPrimary : AppTheme.fhBgDark;
+
 
     final itemsToShow = gameProvider.artifactTemplatesList.where((template) {
-      // Basic filter: exclude items with type containing "powerup_dev"
-      // Theme filter: show if current task has no theme, or item theme matches, or item theme is null/general
       final bool themeMatch = currentTaskTheme == null ||
           template.theme == null ||
-          template.theme == currentTaskTheme;
+          template.theme == currentTaskTheme ||
+          template.theme == 'general'; // Added general theme
       return !template.type.contains("powerup_dev") && themeMatch;
     }).toList()
       ..sort((a, b) {
-        // Sorting logic
         if (currentTaskTheme != null) {
           final bool aIsThemed = a.theme == currentTaskTheme;
           final bool bIsThemed = b.theme == currentTaskTheme;
@@ -38,7 +38,7 @@ class ArtifactShopView extends StatelessWidget {
       });
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 16, right: 4),
+      padding: const EdgeInsets.only(bottom: 16, right: 4, left: 4), // Added left padding
       child: Column(
         children: [
           Padding(
@@ -47,13 +47,13 @@ class ArtifactShopView extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(MdiIcons.storefrontOutline,
-                    color: AppTheme.fhAccentTeal, size: 32),
+                    color: dynamicAccent, size: 32),
                 const SizedBox(width: 12),
                 Text(
                   "Brok & Sindri's Wares",
                   style: theme.textTheme.headlineSmall?.copyWith(
-                      fontFamily: AppTheme.fontMain,
-                      color: AppTheme.fhAccentTeal),
+                      fontFamily: AppTheme.fontDisplay, 
+                      color: AppTheme.fhTextPrimary), // Primary text color for title
                 ),
               ],
             ),
@@ -71,28 +71,23 @@ class ArtifactShopView extends StatelessWidget {
           else
             LayoutBuilder(builder: (context, constraints) {
               int crossAxisCount = 2;
-              if (constraints.maxWidth > 800) {
-                crossAxisCount = 4;
-              } else if (constraints.maxWidth > 500) {
-                crossAxisCount = 3;
-              }
-              double itemWidth =
-                  (constraints.maxWidth - (crossAxisCount - 1) * 12) /
-                      crossAxisCount;
-              double childAspectRatio =
-                  itemWidth / 230; // Adjust 230 based on desired card height
+              if (constraints.maxWidth > 900) crossAxisCount = 4; // Adjusted breakpoints
+              else if (constraints.maxWidth > 600) crossAxisCount = 3;
+              else if (constraints.maxWidth < 400) crossAxisCount = 1;
+
+
+              double itemWidth = (constraints.maxWidth - (crossAxisCount +1) * 10) / crossAxisCount; // 10 for padding
+              double childAspectRatio = itemWidth / 270; // Adjusted height for better card display
 
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(
-                    12.0), // GridView itself has no padding here
+                padding: const EdgeInsets.all(10.0), 
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 12.0,
-                  mainAxisSpacing: 12.0,
-                  childAspectRatio:
-                      childAspectRatio.clamp(0.6, 1.0), // Clamp aspect ratio
+                  crossAxisSpacing: 10.0,
+                  mainAxisSpacing: 10.0,
+                  childAspectRatio: childAspectRatio.clamp(0.65, 0.9), // Adjusted clamp
                 ),
                 itemCount: itemsToShow.length,
                 itemBuilder: (context, index) {
@@ -101,39 +96,39 @@ class ArtifactShopView extends StatelessWidget {
                   final bool isOwned = template.type != 'powerup' &&
                       gameProvider.artifacts
                           .any((art) => art.templateId == template.id);
-                  // final bool isOwned = false; // Original dead code line
-
+                  
                   return ArtifactCardWidget(
                     template: template,
                     cost: template.cost,
                     actionSection: SizedBox(
-                      // <--- WRAP HERE
-                      width: double.infinity, // <--- MAKE IT TAKE FULL WIDTH
-                      child: ElevatedButton(
+                      width: double.infinity, 
+                      child: ElevatedButton.icon(
+                        icon: Icon(isOwned ? MdiIcons.checkCircleOutline : (canAfford ? MdiIcons.cartPlus : MdiIcons.cartOff), size:16),
+                        label: Text(isOwned
+                            ? 'ACQUIRED'
+                            : (canAfford
+                                ? '${template.cost} Ø'
+                                : 'Cost: ${template.cost} Ø')),
                         onPressed: (!canAfford || isOwned)
                             ? null
                             : () => gameProvider.buyArtifact(template.id),
                         style: ElevatedButton.styleFrom(
+                          backgroundColor: isOwned ? AppTheme.fhBgDark.withOpacity(0.6) : (canAfford ? dynamicAccent : AppTheme.fhAccentRed.withOpacity(0.7)),
+                          foregroundColor: isOwned ? AppTheme.fhTextSecondary.withOpacity(0.7) : (canAfford ? buttonTextColor : AppTheme.fhTextPrimary),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 6),
+                              horizontal: 12, vertical: 8), // Adjusted padding
                           textStyle: const TextStyle(
                               fontSize: 11,
-                              fontFamily: AppTheme.fontMain,
+                              fontFamily: AppTheme.fontBody, 
                               fontWeight: FontWeight.bold),
                           disabledBackgroundColor:
                               AppTheme.fhBgDark.withOpacity(0.5),
                           disabledForegroundColor:
                               AppTheme.fhTextSecondary.withOpacity(0.5),
-                          // You can also set a minimum height if you want, e.g.,
-                          // minimumSize: Size(double.infinity, 48), // 48 is an example height
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))
                         ),
-                        child: Text(isOwned
-                            ? 'OWNED'
-                            : (canAfford
-                                ? '${template.cost} \$'
-                                : '${template.cost} \$')),
                       ),
-                    ), // // ElevatedButton
+                    ), 
                   );
                 },
               );

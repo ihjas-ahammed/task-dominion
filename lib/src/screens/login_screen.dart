@@ -17,9 +17,23 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   String _email = '';
   String _password = '';
+  String _username = '';
   bool _isLogin = true;
   bool _isLoading = false;
   String _error = '';
+  bool _obscurePassword = true;
+  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
@@ -36,35 +50,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (_isLogin) {
         await gameProvider.loginUser(_email, _password);
       } else {
-        await gameProvider.signupUser(_email, _password);
+        await gameProvider.signupUser(_email, _password, _username);
       }
       // Auth state change will handle navigation in MyApp or GameProvider listener
     } catch (e) {
-      print("[LoginScreen] Auth Error: $e"); // DEBUG
+      // print("[LoginScreen] Auth Error: $e"); // DEBUG
       setState(() {
         if (e is FirebaseAuthException) {
           _error = e.message ?? "An unknown Firebase authentication error occurred.";
-          // Example of more specific error messages:
-          // switch (e.code) {
-          //   case 'user-not-found':
-          //     _error = 'No user found for that email.';
-          //     break;
-          //   case 'wrong-password':
-          //     _error = 'Wrong password provided for that user.';
-          //     break;
-          //   case 'email-already-in-use':
-          //     _error = 'An account already exists for that email.';
-          //     break;
-          //   case 'weak-password':
-          //     _error = 'The password provided is too weak.';
-          //     break;
-          //   case 'invalid-email':
-          //     _error = 'The email address is not valid.';
-          //     break;
-          //   // Add more cases as needed based on Firebase Auth error codes
-          //   default:
-          //     _error = e.message ?? "An unknown Firebase error occurred.";
-          // }
         } else {
           _error = "An unexpected error occurred. Please try again.";
         }
@@ -104,12 +97,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Icon(MdiIcons.shieldCrownOutline, size: 56, color: AppTheme.fhAccentTeal), // Themed Icon
+                      Icon(MdiIcons.shieldCrownOutline, size: 56, color: AppTheme.fhAccentTealFixed), // Themed Icon
                       const SizedBox(height: 16),
                       Text(
                         'TASK DOMINION',
                         style: theme.textTheme.displaySmall?.copyWith( // Use displaySmall for prominent title
-                          color: AppTheme.fhAccentTeal,
+                          color: AppTheme.fhAccentTealFixed,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -122,7 +115,30 @@ class _LoginScreenState extends State<LoginScreen> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 32),
+                      if (!_isLogin)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: TextFormField(
+                            controller: _usernameController,
+                            decoration: InputDecoration(
+                              labelText: 'Username',
+                              prefixIcon: Icon(MdiIcons.accountOutline, color: theme.inputDecorationTheme.labelStyle?.color, size: 20),
+                            ),
+                            style: const TextStyle(color: AppTheme.fhTextPrimary, fontFamily: AppTheme.fontBody),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a username.';
+                              }
+                              if (value.trim().length < 3) {
+                                return 'Username must be at least 3 characters.';
+                              }
+                              return null;
+                            },
+                            onSaved: (value) => _username = value!.trim(),
+                          ),
+                        ),
                       TextFormField(
+                        controller: _emailController,
                         decoration: InputDecoration(
                           labelText: 'Email Address',
                           prefixIcon: Icon(MdiIcons.emailOutline, color: theme.inputDecorationTheme.labelStyle?.color, size: 20),
@@ -139,11 +155,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
+                        controller: _passwordController,
                         decoration: InputDecoration(
                           labelText: 'Password',
                           prefixIcon: Icon(MdiIcons.lockOutline, color: theme.inputDecorationTheme.labelStyle?.color, size: 20),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? MdiIcons.eyeOutline : MdiIcons.eyeOffOutline,
+                              color: theme.inputDecorationTheme.labelStyle?.color,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
                         ),
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         style: const TextStyle(color: AppTheme.fhTextPrimary, fontFamily: AppTheme.fontBody),
                         validator: (value) {
                           if (value == null || value.isEmpty || value.length < 6) {
@@ -164,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       const SizedBox(height: 32),
                       if (_isLoading)
-                        const CircularProgressIndicator(color: AppTheme.fhAccentTeal)
+                        const CircularProgressIndicator(color: AppTheme.fhAccentTealFixed)
                       else
                         ElevatedButton(
                           onPressed: _submit,
@@ -179,6 +207,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           setState(() {
                             _isLogin = !_isLogin;
                             _error = '';
+                            _formKey.currentState?.reset();
+                            _usernameController.clear();
+                            _emailController.clear();
+                            _passwordController.clear();
                           });
                         },
                         child: Text(

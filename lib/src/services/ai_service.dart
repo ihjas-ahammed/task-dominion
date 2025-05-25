@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:google_generative_ai/google_generative_ai.dart' as genai;
 import 'package:myapp_flutter/src/config/api_keys.dart'; // Your API keys file
+import 'package:flutter/foundation.dart'; // For kDebugMode
 
 class AIService {
   Future<Map<String, dynamic>> _makeAICall({
@@ -11,16 +12,20 @@ class AIService {
   }) async {
     if (geminiApiKeys.isEmpty || geminiApiKeys.every((key) => key.startsWith('YOUR_GEMINI_API_KEY'))) {
       const errorMsg = "No valid Gemini API keys found. Cannot generate content.";
-      // print(errorMsg);
       onLog("<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (No API Key or invalid key).</span>");
       throw Exception(errorMsg);
     }
     if (geminiModelName.isEmpty) {
       const errorMsg = "GEMINI_MODEL_NAME not configured. Cannot generate content.";
-      // print(errorMsg);
       onLog("<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (GEMINI_MODEL_NAME not configured).</span>");
       throw Exception(errorMsg);
     }
+
+    // Log the full prompt in debug mode
+    if (kDebugMode) {
+      print("[AIService] AI Prompt:\n$prompt");
+    }
+
 
     for (int i = 0; i < geminiApiKeys.length; i++) {
       final int keyAttemptIndex = (currentApiKeyIndex + i) % geminiApiKeys.length;
@@ -32,29 +37,64 @@ class AIService {
       }
 
       try {
-        onLog("Trying API key index $keyAttemptIndex...");
-        final genAI = GenerativeModel(model: geminiModelName, apiKey: apiKey);
-        final response = await genAI.generateContent([Content.text(prompt)]);
+        onLog("Trying API key index $keyAttemptIndex for model $geminiModelName...");
+        final model = genai.GenerativeModel(model: geminiModelName, apiKey: apiKey);
+        final response = await model.generateContent([genai.Content.text(prompt)]);
 
-        String? jsonString = response.text;
-        if (jsonString == null) throw Exception("AI response was empty.");
+        String? rawResponseText = response.text;
+        if (rawResponseText == null || rawResponseText.trim().isEmpty) {
+          throw Exception("AI response was empty or null.");
+        }
 
-        if (jsonString.startsWith("```json")) jsonString = jsonString.substring(7);
-        if (jsonString.endsWith("```")) jsonString = jsonString.substring(0, jsonString.length - 3);
-        jsonString = jsonString.trim();
+        // Log the raw response in debug mode
+        if (kDebugMode) {
+          print("[AIService] Raw AI Response (Key Index $keyAttemptIndex):\n$rawResponseText");
+        }
+        onLog("Raw AI Response received. Attempting to parse JSON...");
+
+
+        // More robust JSON extraction
+        String jsonString = rawResponseText.trim();
+        int jsonStart = jsonString.indexOf('{');
+        int jsonEnd = jsonString.lastIndexOf('}');
+
+        if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+          jsonString = jsonString.substring(jsonStart, jsonEnd + 1);
+        } else {
+          onLog("<span style=\"color:var(--fh-accent-red);\">Error: Could not find valid JSON object delimiters {{ ... }} in AI response.</span>");
+          if (kDebugMode) {
+            print("[AIService] Failed to find JSON delimiters. Raw response was: $rawResponseText");
+          }
+          throw Exception("Could not extract JSON object from AI response.");
+        }
+        
+        // Attempt to remove common non-JSON prefixes/suffixes if any (like markdown code blocks)
+        // This is a secondary check if the above { } extraction wasn't perfect
+        if (jsonString.startsWith("```json") && jsonString.endsWith("```")) {
+            jsonString = jsonString.substring(7, jsonString.length - 3).trim();
+        } else if (jsonString.startsWith("```") && jsonString.endsWith("```")) {
+            jsonString = jsonString.substring(3, jsonString.length - 3).trim();
+        }
+
 
         final Map<String, dynamic> generatedData = jsonDecode(jsonString);
         onNewApiKeyIndex(keyAttemptIndex);
         onLog("<span style=\"color:var(--fh-accent-green);\">Successfully processed AI response with API key index $keyAttemptIndex.</span>");
         return generatedData;
 
-      } catch (error) {
-        // print("Error with API key index $keyAttemptIndex: $error");
-        String errorDetail = error.toString();
-        if (error.toString().contains("API key not valid")) {
+      } catch (e) {
+        String errorDetail = e.toString();
+         if (e is FormatException) {
+          errorDetail = "JSON FormatException: ${e.message}. Check AI response for syntax errors (e.g., trailing commas, unquoted keys, incorrect string escapes).";
+          if (kDebugMode) {
+            print("[AIService] JSON Parsing Error: ${e.message}. Offending JSON string part (approx): ${e.source.toString().substring(0, (e.offset ?? e.source.toString().length).clamp(0, e.source.toString().length)).substring(0,100)}");
+          }
+        } else if (errorDetail.contains("API key not valid")) {
             errorDetail = "API key not valid. Please check your configuration.";
-        } else if (error.toString().contains("quota")) {
+        } else if (errorDetail.contains("quota")) {
             errorDetail = "API quota exceeded for this key.";
+        } else if (errorDetail.contains("Candidate was blocked due to SAFETY")) {
+            errorDetail = "AI response blocked due to safety settings. Try a different prompt or adjust safety settings if possible.";
         }
         onLog("<span style=\"color:var(--fh-accent-red);\">Error with API key index $keyAttemptIndex: $errorDetail</span>");
         if (i == geminiApiKeys.length - 1) {
@@ -75,15 +115,16 @@ class AIService {
     required Function(int) onNewApiKeyIndex,
     required String existingEnemyIdsString,
     required String existingArtifactIdsString,
-    required List<String> themes, // e.g., ['tech', 'knowledge', 'learning']
+    required String existingLocationIdsString, // New
+    required List<String> themes,
     required Function(String) onLog,
   }) async {
-    onLog("Attempting to generate themed game content (enemies/artifacts)...");
+    onLog("Attempting to generate themed game content (enemies/artifacts/locations)...");
 
-    final int numEnemiesToGeneratePerTheme = isInitial ? 1 : 1; // 1 enemy per theme
-    final int totalEnemiesToGenerate = themes.length * numEnemiesToGeneratePerTheme + (isInitial ? 2 : 1); // + some general enemies
+    final int numEnemiesToGeneratePerTheme = isInitial ? 1 : 1;
+    final int totalEnemiesToGenerate = themes.length * numEnemiesToGeneratePerTheme + (isInitial ? 2 : 1);
+    final int numLocationsToGenerate = isInitial ? 2 : 1; // Generate a couple of locations initially, then one by one
 
-    // Construct artifact generation instructions per theme
     String artifactInstructions = "";
     for (String themeName in themes) {
       artifactInstructions += """
@@ -97,57 +138,69 @@ class AIService {
 
     final String prompt = """
 Generate new game content suitable for a player at level $levelForContent in a fantasy RPG.
-The player is currently progressing and needs new challenges and rewards.
-Provide the output as a single JSON object with two keys: "newEnemies" and "newArtifacts".
+The player is currently progressing and needs new challenges, rewards, and places to explore.
+Provide the output as a single, valid JSON object with three top-level keys: "newEnemies", "newArtifacts", and "newGameLocations".
+Ensure there are NO trailing commas in lists or objects. All strings must be properly escaped (e.g. newlines as \\n, quotes as \\").
 
-IMPORTANT: Do NOT generate enemies with the following IDs: [$existingEnemyIdsString].
-IMPORTANT: Do NOT generate artifacts with the following IDs: [$existingArtifactIdsString].
-All generated IDs and artifact names MUST be new and unique.
+IMPORTANT:
+- Do NOT generate enemies with IDs from this list: [$existingEnemyIdsString].
+- Do NOT generate artifacts with IDs from this list: [$existingArtifactIdsString].
+- Do NOT generate locations with IDs from this list: [$existingLocationIdsString].
+- All generated IDs and names MUST be new and unique.
 
 "newEnemies" should be an array of $totalEnemiesToGenerate enemy objects.
-- For each theme in [${themes.map((t) => "'$t'").join(', ')}], generate $numEnemiesToGeneratePerTheme enemy specifically for that theme.
+- For each theme in [${themes.map((t) => "'$t'").join(', ')}], generate $numEnemiesToGeneratePerTheme enemy specifically for that theme and a relevant locationKey (see newGameLocations).
 - The remaining enemies can be general (theme: null) or pick from the themes.
 Each enemy object must have:
-- id: string, unique (MUST NOT be one of the existing IDs provided above), format 'gen_enemy_lvl${levelForContent}_<short_random_hash>' (e.g., gen_enemy_lvl${levelForContent}_a2f5)
+- id: string, unique (e.g., "gen_enemy_lvl${levelForContent}_a2f5")
 - name: string (e.g., "Shadow Lurker", "Arcane Golem")
-- theme: string, one of [${themes.map((t) => "'$t'").join(', ')}, null] (null for General. Ensure themed enemies match their intended theme.)
-- minPlayerLevel: number, should be $levelForContent
-- health: number (balanced for level $levelForContent, range: ${50 + levelForContent * 12} to ${80 + levelForContent * 18})
-- attack: number (balanced for level $levelForContent, range: ${8 + (levelForContent * 1.8).floor()} to ${12 + (levelForContent * 2.2).floor()})
-- defense: number (balanced for level $levelForContent, range: ${3 + (levelForContent * 0.6).floor()} to ${5 + (levelForContent * 1.1).floor()})
+- theme: string or null (one of [${themes.map((t) => "'$t'").join(', ')}, null])
+- locationKey: string (MUST match one of the 'id's from "newGameLocations" generated in this response, or an existing one if appropriate for theme)
+- minPlayerLevel: number (should be $levelForContent or slightly higher, e.g., up to ${levelForContent + 2})
+- health: number (range: ${50 + levelForContent * 12} to ${80 + levelForContent * 18})
+- attack: number (range: ${8 + (levelForContent * 1.8).floor()} to ${12 + (levelForContent * 2.2).floor()})
+- defense: number (range: ${3 + (levelForContent * 0.6).floor()} to ${5 + (levelForContent * 1.1).floor()})
 - coinReward: number (range: ${20 + levelForContent * 5} to ${50 + levelForContent * 10})
 - xpReward: number (range: ${30 + levelForContent * 8} to ${70 + levelForContent * 15})
-- description: string (a short, flavorful description, max 100 characters)
+- description: string (max 100 chars)
 
-"newArtifacts" should be an array of artifact objects. Generate artifacts as specified below:
+"newArtifacts" should be an array of artifact objects.
 $artifactInstructions
 Each artifact object must have:
-- id: string, unique (MUST NOT be one of the existing IDs provided above), format 'gen_art_lvl${levelForContent}_<theme_short>_<type_short>_<hash>' (e.g., gen_art_lvl${levelForContent}_tech_wpn_b3c8)
-- name: string (e.g., "Tech Blade", "Knowledge Potion"). The name should subtly hint at its theme and type.
-- type: string, one of ['weapon', 'armor', 'talisman', 'powerup'] as specified.
-- theme: string, MUST be the theme it was generated for (e.g., "tech", "knowledge").
-- description: string (max 100 characters, reflecting its theme and function)
-- cost: number (for purchasing in a shop, range: ${50 + levelForContent * 10} to ${300 + levelForContent * 25})
-- icon: string (a single, relevant emoji that fits the theme and type)
-- For 'weapon', 'armor', 'talisman' types:
+- id: string, unique (e.g., "gen_art_lvl${levelForContent}_tech_wpn_b3c8")
+- name: string
+- type: string ['weapon', 'armor', 'talisman', 'powerup']
+- theme: string (MUST be the theme it was generated for)
+- description: string (max 100 chars)
+- cost: number (range: ${50 + levelForContent * 10} to ${300 + levelForContent * 25})
+- icon: string (a single, relevant emoji)
+- For 'weapon', 'armor', 'talisman':
     - baseAtt: number (0 if not applicable)
     - baseRunic: number (0 if not applicable)
     - baseDef: number (0 if not applicable)
     - baseHealth: number (0 if not applicable)
-    - baseLuck: number (0 if not applicable, integer representing percentage, e.g. 5 for 5%)
-    - baseCooldown: number (0 if not applicable, integer representing percentage, e.g. 10 for 10%)
-    - bonusXPMod: number (0 if not applicable, otherwise a decimal like 0.05 for 5%)
-    - upgradeBonus: object, detailing per-level stat increases (e.g., {"att": 2, "luck": 1} or {"health": 10}). Include at least one stat relevant to the item type. Values should be modest (1-3 for attack/defense, 5-15 for health, 1-2 for luck/cooldown percentages, 0.01-0.03 for XPMod).
-    - maxLevel: number (typically 3, 5 or 7)
-- For 'powerup' type:
-    - effectType: string, one of ['direct_damage', 'heal_player']
-    - effectValue: number (e.g., for 'direct_damage', a value like ${20 + levelForContent * 5}; for 'heal_player', a value like ${30 + levelForContent * 8})
-    - uses: number (typically 1 for consumables)
-    - (baseAtt, baseRunic, etc., upgradeBonus, maxLevel are NOT applicable for powerups and should be omitted or set to 0/null)
+    - baseLuck: number (0-10, integer percentage)
+    - baseCooldown: number (0-15, integer percentage)
+    - bonusXPMod: number (0.0 to 0.15, decimal for percentage)
+    - upgradeBonus: object (e.g., {"att": 2, "luck": 1}). Modest values.
+    - maxLevel: number (3, 5, or 7)
+- For 'powerup':
+    - effectType: string ['direct_damage', 'heal_player']
+    - effectValue: number
+    - uses: number (typically 1)
+    (omit baseStats, upgradeBonus, maxLevel for powerups or set to 0/null)
 
-Ensure all string IDs are unique and not present in the provided exclusion lists. Balance the stats appropriately for the given player level.
-The "newArtifacts" array should be a flat list containing all generated artifacts.
-Return only the JSON object, without any markdown formatting or explanatory text.
+"newGameLocations" should be an array of $numLocationsToGenerate game location objects.
+Each location object must have:
+- id: string, unique (e.g., "loc_dark_forest", "loc_crystal_caves_${levelForContent}")
+- name: string (e.g., "Whispering Woods", "Sunken Temple of Eldoria")
+- description: string (short, evocative description, max 150 chars)
+- minPlayerLevelToUnlock: number (Based on current level. First one could be $levelForContent, next one ${levelForContent + 3}, etc. Make a progression.)
+- iconEmoji: string (a single emoji representing the location, e.g., "🌲", "🏛️", "💎")
+- associatedTheme: string or null (e.g., "knowledge", "tech", or null for general, matching one of [${themes.map((t) => "'$t'").join(', ')}, null])
+- bossEnemyIdToUnlockNextLocation: string or null (ID of an enemy generated in "newEnemies" that, when defeated, could unlock another location. Can be null.)
+
+Ensure all IDs are unique. Balance stats. Return ONLY the JSON object.
 """;
     try {
       final Map<String, dynamic> rawData = await _makeAICall(
@@ -161,11 +214,18 @@ Return only the JSON object, without any markdown formatting or explanatory text
           ?.map((e) => e as Map<String, dynamic>).toList() ?? [];
       final List<Map<String, dynamic>> newArtifacts = (rawData['newArtifacts'] as List?)
           ?.map((a) => a as Map<String, dynamic>).toList() ?? [];
+      final List<Map<String, dynamic>> newGameLocations = (rawData['newGameLocations'] as List?)
+          ?.map((loc) => loc as Map<String, dynamic>).toList() ?? [];
+      
+      onLog("AI content generation successful. Parsed ${newEnemies.length} enemies, ${newArtifacts.length} artifacts, ${newGameLocations.length} locations.");
 
-      return {'newEnemies': newEnemies, 'newArtifacts': newArtifacts};
+      return {'newEnemies': newEnemies, 'newArtifacts': newArtifacts, 'newGameLocations': newGameLocations};
 
     } catch (e) {
-      onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateAIContent: ${e.toString()}</span>");
+      onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateGameContent: ${e.toString()}</span>");
+      if (kDebugMode) {
+        print("[AIService] generateGameContent caught error: $e");
+      }
       rethrow;
     }
   }
@@ -187,54 +247,49 @@ Return only the JSON object, without any markdown formatting or explanatory text
     switch (generationMode) {
         case "book_chapter":
             modeSpecificInstructions = """
-The user is providing details about a book chapter they are reading.
-Input: "$userInput"
-Break this down into approximately $numSubquests actionable sub-quests. Each sub-quest should represent a significant part of reading/understanding the chapter.
+The user is providing details about a book chapter. Input: "$userInput"
+Break this down into approximately $numSubquests actionable sub-quests.
 For each sub-quest, suggest 1-3 smaller, concrete steps (sub-subtasks).
-If a step involves reading a number of pages, make it a "countable" sub-subtask with the number of pages as "targetCount".
-Example: "Read pages 10-25" -> name: "Read pages", isCountable: true, targetCount: 16.
-Sub-quests themselves can also be countable if appropriate (e.g. "Complete 3 exercises").
+If a step involves reading pages, make it "countable" with "targetCount". E.g., "Read pages 10-25" -> name: "Read pages 10-25", isCountable: true, targetCount: 16.
 """;
             break;
         case "text_list":
             modeSpecificInstructions = """
-The user has provided a hierarchical text list. Top-level items are sub-quests. Indented items are small steps (sub-subtasks).
-Input:
+The user provided a hierarchical text list. Top-level items are sub-quests. Indented items are sub-subtasks. Input:
 $userInput
-Interpret this list. Convert each top-level item into a sub-quest and its indented items into sub-subtasks.
-If an item mentions a quantity (e.g., "3 sets", "10 pages", "2 pomodoros"), make it "countable" and set "targetCount".
+Convert top-level items to sub-quests, indented items to sub-subtasks.
+If an item mentions quantity (e.g., "3 sets", "10 pages"), make it "countable" and set "targetCount".
 """;
             break;
         case "general_plan":
         default:
             modeSpecificInstructions = """
-The user has provided a general plan or goal.
-Input: "$userInput"
-Break this down into approximately $numSubquests logical sub-quests to achieve the plan.
+The user provided a general plan. Input: "$userInput"
+Break this into approximately $numSubquests logical sub-quests.
 For each sub-quest, suggest 1-3 smaller, concrete steps (sub-subtasks).
-Make items "countable" with a "targetCount" if they clearly imply a quantity.
+Make items "countable" with "targetCount" if they imply quantity.
 """;
             break;
     }
 
     final String prompt = """
-You are an assistant for a gamified task management app. The user wants to break down a larger goal into sub-quests and smaller steps.
-The main quest is: "$mainTaskName" (Description: "$mainTaskDescription", Theme: "${mainTaskTheme ?? 'General'}").
-Current AI generation mode: "$generationMode".
+You are an assistant for a gamified task management app.
+Main quest: "$mainTaskName" (Description: "$mainTaskDescription", Theme: "${mainTaskTheme ?? 'General'}").
+AI generation mode: "$generationMode".
 
 $modeSpecificInstructions
 
-Provide the output as a single JSON object with one key: "newSubquests".
-"newSubquests" should be an array of sub-quest objects (approx $numSubquests, but adapt to input). Each sub-quest object MUST have:
-- name: string (concise name for the sub-quest)
-- isCountable: boolean (true if the sub-quest itself is a countable item, e.g., "Write 3 articles", "Complete 5 exercises")
-- targetCount: number (if isCountable is true, otherwise 0 or 1; ensure it's reasonable if derived from input like "3 articles" -> targetCount: 3)
+Provide the output as a single, valid JSON object with one key: "newSubquests".
+"newSubquests" should be an array of sub-quest objects (approx $numSubquests). Each sub-quest object MUST have:
+- name: string (concise name)
+- isCountable: boolean
+- targetCount: number (if isCountable, otherwise 0 or 1)
 - subSubTasksData: array of sub-subtask objects. Each sub-subtask object must have:
-  - name: string (concise name for the small step)
-  - isCountable: boolean (true if the step implies a quantity, e.g. "Read pages 1-10", "Do 15 pushups")
-  - targetCount: number (if isCountable is true, derive from input like "10 pages" -> 10, "15 pushups" -> 15; otherwise 0 or 1)
+  - name: string (concise name)
+  - isCountable: boolean
+  - targetCount: number (if isCountable, otherwise 0 or 1)
 
-Example of desired JSON structure:
+Example JSON:
 {
   "newSubquests": [
     {
@@ -243,21 +298,14 @@ Example of desired JSON structure:
       "targetCount": 0,
       "subSubTasksData": [
         { "name": "Read pages 1-10", "isCountable": true, "targetCount": 10 },
-        { "name": "Summarize key points", "isCountable": false, "targetCount": 1 },
-        { "name": "Do 3 practice problems", "isCountable": true, "targetCount": 3 }
+        { "name": "Summarize key points", "isCountable": false, "targetCount": 1 }
       ]
-    },
-    {
-      "name": "Outline Project Proposal",
-      "isCountable": false,
-      "targetCount": 0,
-      "subSubTasksData": []
     }
   ]
 }
-Focus on creating actionable, distinct sub-quests and steps. Ensure names are clear and concise.
-If the user input is very short or vague for the number of subquests requested, generate fewer, more meaningful ones rather than padding with trivial items.
-Return only the JSON object, without any markdown formatting or explanatory text.
+Create actionable, distinct sub-quests and steps. Ensure names are clear.
+If user input is vague for $numSubquests, generate fewer, meaningful ones.
+Return ONLY the JSON object, no markdown or comments. NO TRAILING COMMAS.
 """;
     try {
       final Map<String, dynamic> rawData = await _makeAICall(
@@ -284,12 +332,19 @@ Return only the JSON object, without any markdown formatting or explanatory text
 
       if (!isValid) {
         onLog("<span style=\"color:var(--fh-accent-orange);\">AI subquest response malformed.</span>");
+        if (kDebugMode) {
+          print("[AIService] Malformed subquest data: $newSubquests");
+        }
         throw Exception("AI subquest response malformed.");
       }
+      onLog("AI subquest generation successful. Parsed ${newSubquests.length} subquests.");
       return newSubquests;
 
     } catch (e) {
       onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateAISubquests: ${e.toString()}</span>");
+      if (kDebugMode) {
+        print("[AIService] generateAISubquests caught error: $e");
+      }
       rethrow;
     }
   }

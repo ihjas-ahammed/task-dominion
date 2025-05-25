@@ -42,7 +42,7 @@ class LeftPanelWidget extends StatelessWidget {
               children: [
                 Icon(MdiIcons.swordCross, color: AppTheme.fhAccentTeal, size: isMobile ? 24 : 28),
                 const SizedBox(width: 8),
-                Text('Quests', style: isMobile ? theme.textTheme.titleLarge : theme.textTheme.headlineSmall?.copyWith(fontFamily: AppTheme.fontMain)),
+                Text('Quests', style: isMobile ? theme.textTheme.titleLarge : theme.textTheme.headlineSmall?.copyWith(fontFamily: AppTheme.fontDisplay)),
               ],
             ),
             const Divider(height: 16),

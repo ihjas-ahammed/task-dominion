@@ -23,12 +23,12 @@ class ArtifactCardWidget extends StatelessWidget {
   Map<String, IconData> get _statIcons => {
     'att': MdiIcons.sword,
     'def': MdiIcons.shieldOutline,
-    'health': MdiIcons.heartFlash, // Changed Icon
-    'runic': MdiIcons.fireAlert, // Changed Icon
-    'luck': MdiIcons.cloverOutline, // Changed Icon
+    'health': MdiIcons.heartFlash,
+    'runic': MdiIcons.fireAlert,
+    'luck': MdiIcons.cloverOutline,
     'cooldown': MdiIcons.clockFast,
     'bonusXPMod': MdiIcons.schoolOutline,
-    'direct_damage': MdiIcons.laserPointer, // Changed Icon
+    'direct_damage': MdiIcons.laserPointer,
     'heal_player': MdiIcons.bottleTonicPlusOutline,
     'uses': MdiIcons.repeatVariant,
   };
@@ -36,22 +36,24 @@ class ArtifactCardWidget extends StatelessWidget {
   Widget _buildStatsList(BuildContext context, ArtifactTemplate effectiveTemplate, OwnedArtifact? currentOwned) {
     final theme = Theme.of(context);
     final List<Widget> statWidgets = [];
+    final Color dynamicAccent = Provider.of<GameProvider>(context, listen:false).getSelectedTask()?.taskColor ?? Theme.of(context).colorScheme.secondary;
 
-    // Helper to create stat item with new styling
-    Widget statChip(IconData icon, String value, Color color) {
+
+    Widget statChip(IconData icon, String value, Color color, {bool isBright = false}) {
+       final Color textColor = isBright ? AppTheme.fhBgDark : AppTheme.fhTextPrimary;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         decoration: BoxDecoration(
-          color: AppTheme.fhBgDark.withOpacity(0.5),
+          color: isBright ? color.withOpacity(0.85) : AppTheme.fhBgDark.withOpacity(0.5),
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: color.withOpacity(0.5), width: 0.5)
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: color),
+            Icon(icon, size: 12, color: isBright ? AppTheme.fhBgDark.withOpacity(0.8) : color),
             const SizedBox(width: 4),
-            Text(value, style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhTextPrimary, fontSize: 10, fontWeight: FontWeight.w600)),
+            Text(value, style: theme.textTheme.labelSmall?.copyWith(color: textColor, fontSize: 10, fontWeight: FontWeight.w600)),
           ],
         ),
       );
@@ -60,22 +62,23 @@ class ArtifactCardWidget extends StatelessWidget {
 
     if (effectiveTemplate.type == 'powerup') {
       if (effectiveTemplate.effectType == 'direct_damage' && effectiveTemplate.effectValue != null && effectiveTemplate.effectValue! > 0) {
-        statWidgets.add(statChip(_statIcons['direct_damage']!, '${effectiveTemplate.effectValue}', AppTheme.fhAccentRed));
+        statWidgets.add(statChip(_statIcons['direct_damage']!, '${effectiveTemplate.effectValue}', AppTheme.fhAccentRed, isBright: true));
       }
       if (effectiveTemplate.effectType == 'heal_player' && effectiveTemplate.effectValue != null && effectiveTemplate.effectValue! > 0) {
-        statWidgets.add(statChip(_statIcons['heal_player']!, '+${effectiveTemplate.effectValue} HP', AppTheme.fhAccentGreen));
+        statWidgets.add(statChip(_statIcons['heal_player']!, '+${effectiveTemplate.effectValue} HP', AppTheme.fhAccentGreen, isBright: true));
       }
       final usesValue = currentOwned?.uses ?? template.uses;
       if (usesValue != null) {
         statWidgets.add(statChip(_statIcons['uses']!, '$usesValue Uses', AppTheme.fhTextSecondary));
       }
     } else {
+      // Use dynamicAccent for primary stats if applicable, or specific colors for others
       if (effectiveTemplate.baseAtt != null && effectiveTemplate.baseAtt! > 0) statWidgets.add(statChip(_statIcons['att']!, '+${effectiveTemplate.baseAtt}', AppTheme.fhAccentOrange));
-      if (effectiveTemplate.baseDef != null && effectiveTemplate.baseDef! > 0) statWidgets.add(statChip(_statIcons['def']!, '+${effectiveTemplate.baseDef}', AppTheme.fhAccentBrightBlue));
+      if (effectiveTemplate.baseDef != null && effectiveTemplate.baseDef! > 0) statWidgets.add(statChip(_statIcons['def']!, '+${effectiveTemplate.baseDef}', dynamicAccent));
       if (effectiveTemplate.baseHealth != null && effectiveTemplate.baseHealth! > 0) statWidgets.add(statChip(_statIcons['health']!, '+${effectiveTemplate.baseHealth}', AppTheme.fhAccentGreen));
       if (effectiveTemplate.baseRunic != null && effectiveTemplate.baseRunic! > 0) statWidgets.add(statChip(_statIcons['runic']!, '+${effectiveTemplate.baseRunic}', AppTheme.fhAccentPurple));
-      if (effectiveTemplate.baseLuck != null && effectiveTemplate.baseLuck! > 0) statWidgets.add(statChip(_statIcons['luck']!, '+${effectiveTemplate.baseLuck}%', AppTheme.fhAccentLightCyan));
-      if (effectiveTemplate.baseCooldown != null && effectiveTemplate.baseCooldown! > 0) statWidgets.add(statChip(_statIcons['cooldown']!, '-${effectiveTemplate.baseCooldown}% CD', AppTheme.fhTextSecondary)); // Assuming CD reduces
+      if (effectiveTemplate.baseLuck != null && effectiveTemplate.baseLuck! > 0) statWidgets.add(statChip(_statIcons['luck']!, '+${effectiveTemplate.baseLuck}%', dynamicAccent));
+      if (effectiveTemplate.baseCooldown != null && effectiveTemplate.baseCooldown! > 0) statWidgets.add(statChip(_statIcons['cooldown']!, '-${effectiveTemplate.baseCooldown}% CD', AppTheme.fhTextSecondary));
       if (effectiveTemplate.bonusXPMod != null && effectiveTemplate.bonusXPMod! > 0) statWidgets.add(statChip(_statIcons['bonusXPMod']!, '+${(effectiveTemplate.bonusXPMod! * 100).toStringAsFixed(0)}% XP', AppTheme.fhAccentGreen));
     }
 
@@ -83,18 +86,17 @@ class ArtifactCardWidget extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
         child: Text(
-          template.type == 'powerup' ? "Single-use tactical item." : "No direct combat bonuses.", // Updated text
+          template.type == 'powerup' ? "Single-use tactical item." : "No direct combat bonuses.",
           style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fhTextSecondary.withOpacity(0.7), fontSize: 10),
         ),
       );
     }
 
-    // Use Wrap for stats instead of GridView for more flexible layout
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 8),
       child: Wrap(
-        spacing: 6.0, // Horizontal spacing
-        runSpacing: 4.0, // Vertical spacing
+        spacing: 6.0, 
+        runSpacing: 4.0, 
         children: statWidgets,
       ),
     );
@@ -108,27 +110,40 @@ class ArtifactCardWidget extends StatelessWidget {
     final ArtifactTemplate displayTemplate = ownedArtifact != null
         ? gameProvider.getArtifactEffectiveStats(ownedArtifact!)
         : template;
+    
+    final Color dynamicAccent = gameProvider.getSelectedTask()?.taskColor ?? theme.colorScheme.secondary;
+    final Color cardTitleColor = dynamicAccent;
+    final Color cardTextColorOnAccent = ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fhTextPrimary : AppTheme.fhBgDark;
 
-    Color borderColor = AppTheme.fhBorderColor;
+
+    Color borderColor = AppTheme.fhBorderColor.withOpacity(0.5);
     if (ownedArtifact != null) {
-      borderColor = AppTheme.fhAccentTeal.withOpacity(0.7); // Highlight owned items
+      borderColor = dynamicAccent.withOpacity(0.7); 
     } else if (cost != null && gameProvider.coins >= cost!) {
-      borderColor = AppTheme.fhAccentLightCyan.withOpacity(0.5); // Highlight affordable items in shop
+      borderColor = dynamicAccent.withOpacity(0.5); 
+    }
+
+    Widget itemIcon;
+    if (displayTemplate.icon.length == 1 || displayTemplate.icon.length == 2) { 
+        itemIcon = Text(displayTemplate.icon, style: const TextStyle(fontSize: 32)); // Larger icon
+    } else { 
+        final iconData = MdiIcons.fromString(displayTemplate.icon.replaceAll('mdi-', '')) ?? MdiIcons.treasureChest; 
+        itemIcon = Icon(iconData, size: 32, color: AppTheme.fhTextSecondary);
     }
 
 
     return Card(
-      elevation: 0, // Flatter card
+      elevation: 0, 
       color: AppTheme.fhBgLight.withOpacity(0.8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6.0),
-        side: BorderSide(color: borderColor, width: 1), // Themed border
+        side: BorderSide(color: borderColor, width: 1), 
       ),
       child: Padding(
         padding: const EdgeInsets.all(10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Ensure action button is at bottom
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,13 +151,15 @@ class ArtifactCardWidget extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container( // Icon background
+                    Container( 
+                      width: 50, // Fixed size for icon container
+                      height: 50,
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: AppTheme.fhBgDark.withOpacity(0.6),
                         borderRadius: BorderRadius.circular(4)
                       ),
-                      child: Text(displayTemplate.icon, style: const TextStyle(fontSize: 22)),
+                      child: Center(child: itemIcon),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -151,19 +168,31 @@ class ArtifactCardWidget extends StatelessWidget {
                         children: [
                           Text(
                             displayTemplate.name,
-                            style: theme.textTheme.titleMedium?.copyWith(fontFamily:AppTheme.fontMain, color: AppTheme.fhAccentLightCyan, fontWeight: FontWeight.bold, fontSize: 14), // Adjusted style
-                            maxLines: 1,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                                fontFamily: AppTheme.fontDisplay, 
+                                color: cardTitleColor, // Dynamic color
+                                fontWeight: FontWeight.bold, 
+                                fontSize: 15), // Slightly larger title
+                            maxLines: 2, // Allow two lines for name
                             overflow: TextOverflow.ellipsis,
                           ),
                            if (ownedArtifact != null && displayTemplate.type != 'powerup' && displayTemplate.maxLevel != null)
-                            Text(
-                              'LEVEL ${ownedArtifact!.currentLevel} / ${displayTemplate.maxLevel}', // Clearer level display
-                              style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhAccentPurple, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                            Container(
+                              margin: const EdgeInsets.only(top:2),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: cardTitleColor.withOpacity(0.85),
+                                borderRadius: BorderRadius.circular(3)
+                              ),
+                              child: Text(
+                                'LEVEL ${ownedArtifact!.currentLevel} / ${displayTemplate.maxLevel}', 
+                                style: theme.textTheme.labelSmall?.copyWith(color: cardTextColorOnAccent, fontWeight: FontWeight.bold, letterSpacing: 0.5, fontSize: 9),
+                              ),
                             )
-                           else // Show type for templates or powerups
+                           else 
                              Text(
                               displayTemplate.type.toUpperCase(),
-                              style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhTextSecondary, letterSpacing: 0.5, fontWeight: FontWeight.w500),
+                              style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhTextSecondary.withOpacity(0.8), letterSpacing: 0.5, fontWeight: FontWeight.w500, fontSize: 10),
                             ),
                         ],
                       ),
@@ -177,7 +206,7 @@ class ArtifactCardWidget extends StatelessWidget {
                       children: [
                         Icon(MdiIcons.paletteSwatchOutline, size: 12, color: AppTheme.fhTextSecondary.withOpacity(0.7)),
                         const SizedBox(width: 4),
-                        Text("Theme: ${displayTemplate.theme!}", style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhTextSecondary.withOpacity(0.7), fontSize: 10)),
+                        Text("System Alignment: ${displayTemplate.theme!}", style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhTextSecondary.withOpacity(0.7), fontSize: 10, fontStyle: FontStyle.italic)),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -185,23 +214,24 @@ class ArtifactCardWidget extends StatelessWidget {
                 Text(
                   displayTemplate.description,
                   style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhTextSecondary.withOpacity(0.9), fontStyle: FontStyle.italic, fontSize: 11, height: 1.3),
-                  maxLines: 2,
+                  maxLines: 3, // Allow more lines for description
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4), // Reduced space before stats
+                const SizedBox(height: 4), 
                 _buildStatsList(context, displayTemplate, ownedArtifact),
               ],
             ),
-            if (actionSection != null) // Action section below stats, above cost if it were shown here
+            if (actionSection != null) ...[
+              const Spacer(), // Push action to bottom if there's space
               Padding(
-                padding: const EdgeInsets.only(top: 0.0), // Space between stats and actions
+                padding: const EdgeInsets.only(top: 4.0), 
                 child: Divider(color: AppTheme.fhBorderColor.withOpacity(0.3), height: 1, thickness: 0.5),
               ),
-            if (actionSection != null)
               Padding(
-                padding: const EdgeInsets.only(top: 2.0),
-                child: actionSection!, // Action section already contains cost if needed
+                padding: const EdgeInsets.only(top: 6.0), // Add padding above action
+                child: actionSection!, 
               ),
+            ]
           ],
         ),
       ),

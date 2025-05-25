@@ -27,7 +27,7 @@ class RightPanelWidget extends StatelessWidget {
               Expanded(
                 child: Text(
                   name.toUpperCase(),
-                  style: theme.textTheme.titleSmall?.copyWith(fontFamily: AppTheme.fontMain, color: AppTheme.fhTextPrimary, fontSize: 13, letterSpacing: 0.5),
+                  style: theme.textTheme.titleSmall?.copyWith(fontFamily: AppTheme.fontDisplay, color: AppTheme.fhTextPrimary, fontSize: 13, letterSpacing: 0.5),
                 ),
               ),
               if (buffValue != null)
@@ -129,7 +129,7 @@ class RightPanelWidget extends StatelessWidget {
               children: <Widget>[
                 Text(
                   'VIT',
-                  style: theme.textTheme.titleMedium?.copyWith(fontFamily: AppTheme.fontMain, fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleMedium?.copyWith(fontFamily: AppTheme.fontDisplay, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -212,7 +212,7 @@ class RightPanelWidget extends StatelessWidget {
                                     onPressed: () => gameProvider.equipArtifact(ownedArt.uniqueId),
                                     style: OutlinedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      textStyle: const TextStyle(fontSize: 10, fontFamily: AppTheme.fontMain),
+                                      textStyle: const TextStyle(fontSize: 10, fontFamily: AppTheme.fontBody),
                                       side: BorderSide(color: AppTheme.fhAccentOrange.withAlpha((0.5 * 255).round()), width: 0.5), // Fixed withOpacity
                                       foregroundColor: AppTheme.fhAccentTeal,
                                       minimumSize: const Size(0, 24), 
@@ -283,7 +283,7 @@ class RightPanelWidget extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             title,
-            style: theme.textTheme.titleSmall?.copyWith(fontFamily: AppTheme.fontMain, color: AppTheme.fhTextSecondary, fontSize: 14, letterSpacing: 0.5),
+            style: theme.textTheme.titleSmall?.copyWith(fontFamily: AppTheme.fontDisplay, color: AppTheme.fhTextSecondary, fontSize: 14, letterSpacing: 0.5),
           ),
         ],
       ),
@@ -310,7 +310,7 @@ class RightPanelWidget extends StatelessWidget {
             child: Text(
               level != null ? '$name (Lvl $level)' : name,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: name == 'None' ? AppTheme.fhTextSecondary.withAlpha((0.7 * 255).round()) : AppTheme.fhAccentLightCyan, // Fixed withOpacity
+                color: name == 'None' ? AppTheme.fhTextSecondary.withAlpha((0.7 * 255).round()) : AppTheme.fhAccentTeal, // Fixed withOpacity & fhAccentLightCyan
                 fontStyle: name == 'None' ? FontStyle.italic : FontStyle.normal,
                 fontWeight: name == 'None' ? FontWeight.normal : FontWeight.bold,
               ),
@@ -322,7 +322,7 @@ class RightPanelWidget extends StatelessWidget {
               onPressed: onUnequip,
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                textStyle: const TextStyle(fontSize: 10, fontFamily: AppTheme.fontMain),
+                textStyle: const TextStyle(fontSize: 10, fontFamily: AppTheme.fontBody),
                 foregroundColor: AppTheme.fhAccentRed,
                 minimumSize: const Size(0, 24),
                 side: BorderSide(color: AppTheme.fhAccentRed.withAlpha((0.5 * 255).round()), width: 0.5), // Fixed withOpacity

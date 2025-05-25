@@ -4,8 +4,8 @@ import 'package:myapp_flutter/src/providers/game_provider.dart';
 import 'package:myapp_flutter/src/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuthException
-import 'package:intl/intl.dart'; // For date formatting
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:intl/intl.dart'; 
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -17,15 +17,30 @@ class SettingsView extends StatefulWidget {
 class _SettingsViewState extends State<SettingsView> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _newUsernameController = TextEditingController(); // For username change
   bool _passwordChangeLoading = false;
   String _passwordChangeError = '';
   String _passwordChangeSuccess = '';
+  bool _usernameChangeLoading = false; // For username change
+  String _usernameChangeError = ''; // For username change
+  String _usernameChangeSuccess = ''; // For username change
   bool _logoutLoading = false;
+
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize username controller if user is available
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
+    _newUsernameController.text = gameProvider.currentUser?.displayName ?? '';
+  }
+
 
   @override
   void dispose() {
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
+    _newUsernameController.dispose();
     super.dispose();
   }
 
@@ -63,15 +78,46 @@ class _SettingsViewState extends State<SettingsView> {
     }
   }
 
+  Future<void> _handleChangeUsername(GameProvider gameProvider) async {
+    if (_newUsernameController.text.trim().isEmpty) {
+      setState(() => _usernameChangeError = "Username cannot be empty.");
+      return;
+    }
+    if (_newUsernameController.text.trim().length < 3) {
+      setState(() => _usernameChangeError = "Username must be at least 3 characters.");
+      return;
+    }
+    setState(() {
+      _usernameChangeLoading = true;
+      _usernameChangeError = '';
+      _usernameChangeSuccess = '';
+    });
+    try {
+      await gameProvider.updateUserDisplayName(_newUsernameController.text.trim());
+      setState(() {
+        _usernameChangeSuccess = "Username updated successfully!";
+      });
+    } catch (e) {
+      if (e is FirebaseAuthException) {
+        setState(() => _usernameChangeError = e.message ?? "Failed to update username.");
+      } else {
+        setState(() => _usernameChangeError = "An unexpected error occurred while updating username.");
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _usernameChangeLoading = false);
+      }
+    }
+  }
+
+
   Future<void> _handleLogout(GameProvider gameProvider, BuildContext pageContext) async {
     setState(() {
       _logoutLoading = true;
     });
     try {
         await gameProvider.logoutUser();
-        // Navigation handled by listener in app.dart
     } catch (e) {
-        // ignore: use_build_context_synchronously
         if (!mounted) return;
         ScaffoldMessenger.of(pageContext).showSnackBar(
             SnackBar(content: Text('Logout failed: ${e.toString()}'), backgroundColor: AppTheme.fhAccentRed)
@@ -119,7 +165,7 @@ class _SettingsViewState extends State<SettingsView> {
             title: 'Cloud Synchronization',
             children: [
                 ElevatedButton.icon(
-                    icon: gameProvider.isManuallySaving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.fhBgDark)) : Icon(MdiIcons.cloudUploadOutline, size: 18),
+                    icon: gameProvider.isManuallySaving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.fhTextPrimary)) : Icon(MdiIcons.cloudUploadOutline, size: 18),
                     label: const Text('SAVE TO CLOUD NOW'),
                     onPressed: gameProvider.isManuallySaving || gameProvider.isManuallyLoading ? null : () async {
                         try {
@@ -129,23 +175,22 @@ class _SettingsViewState extends State<SettingsView> {
                             if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Cloud save failed: ${e.toString()}'), backgroundColor: AppTheme.fhAccentRed));
                         }
                     },
-                     style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 44)),
+                     style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 44), backgroundColor: AppTheme.fhAccentTeal, foregroundColor: AppTheme.fhBgDark),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
-                    icon: gameProvider.isManuallyLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.fhBgDark)) : Icon(MdiIcons.cloudDownloadOutline, size: 18),
+                    icon: gameProvider.isManuallyLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.fhTextPrimary)) : Icon(MdiIcons.cloudDownloadOutline, size: 18),
                     label: const Text('LOAD FROM CLOUD NOW'),
                     onPressed: gameProvider.isManuallySaving || gameProvider.isManuallyLoading ? null : () async {
                         final confirm = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
-                                backgroundColor: AppTheme.fhBgDark,
-                                title: Row(children: [Icon(MdiIcons.cloudQuestionOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10),const Text('Confirm Load', style: TextStyle(color: AppTheme.fhAccentOrange))]),
+                                title: Row(children: [Icon(MdiIcons.cloudQuestionOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10),const Text('Confirm Load')]),
                                 content: const Text('This will overwrite any local unsaved changes with data from the cloud. Are you sure?'),
                                 actionsAlignment: MainAxisAlignment.spaceBetween,
                                 actions: [
-                                    TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL', style: TextStyle(color: AppTheme.fhTextSecondary))),
-                                    ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange), child: const Text('CONFIRM LOAD', style: TextStyle(color: AppTheme.fhBgDark))),
+                                    TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL')),
+                                    ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange), child: const Text('CONFIRM LOAD')),
                                 ],
                             ),
                         );
@@ -158,7 +203,7 @@ class _SettingsViewState extends State<SettingsView> {
                             }
                         }
                     },
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 44)),
+                    style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 44), backgroundColor: AppTheme.fhAccentTeal, foregroundColor: AppTheme.fhBgDark),
                 ),
                 const SizedBox(height: 12),
                 Center(
@@ -174,6 +219,42 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
             ]
           ),
+          
+          _buildSettingsSection(
+            theme,
+            icon: MdiIcons.accountEditOutline,
+            title: 'User Profile',
+            children: [
+              TextFormField(
+                controller: _newUsernameController,
+                decoration: InputDecoration(labelText: 'Display Name', prefixIcon: Icon(MdiIcons.accountBadgeOutline, size:20)),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return 'Display name cannot be empty.';
+                  if (value.trim().length < 3) return 'Must be at least 3 characters.';
+                  return null;
+                },
+              ),
+              if (_usernameChangeError.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(_usernameChangeError, style: const TextStyle(color: AppTheme.fhAccentRed, fontSize: 12)),
+                ),
+              if (_usernameChangeSuccess.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(_usernameChangeSuccess, style: const TextStyle(color: AppTheme.fhAccentGreen, fontSize: 12)),
+                ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: _usernameChangeLoading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.fhTextPrimary))
+                    : Icon(MdiIcons.contentSaveOutline, size: 18),
+                label: const Text('UPDATE DISPLAY NAME'),
+                onPressed: _usernameChangeLoading ? null : () => _handleChangeUsername(gameProvider),
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 44)),
+              ),
+            ]
+          ),
 
 
           _buildSettingsSection(
@@ -182,8 +263,8 @@ class _SettingsViewState extends State<SettingsView> {
             title: 'Cognitive Matrix (AI)',
             children: [
               SwitchListTile.adaptive(
-                title: const Text('Dynamic Content Adaptation (Level Up)', style: TextStyle(fontSize: 14, color: AppTheme.fhTextPrimary, fontFamily: AppTheme.fontBody)),
-                subtitle: const Text('Automatically generate new challenges and items upon leveling up.', style: TextStyle(fontSize: 11, color: AppTheme.fhTextSecondary, fontFamily: AppTheme.fontBody)),
+                title: const Text('Dynamic Content Adaptation (Level Up)'),
+                subtitle: const Text('Automatically generate new challenges and items upon leveling up.'),
                 value: gameProvider.settings.autoGenerateContent,
                 onChanged: (value) => gameProvider.setSettings(gameProvider.settings..autoGenerateContent = value),
                 activeColor: AppTheme.fhAccentTeal,
@@ -197,7 +278,7 @@ class _SettingsViewState extends State<SettingsView> {
               const SizedBox(height: 12),
               ElevatedButton.icon(
                 icon: gameProvider.isGeneratingContent
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.fhBgDark))
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.fhTextPrimary))
                     : Icon(MdiIcons.creationOutline, size: 18),
                 label: Text(gameProvider.isGeneratingContent ? 'PROTOCOL ACTIVE...' : 'INITIATE GENERATION'),
                 onPressed: gameProvider.isGeneratingContent ? null : () => gameProvider.generateGameContent(gameProvider.playerLevel, isManual: true),
@@ -208,7 +289,7 @@ class _SettingsViewState extends State<SettingsView> {
                   padding: const EdgeInsets.only(top: 10.0),
                   child: Text(
                     'Cognitive matrix recalculating... please standby.',
-                    style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fhAccentLightCyan.withOpacity(0.8)),
+                    style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fhAccentTeal.withOpacity(0.8)),
                   ),
                 ),
             ],
@@ -224,22 +305,45 @@ class _SettingsViewState extends State<SettingsView> {
                  style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhTextSecondary, height: 1.4),
               ),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: Icon(MdiIcons.flaskEmptyRemoveOutline, size: 18, color: AppTheme.fhBgDark),
-                label: const Text('PURGE POWER-UPS', style: TextStyle(color: AppTheme.fhBgDark)),
+               ElevatedButton.icon(
+                icon: Icon(MdiIcons.archiveRemoveOutline, size: 18, color: AppTheme.fhTextPrimary),
+                label: const Text('CLEAR OWNED ARTIFACTS'),
                 onPressed: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      backgroundColor: AppTheme.fhBgDark,
-                      title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10),const Text('Confirm Purge Schematics', style: TextStyle(color: AppTheme.fhAccentOrange))]),
+                      title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10),const Text('Confirm Clear Inventory')]),
+                      content: const Text('This will remove ALL artifacts from your inventory (equipped items will be unequipped). Templates will remain. This action cannot be undone. Are you sure?'),
+                      actionsAlignment: MainAxisAlignment.spaceBetween,
+                      actions: [
+                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL')),
+                        ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange), child: const Text('CONFIRM CLEAR')),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    gameProvider.clearAllOwnedArtifacts();
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All owned artifacts cleared from inventory.'), backgroundColor: AppTheme.fhAccentGreen));
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhTextPrimary, minimumSize: const Size(double.infinity, 44)),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: Icon(MdiIcons.flaskEmptyRemoveOutline, size: 18, color: AppTheme.fhTextPrimary),
+                label: const Text('PURGE POWER-UPS'),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10),const Text('Confirm Purge Schematics')]),
                       content: const Text('This will remove all power-up templates that you do not currently own. This action cannot be undone. Are you sure?'),
                       actionsAlignment: MainAxisAlignment.spaceBetween,
                       actions: [
-                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL', style: TextStyle(color: AppTheme.fhTextSecondary))),
+                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL')),
                         ElevatedButton(
                           onPressed: () => Navigator.of(ctx).pop(true),
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhBgDark),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhTextPrimary),
                           child: const Text('CONFIRM PURGE')
                         ),
                       ],
@@ -250,25 +354,24 @@ class _SettingsViewState extends State<SettingsView> {
                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Discoverable power-up schematics purged.'), backgroundColor: AppTheme.fhAccentGreen));
                   }
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhBgDark, minimumSize: const Size(double.infinity, 44)),
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhTextPrimary, minimumSize: const Size(double.infinity, 44)),
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
-                icon: Icon(MdiIcons.skullCrossbonesOutline, size: 18, color: AppTheme.fhBgDark),
-                label: const Text('DECOMMISSION ENEMIES', style: TextStyle(color: AppTheme.fhBgDark)),
+                icon: Icon(MdiIcons.skullCrossbonesOutline, size: 18, color: AppTheme.fhTextPrimary),
+                label: const Text('DECOMMISSION ENEMIES'),
                 onPressed: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      backgroundColor: AppTheme.fhBgDark,
-                       title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10),const Text('Confirm', style: TextStyle(color: AppTheme.fhAccentOrange),softWrap: true,)]),
+                       title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10),const Text('Confirm Decommission')]),
                       content: const Text('This removes all enemy templates. The Arena might be empty until new content is generated. This action cannot be undone. Are you sure?'),
                       actionsAlignment: MainAxisAlignment.spaceBetween,
                        actions: [
-                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL', style: TextStyle(color: AppTheme.fhTextSecondary))),
+                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL')),
                         ElevatedButton(
                           onPressed: () => Navigator.of(ctx).pop(true),
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhBgDark),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhTextPrimary),
                           child: const Text('CONFIRM DECOMMISSION')
                         ),
                       ],
@@ -279,7 +382,7 @@ class _SettingsViewState extends State<SettingsView> {
                     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All enemy signatures decommissioned.'), backgroundColor: AppTheme.fhAccentGreen));
                   }
                 },
-                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhBgDark, minimumSize: const Size(double.infinity, 44)),
+                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhTextPrimary, minimumSize: const Size(double.infinity, 44)),
               ),
             ]
           ),
@@ -291,11 +394,11 @@ class _SettingsViewState extends State<SettingsView> {
             title: 'User Interface Config',
             children: [
                SwitchListTile.adaptive(
-                title: const Text('Verbose Data Display', style: TextStyle(fontSize: 14, color: AppTheme.fhTextPrimary, fontFamily: AppTheme.fontBody)),
-                subtitle: const Text('Show detailed descriptions for stats and items throughout the interface.', style: TextStyle(fontSize: 11, color: AppTheme.fhTextSecondary, fontFamily: AppTheme.fontBody)),
+                title: const Text('Verbose Data Display'),
+                subtitle: const Text('Show detailed descriptions for stats and items throughout the interface.'),
                 value: gameProvider.settings.descriptionsVisible,
                 onChanged: (value) => gameProvider.setSettings(gameProvider.settings..descriptionsVisible = value),
-                activeColor: AppTheme.fhAccentLightCyan,
+                activeColor: AppTheme.fhAccentTeal,
                 contentPadding: EdgeInsets.zero,
               ),
             ]
@@ -307,37 +410,35 @@ class _SettingsViewState extends State<SettingsView> {
               icon: MdiIcons.shieldAccountOutline,
               title: 'Access Credentials',
               children: [
-                TextField(
+                TextFormField(
                   controller: _newPasswordController,
                   decoration: InputDecoration(labelText: 'New Passcode Sequence', prefixIcon: Icon(MdiIcons.formTextboxPassword, size: 20)),
                   obscureText: true,
-                   style: const TextStyle(fontFamily: AppTheme.fontBody),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                TextFormField(
                   controller: _confirmPasswordController,
                   decoration: InputDecoration(labelText: 'Confirm Passcode Sequence', prefixIcon: Icon(MdiIcons.formTextboxPassword, size: 20)),
                   obscureText: true,
-                   style: const TextStyle(fontFamily: AppTheme.fontBody),
                 ),
                 if (_passwordChangeError.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 10.0),
-                    child: Text(_passwordChangeError, style: const TextStyle(color: AppTheme.fhAccentRed, fontSize: 12, fontFamily: AppTheme.fontBody)),
+                    child: Text(_passwordChangeError, style: const TextStyle(color: AppTheme.fhAccentRed, fontSize: 12)),
                   ),
                 if (_passwordChangeSuccess.isNotEmpty)
                    Padding(
                     padding: const EdgeInsets.only(top: 10.0),
-                    child: Text(_passwordChangeSuccess, style: const TextStyle(color: AppTheme.fhAccentGreen, fontSize: 12, fontFamily: AppTheme.fontBody)),
+                    child: Text(_passwordChangeSuccess, style: const TextStyle(color: AppTheme.fhAccentGreen, fontSize: 12)),
                   ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   icon: _passwordChangeLoading
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.fhBgDark))
-                      : Icon(MdiIcons.keyChange, size: 18, color: AppTheme.fhBgDark),
-                  label: const Text('UPDATE PASSCODE', style: TextStyle(color: AppTheme.fhBgDark)),
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.fhTextPrimary))
+                      : Icon(MdiIcons.keyChange, size: 18),
+                  label: const Text('UPDATE PASSCODE'),
                   onPressed: _passwordChangeLoading ? null : () => _handleChangePassword(gameProvider),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentLightCyan, minimumSize: const Size(double.infinity, 44)),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentTeal, foregroundColor: AppTheme.fhBgDark, minimumSize: const Size(double.infinity, 44)),
                 ),
                 const SizedBox(height: 20),
                 OutlinedButton.icon(
@@ -363,13 +464,12 @@ class _SettingsViewState extends State<SettingsView> {
                         final confirm = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
-                                backgroundColor: AppTheme.fhBgDark,
-                                title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10), const Text('Confirm Level Reset', style: TextStyle(color: AppTheme.fhAccentOrange))]),
+                                title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentOrange), const SizedBox(width:10), const Text('Confirm Level Reset')]),
                                 content: const Text('This will reset your player level to 1, XP to 0, and clear defeated enemies for the current level. Your tasks, items, and coins will remain. Are you sure?'),
                                 actionsAlignment: MainAxisAlignment.spaceBetween,
                                 actions: [
-                                    TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL', style: TextStyle(color: AppTheme.fhTextSecondary))),
-                                    ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhBgDark), child: const Text('CONFIRM RESET')),
+                                    TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL')),
+                                    ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange), child: const Text('CONFIRM RESET')),
                                 ],
                             ),
                         );
@@ -378,7 +478,7 @@ class _SettingsViewState extends State<SettingsView> {
                             if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Player level and progress reset.'), backgroundColor: AppTheme.fhAccentGreen));
                         }
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhBgDark, minimumSize: const Size(double.infinity, 44)),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentOrange, foregroundColor: AppTheme.fhTextPrimary, minimumSize: const Size(double.infinity, 44)),
               ),
               const SizedBox(height: 16),
               Text(
@@ -393,12 +493,11 @@ class _SettingsViewState extends State<SettingsView> {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      backgroundColor: AppTheme.fhBgDark,
                       title: Row(children: [Icon(MdiIcons.alertOutline, color: AppTheme.fhAccentRed), const SizedBox(width:10),const Text('Confirm System Purge', style: TextStyle(color: AppTheme.fhAccentRed))]),
                       content: const Text('Are you absolutely certain you wish to erase all data? This operation cannot be undone and will result in total loss of progress.'),
                       actionsAlignment: MainAxisAlignment.spaceBetween,
                       actions: [
-                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL', style: TextStyle(color: AppTheme.fhTextSecondary))),
+                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL')),
                         ElevatedButton(
                           onPressed: () => Navigator.of(ctx).pop(true),
                           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fhAccentRed, foregroundColor: AppTheme.fhTextPrimary),
@@ -422,14 +521,8 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _buildSettingsSection(ThemeData theme, {required IconData icon, required String title, required List<Widget> children}) {
-    return Card(
-      elevation: 0,
-      color: AppTheme.fhBgLight.withOpacity(0.7),
+    return Card( // Using the globally themed Card
       margin: const EdgeInsets.only(bottom: 24),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8.0),
-        side: BorderSide(color: AppTheme.fhBorderColor.withOpacity(0.7), width: 1),
-      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -437,12 +530,12 @@ class _SettingsViewState extends State<SettingsView> {
           children: [
             Row(
               children: [
-                Icon(icon, color: AppTheme.fhAccentTeal, size: 20),
+                Icon(icon, color: AppTheme.fhAccentTeal, size: 22),
                 const SizedBox(width: 10),
-                Text(title, style: theme.textTheme.headlineSmall?.copyWith(color: AppTheme.fhTextPrimary, fontWeight: FontWeight.w600)),
+                Text(title, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
               ],
             ),
-            Divider(height: 20, thickness: 0.5, color: AppTheme.fhBorderColor.withOpacity(0.5)),
+            Divider(height: 24, thickness: 0.5, color: AppTheme.fhBorderColor.withOpacity(0.5)),
             ...children,
           ],
         ),
