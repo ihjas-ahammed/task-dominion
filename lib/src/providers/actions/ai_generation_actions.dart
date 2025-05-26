@@ -63,7 +63,7 @@ class AIGenerationActions {
           .where((a) => !_provider.artifactTemplatesList.any((at) => at.id == a.id))
           .toList();
       
-      final List<GameLocation> uniqueNewLocations = (result['newGameLocations'] as List<Map<String, dynamic>>? ?? [])
+      final List<GameLocation> uniqueNewLocations = (result['newGameLocations'] ?? [])
           .map((locJson) => GameLocation.fromJson(locJson))
           .where((loc) => !_provider.gameLocationsList.any((gl) => gl.id == loc.id))
           .toList();

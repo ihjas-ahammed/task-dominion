@@ -65,9 +65,9 @@ class TimerActions {
 
       if (minutesToLog > 0) {
         if (timer.type == 'subtask') {
-          final MainTask? currentMainTask = _provider.mainTasks.firstWhere((t) => t.id == timer.mainTaskId, orElse: () => MainTask(id:'', name:'', description:'', theme:''));
+          final MainTask currentMainTask = _provider.mainTasks.firstWhere((t) => t.id == timer.mainTaskId, orElse: () => MainTask(id:'', name:'', description:'', theme:''));
           if (currentMainTask != null && currentMainTask.id.isNotEmpty) {
-            final SubTask? subtask = currentMainTask.subTasks.firstWhere((st) => st.id == id, orElse: () => SubTask(id:'', name:''));
+            final SubTask subtask = currentMainTask.subTasks.firstWhere((st) => st.id == id, orElse: () => SubTask(id:'', name:''));
             if (subtask != null && subtask.id.isNotEmpty) {
               // Update the subtask's currentTimeSpent
               // This will also trigger daily goal checks and energy regen in updateSubtask

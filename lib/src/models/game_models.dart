@@ -393,8 +393,9 @@ class ArtifactTemplate {
       parsedUpgradeBonus = {};
       try {
         (json['upgradeBonus'] as Map<String, dynamic>).forEach((key, value) {
-          if (value is num) parsedUpgradeBonus![key] = value.toInt();
-          else if (value is String) parsedUpgradeBonus![key] = int.tryParse(value) ?? 0;
+          if (value is num) {
+            parsedUpgradeBonus![key] = value.toInt();
+          } else if (value is String) parsedUpgradeBonus![key] = int.tryParse(value) ?? 0;
         });
       } catch (e) { /* ... */ }
     }

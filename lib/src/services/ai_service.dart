@@ -192,7 +192,7 @@ Each artifact object must have:
 
 "newGameLocations" should be an array of $numLocationsToGenerate game location objects.
 Each location object must have:
-- id: string, unique (e.g., "loc_dark_forest", "loc_crystal_caves_${levelForContent}")
+- id: string, unique (e.g., "loc_dark_forest", "loc_crystal_caves_$levelForContent")
 - name: string (e.g., "Whispering Woods", "Sunken Temple of Eldoria")
 - description: string (short, evocative description, max 150 chars)
 - minPlayerLevelToUnlock: number (Based on current level. First one could be $levelForContent, next one ${levelForContent + 3}, etc. Make a progression.)

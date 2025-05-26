@@ -99,8 +99,9 @@ class BlacksmithView extends StatelessWidget {
           ),
           LayoutBuilder(builder: (context, constraints) {
             int crossAxisCount = 2;
-            if (constraints.maxWidth > 900) crossAxisCount = 4; // Adjusted breakpoints
-            else if (constraints.maxWidth > 600) crossAxisCount = 3;
+            if (constraints.maxWidth > 900) {
+              crossAxisCount = 4; // Adjusted breakpoints
+            } else if (constraints.maxWidth > 600) crossAxisCount = 3;
             else if (constraints.maxWidth < 400) crossAxisCount = 1;
 
             double itemWidth = (constraints.maxWidth - (crossAxisCount +1) * 10) / crossAxisCount; // 10 for padding

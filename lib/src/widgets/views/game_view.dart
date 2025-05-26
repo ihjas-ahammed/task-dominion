@@ -35,10 +35,10 @@ class _GameViewState extends State<GameView> {
     if (_selectedLocationId == null || !gameProvider.isLocationUnlocked(_selectedLocationId!)) {
         if (availableLocations.isNotEmpty) {
             _selectedLocationId = availableLocations.first.id;
-            print("[GameView] Defaulting selectedLocationId to first available: ${_selectedLocationId}");
+            print("[GameView] Defaulting selectedLocationId to first available: $_selectedLocationId");
         } else if (gameProvider.gameLocationsList.isNotEmpty) {
             _selectedLocationId = gameProvider.gameLocationsList.first.id;
-             print("[GameView] No unlocked locations, defaulting selectedLocationId to absolute first: ${_selectedLocationId}");
+             print("[GameView] No unlocked locations, defaulting selectedLocationId to absolute first: $_selectedLocationId");
         } else {
             _selectedLocationId = null; 
             print("[GameView] No locations available at all.");

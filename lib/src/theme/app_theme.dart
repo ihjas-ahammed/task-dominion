@@ -38,7 +38,6 @@ class AppTheme {
         primary: primaryAccent, // Dynamic primary accent
         secondary: primaryAccent, // Also use dynamic accent for secondary for consistency
         surface: fhBgDark, 
-        background: fhBgDeepDark, 
         error: fhAccentRed,
         onPrimary: onPrimaryAccent, // Text on dynamic primary accent
         onSecondary: onPrimaryAccent, // Text on dynamic secondary accent
