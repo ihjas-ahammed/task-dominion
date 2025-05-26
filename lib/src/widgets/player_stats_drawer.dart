@@ -1,16 +1,16 @@
 // lib/src/widgets/player_stats_drawer.dart
 import 'package:flutter/material.dart';
-import 'package:myapp_flutter/src/providers/game_provider.dart';
-import 'package:myapp_flutter/src/theme/app_theme.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-// import 'package:myapp_flutter/src/utils/constants.dart'; // No longer needed for basePlayerGameStats
+// import 'package:arcane/src/utils/constants.dart'; // No longer needed for basePlayerGameStats
 
 class PlayerStatsDrawer extends StatelessWidget {
   const PlayerStatsDrawer({super.key});
 
-  Widget _buildStatDisplay(
-      BuildContext context, String icon, String name, String value, // Changed iconEmoji to icon (MDI name or emoji string)
+  Widget _buildStatDisplay(BuildContext context, String icon, String name,
+      String value, // Changed iconEmoji to icon (MDI name or emoji string)
       {String? buffValue,
       Color? buffColor,
       String? description,
@@ -19,13 +19,24 @@ class PlayerStatsDrawer extends StatelessWidget {
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
 
     Widget iconWidget;
-    if (icon.length == 1 || icon.length == 2) { // Assume emoji if 1 or 2 chars
-        iconWidget = Text(icon, style: TextStyle(fontSize: 20, color: AppTheme.fhAccentTeal.withOpacity(0.9)));
-    } else { // Assume MDI icon name if longer
-        final iconData = MdiIcons.fromString(icon.replaceAll('mdi-', '')) ?? MdiIcons.helpCircleOutline;
-        iconWidget = Icon(iconData, size: 20, color: AppTheme.fhAccentTeal.withOpacity(0.9));
+    if (icon.length == 1 || icon.length == 2) {
+      // Assume emoji if 1 or 2 chars
+      iconWidget = Text(icon,
+          style: TextStyle(
+              fontSize: 20,
+              color: (gameProvider.getSelectedTask()?.taskColor ??
+                      AppTheme.fhAccentTealFixed)
+                  .withOpacity(0.9)));
+    } else {
+      // Assume MDI icon name if longer
+      final iconData = MdiIcons.fromString(icon.replaceAll('mdi-', '')) ??
+          MdiIcons.helpCircleOutline;
+      iconWidget = Icon(iconData,
+          size: 20,
+          color: (gameProvider.getSelectedTask()?.taskColor ??
+                  AppTheme.fhAccentTealFixed)
+              .withOpacity(0.9));
     }
-
 
     // Valorant style stat display
     return Padding(
@@ -57,15 +68,19 @@ class PlayerStatsDrawer extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 value,
-                style: theme.textTheme.bodyLarge?.copyWith( // Use bodyLarge for stat value
+                style: theme.textTheme.bodyLarge?.copyWith(
+                    // Use bodyLarge for stat value
                     color: AppTheme.fhTextPrimary,
                     fontWeight: FontWeight.bold),
               ),
             ],
           ),
-          if (progressPercent != null && name.toUpperCase() != 'VITALITY' && name.toUpperCase() != 'XP BONUS')
+          if (progressPercent != null &&
+              name.toUpperCase() != 'VITALITY' &&
+              name.toUpperCase() != 'XP BONUS')
             Padding(
-              padding: const EdgeInsets.only(top: 5.0, left: 32 + 12), // Align with text after icon
+              padding: const EdgeInsets.only(
+                  top: 5.0, left: 32 + 12), // Align with text after icon
               child: SizedBox(
                   height: 6, // Thicker progress bar
                   child: ClipRRect(
@@ -74,7 +89,9 @@ class PlayerStatsDrawer extends StatelessWidget {
                       value: progressPercent.clamp(0.0, 1.0),
                       backgroundColor: AppTheme.fhBorderColor.withOpacity(0.2),
                       valueColor: AlwaysStoppedAnimation<Color>(
-                          AppTheme.fhAccentTeal.withOpacity(0.7)),
+                          (gameProvider.getSelectedTask()?.taskColor ??
+                                  AppTheme.fhAccentTealFixed)
+                              .withOpacity(0.7)),
                     ),
                   )),
             ),
@@ -99,14 +116,19 @@ class PlayerStatsDrawer extends StatelessWidget {
   Widget _buildSectionTitle(ThemeData theme, IconData icon, String title) {
     return Padding(
       padding: const EdgeInsets.only(
-          bottom: 8.0, top: 20.0, left: 16.0, right: 16.0), // Increased top padding
+          bottom: 8.0,
+          top: 20.0,
+          left: 16.0,
+          right: 16.0), // Increased top padding
       child: Row(
         children: [
-          Icon(icon, color: AppTheme.fhAccentRed, size: 20), // Use primary accent
+          Icon(icon,
+              color: AppTheme.fhAccentRed, size: 20), // Use primary accent
           const SizedBox(width: 10),
           Text(
             title.toUpperCase(), // Uppercase titles
-            style: theme.textTheme.headlineSmall?.copyWith( // Use headlineSmall
+            style: theme.textTheme.headlineSmall?.copyWith(
+                // Use headlineSmall
                 color: AppTheme.fhTextPrimary, // Brighter title
                 letterSpacing: 0.8,
                 fontWeight: FontWeight.bold),
@@ -124,12 +146,14 @@ class PlayerStatsDrawer extends StatelessWidget {
 
     Widget iconWidget;
     if (iconStr.length == 1 || iconStr.length == 2) {
-        iconWidget = Text(iconStr, style: const TextStyle(fontSize: 18));
+      iconWidget = Text(iconStr, style: const TextStyle(fontSize: 18));
     } else {
-        final iconData = MdiIcons.fromString(iconStr.replaceAll('mdi-', '')) ?? MdiIcons.minusCircleOutline;
-        iconWidget = Icon(iconData, size: 18);
+      final iconData = MdiIcons.fromString(iconStr.replaceAll('mdi-', '')) ??
+          MdiIcons.minusCircleOutline;
+      iconWidget = Icon(iconData, size: 18);
     }
 
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.0),
@@ -138,18 +162,21 @@ class PlayerStatsDrawer extends StatelessWidget {
           SizedBox(
             width: 70, // Consistent width for label
             child: Text('$label:',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: AppTheme.fhTextSecondary.withOpacity(0.8), fontSize: 13)),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.fhTextSecondary.withOpacity(0.8),
+                    fontSize: 13)),
           ),
           iconWidget, // Use the determined icon widget
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-               name,
+              name,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 13,
                 color: isEquipped
-                    ? AppTheme.fhAccentTeal // Brighter for equipped items
+                    ? (gameProvider.getSelectedTask()?.taskColor ??
+                        AppTheme
+                            .fhAccentTealFixed) // Brighter for equipped items
                     : AppTheme.fhTextSecondary.withOpacity(0.6),
                 fontStyle: isEquipped ? FontStyle.normal : FontStyle.italic,
                 fontWeight: isEquipped ? FontWeight.w600 : FontWeight.normal,
@@ -161,7 +188,8 @@ class PlayerStatsDrawer extends StatelessWidget {
             OutlinedButton(
               onPressed: onUnequip,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 textStyle: TextStyle(
                     fontSize: 10, // Smaller text for button
                     fontFamily: AppTheme.fontBody, // Use body font
@@ -182,7 +210,8 @@ class PlayerStatsDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final gameProvider = Provider.of<GameProvider>(context);
     final theme = Theme.of(context);
-    print("[PlayerStatsDrawer] Building drawer. Player HP: ${gameProvider.currentGame.playerCurrentHp}");
+    print(
+        "[PlayerStatsDrawer] Building drawer. Player HP: ${gameProvider.currentGame.playerCurrentHp}");
 
     final playerMaxHp = gameProvider.playerGameStats['vitality']!.value;
     final playerCurrentHp = gameProvider.currentGame.playerCurrentHp;
@@ -202,80 +231,105 @@ class PlayerStatsDrawer extends StatelessWidget {
       if (uniqueId != null) {
         final owned = gameProvider.getArtifactByUniqueId(uniqueId);
         if (owned != null) {
-          final template = gameProvider.getArtifactTemplateById(owned.templateId);
+          final template =
+              gameProvider.getArtifactTemplateById(owned.templateId);
           if (template != null) {
             equippedItemsDetails[slot] = {
-              'name': '${template.name} Lvl ${owned.currentLevel}', // Include level
+              'name':
+                  '${template.name} Lvl ${owned.currentLevel}', // Include level
               'icon': template.icon,
               'uniqueId': owned.uniqueId,
             };
           } else {
-            equippedItemsDetails[slot] = {'name': 'Unknown Item', 'icon': MdiIcons.helpRhombusOutline.codePoint.toString(), 'uniqueId': uniqueId}; // Default icon
+            equippedItemsDetails[slot] = {
+              'name': 'Unknown Item',
+              'icon': MdiIcons.helpRhombusOutline.codePoint.toString(),
+              'uniqueId': uniqueId
+            }; // Default icon
           }
         } else {
-           equippedItemsDetails[slot] = {'name': 'Error Loading', 'icon': MdiIcons.alertCircleOutline.codePoint.toString(), 'uniqueId': uniqueId}; // Default icon
+          equippedItemsDetails[slot] = {
+            'name': 'Error Loading',
+            'icon': MdiIcons.alertCircleOutline.codePoint.toString(),
+            'uniqueId': uniqueId
+          }; // Default icon
         }
       } else {
-        equippedItemsDetails[slot] = {'name': 'Empty Slot', 'icon': '➖', 'uniqueId': null};
+        equippedItemsDetails[slot] = {
+          'name': 'Empty Slot',
+          'icon': '➖',
+          'uniqueId': null
+        };
       }
     });
 
     final unequippedGear = gameProvider.artifacts.where((ownedArt) {
-        final template = gameProvider.getArtifactTemplateById(ownedArt.templateId);
-        return template != null && template.type != 'powerup' && !gameProvider.equippedItems.values.contains(ownedArt.uniqueId);
+      final template =
+          gameProvider.getArtifactTemplateById(ownedArt.templateId);
+      return template != null &&
+          template.type != 'powerup' &&
+          !gameProvider.equippedItems.values.contains(ownedArt.uniqueId);
     }).toList();
-
 
     return Drawer(
       backgroundColor: AppTheme.fhBgDark, // Darker drawer background
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
-          Container( // Header Section
+          Container(
+            // Header Section
             padding: EdgeInsets.fromLTRB(
                 16, MediaQuery.of(context).padding.top + 16, 16, 16),
             decoration: BoxDecoration(
                 color: AppTheme.fhBgMedium, // Slightly lighter header
-                border: Border(bottom: BorderSide(color: AppTheme.fhBorderColor.withOpacity(0.5), width: 1))
-            ),
+                border: Border(
+                    bottom: BorderSide(
+                        color: AppTheme.fhBorderColor.withOpacity(0.5),
+                        width: 1))),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  gameProvider.currentUser?.displayName ?? "Adventurer", // Display Name
-                  style: theme.textTheme.displaySmall?.copyWith(color: AppTheme.fhAccentRed)
-                ),
+                    gameProvider.currentUser?.displayName ??
+                        "Adventurer", // Display Name
+                    style: theme.textTheme.displaySmall
+                        ?.copyWith(color: AppTheme.fhAccentRed)),
                 const SizedBox(height: 4),
-                Text(
-                    'LEVEL ${gameProvider.romanize(gameProvider.playerLevel)}',
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(color: AppTheme.fhTextSecondary, letterSpacing: 1)),
+                Text('LEVEL ${gameProvider.romanize(gameProvider.playerLevel)}',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                        color: AppTheme.fhTextSecondary, letterSpacing: 1)),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12.0),
                   child: Row(
                     children: [
-                      Icon(MdiIcons.starShootingOutline, color: AppTheme.fhAccentGold, size: 16),
+                      Icon(MdiIcons.starShootingOutline,
+                          color: AppTheme.fhAccentGold, size: 16),
                       const SizedBox(width: 6),
                       Text(
                         '${gameProvider.currentLevelXPProgress.toStringAsFixed(0)} / ${gameProvider.xpNeededForNextLevel.toStringAsFixed(0)} XP',
-                        style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fhTextSecondary),
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: AppTheme.fhTextSecondary),
                       ),
                     ],
                   ),
                 ),
-                SizedBox( // XP Bar
+                SizedBox(
+                  // XP Bar
                   height: 8, // Thicker XP Bar
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: (gameProvider.xpProgressPercent / 100).clamp(0.0, 1.0),
+                      value: (gameProvider.xpProgressPercent / 100)
+                          .clamp(0.0, 1.0),
                       backgroundColor: AppTheme.fhBorderColor.withOpacity(0.3),
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.fhAccentGold),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          AppTheme.fhAccentGold),
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row( // HP Bar
+                Row(
+                  // HP Bar
                   children: <Widget>[
                     Icon(MdiIcons.heartPulse, size: 18, color: hpBarColor),
                     const SizedBox(width: 8),
@@ -286,8 +340,10 @@ class PlayerStatsDrawer extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: hpPercent,
-                            backgroundColor: AppTheme.fhBorderColor.withOpacity(0.3),
-                            valueColor: AlwaysStoppedAnimation<Color>(hpBarColor),
+                            backgroundColor:
+                                AppTheme.fhBorderColor.withOpacity(0.3),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(hpBarColor),
                           ),
                         ),
                       ),
@@ -295,7 +351,9 @@ class PlayerStatsDrawer extends StatelessWidget {
                     const SizedBox(width: 10),
                     Text(
                       '${playerCurrentHp.toStringAsFixed(0)} / ${playerMaxHp.toStringAsFixed(0)} HP',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fhTextPrimary, fontWeight: FontWeight.w600),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.fhTextPrimary,
+                          fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -303,14 +361,30 @@ class PlayerStatsDrawer extends StatelessWidget {
             ),
           ),
           _buildSectionTitle(theme, MdiIcons.swordCross, 'Equipped Gear'),
-          _buildEquippedItemRow(context, theme, 'Weapon', equippedItemsDetails['weapon'], () => gameProvider.unequipArtifact('weapon')),
-          _buildEquippedItemRow(context, theme, 'Armor', equippedItemsDetails['armor'], () => gameProvider.unequipArtifact('armor')),
-          _buildEquippedItemRow(context, theme, 'Talisman', equippedItemsDetails['talisman'], () => gameProvider.unequipArtifact('talisman')),
-
-          _buildSectionTitle(theme, MdiIcons.treasureChestOutline, 'Inventory (Gear)'),
+          _buildEquippedItemRow(
+              context,
+              theme,
+              'Weapon',
+              equippedItemsDetails['weapon'],
+              () => gameProvider.unequipArtifact('weapon')),
+          _buildEquippedItemRow(
+              context,
+              theme,
+              'Armor',
+              equippedItemsDetails['armor'],
+              () => gameProvider.unequipArtifact('armor')),
+          _buildEquippedItemRow(
+              context,
+              theme,
+              'Talisman',
+              equippedItemsDetails['talisman'],
+              () => gameProvider.unequipArtifact('talisman')),
+          _buildSectionTitle(
+              theme, MdiIcons.treasureChestOutline, 'Inventory (Gear)'),
           if (unequippedGear.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 15.0, horizontal: 16.0),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 15.0, horizontal: 16.0),
               child: Center(
                   child: Text('No gear in inventory.',
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -324,28 +398,38 @@ class PlayerStatsDrawer extends StatelessWidget {
               itemCount: unequippedGear.length,
               itemBuilder: (context, index) {
                 final ownedArt = unequippedGear[index];
-                final template = gameProvider.getArtifactTemplateById(ownedArt.templateId);
+                final template =
+                    gameProvider.getArtifactTemplateById(ownedArt.templateId);
                 if (template == null) return const SizedBox.shrink();
 
                 Widget itemIconWidget;
                 if (template.icon.length == 1 || template.icon.length == 2) {
-                    itemIconWidget = Text(template.icon, style: const TextStyle(fontSize: 18));
+                  itemIconWidget =
+                      Text(template.icon, style: const TextStyle(fontSize: 18));
                 } else {
-                    final iconData = MdiIcons.fromString(template.icon.replaceAll('mdi-', '')) ?? MdiIcons.treasureChest;
-                    itemIconWidget = Icon(iconData, size: 18);
+                  final iconData = MdiIcons.fromString(
+                          template.icon.replaceAll('mdi-', '')) ??
+                      MdiIcons.treasureChest;
+                  itemIconWidget = Icon(iconData, size: 18);
                 }
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 16.0),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 2.0, horizontal: 16.0),
                   child: Material(
-                    color: AppTheme.fhBgMedium.withOpacity(0.7), // Item background
+                    color:
+                        AppTheme.fhBgMedium.withOpacity(0.7), // Item background
                     borderRadius: BorderRadius.circular(4),
                     child: InkWell(
-                      onTap: () => gameProvider.equipArtifact(ownedArt.uniqueId),
+                      onTap: () =>
+                          gameProvider.equipArtifact(ownedArt.uniqueId),
                       borderRadius: BorderRadius.circular(4),
-                      hoverColor: AppTheme.fhAccentTeal.withOpacity(0.1),
+                      hoverColor: (gameProvider.getSelectedTask()?.taskColor ??
+                              AppTheme.fhAccentTealFixed)
+                          .withOpacity(0.1),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10.0, vertical: 8.0),
                         child: Row(
                           children: [
                             itemIconWidget,
@@ -353,18 +437,30 @@ class PlayerStatsDrawer extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 '${template.name} (Lvl ${ownedArt.currentLevel})',
-                                style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fhTextPrimary, fontSize: 13),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppTheme.fhTextPrimary,
+                                    fontSize: 13),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             ElevatedButton(
-                              onPressed: () => gameProvider.equipArtifact(ownedArt.uniqueId),
+                              onPressed: () =>
+                                  gameProvider.equipArtifact(ownedArt.uniqueId),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.fhAccentTeal, // Accent for equip
+                                backgroundColor: (gameProvider
+                                        .getSelectedTask()
+                                        ?.taskColor ??
+                                    AppTheme
+                                        .fhAccentTealFixed), // Accent for equip
                                 foregroundColor: AppTheme.fhBgDark,
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                textStyle: TextStyle(fontSize: 10, fontFamily: AppTheme.fontBody, fontWeight: FontWeight.bold),
-                                minimumSize: const Size(0, 28), // Slightly taller button
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                textStyle: TextStyle(
+                                    fontSize: 10,
+                                    fontFamily: AppTheme.fontBody,
+                                    fontWeight: FontWeight.bold),
+                                minimumSize:
+                                    const Size(0, 28), // Slightly taller button
                                 elevation: 1,
                               ),
                               child: const Text('EQUIP'),
@@ -377,42 +473,52 @@ class PlayerStatsDrawer extends StatelessWidget {
                 );
               },
             ),
-
           _buildSectionTitle(theme, MdiIcons.starFourPointsOutline, 'Runes'),
           const Padding(
-             padding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 16.0),
-             child: Center(child: Text("Rune system not yet active.", style: TextStyle(fontStyle: FontStyle.italic, color: AppTheme.fhTextDisabled))),
+            padding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 16.0),
+            child: Center(
+                child: Text("Rune system not yet active.",
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: AppTheme.fhTextDisabled))),
           ),
-
-
           _buildSectionTitle(theme, MdiIcons.chartLineVariant, 'Player Stats'),
           ListView(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: gameProvider.playerGameStats.entries.map((entry) {
               final stat = entry.value;
-              if (stat.name == 'XP BONUS' && !gameProvider.playerGameStats.containsKey('bonusXPMod')) return const SizedBox.shrink();
-
+              if (stat.name == 'XP BONUS' &&
+                  !gameProvider.playerGameStats.containsKey('bonusXPMod'))
+                return const SizedBox.shrink();
 
               final buffValue = stat.value - stat.base;
-              String statValDisplay = stat.value.toStringAsFixed(0); // Default display
+              String statValDisplay =
+                  stat.value.toStringAsFixed(0); // Default display
 
-              if (stat.name == 'LUCK' || stat.name == 'COOLDOWN' || stat.name == 'XP CALC MOD') { // Percentage stats
-                statValDisplay = '${(stat.value * (stat.name == 'XP CALC MOD' ? 100 : 1)).toStringAsFixed(0)}%';
+              if (stat.name == 'LUCK' ||
+                  stat.name == 'COOLDOWN' ||
+                  stat.name == 'XP CALC MOD') {
+                // Percentage stats
+                statValDisplay =
+                    '${(stat.value * (stat.name == 'XP CALC MOD' ? 100 : 1)).toStringAsFixed(0)}%';
               }
-
 
               String? buffDisplay;
               Color? buffColorVal;
               if (buffValue != 0) {
-                buffDisplay = '${buffValue > 0 ? '+' : ''}${(stat.name == 'LUCK' || stat.name == 'COOLDOWN' || stat.name == 'XP CALC MOD') ? '${(buffValue * (stat.name == 'XP CALC MOD' ? 100: 1)).toStringAsFixed(0)}%' : buffValue.toStringAsFixed(0)}';
-                buffColorVal = buffValue > 0 ? AppTheme.fhAccentGreen : AppTheme.fhAccentRed;
+                buffDisplay =
+                    '${buffValue > 0 ? '+' : ''}${(stat.name == 'LUCK' || stat.name == 'COOLDOWN' || stat.name == 'XP CALC MOD') ? '${(buffValue * (stat.name == 'XP CALC MOD' ? 100 : 1)).toStringAsFixed(0)}%' : buffValue.toStringAsFixed(0)}';
+                buffColorVal = buffValue > 0
+                    ? AppTheme.fhAccentGreen
+                    : AppTheme.fhAccentRed;
               }
 
               double progress = 0.0;
               if (stat.name != 'VITALITY' && stat.name != 'XP CALC MOD') {
                 double typicalMax = 50;
-                if (stat.name == 'LUCK' || stat.name == 'COOLDOWN') typicalMax = 50;
+                if (stat.name == 'LUCK' || stat.name == 'COOLDOWN')
+                  typicalMax = 50;
                 progress = (stat.value / typicalMax);
               }
 
@@ -424,7 +530,10 @@ class PlayerStatsDrawer extends StatelessWidget {
                 buffValue: buffDisplay,
                 buffColor: buffColorVal,
                 description: stat.description,
-                progressPercent: (stat.name != 'VITALITY' && stat.name != 'XP CALC MOD') ? progress : null,
+                progressPercent:
+                    (stat.name != 'VITALITY' && stat.name != 'XP CALC MOD')
+                        ? progress
+                        : null,
               );
             }).toList(),
           ),

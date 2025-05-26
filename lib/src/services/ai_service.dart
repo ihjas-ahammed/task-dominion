@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart' as genai;
-import 'package:myapp_flutter/src/config/api_keys.dart'; // Your API keys file
+import 'package:arcane/src/config/api_keys.dart'; // Your API keys file
 import 'package:flutter/foundation.dart'; // For kDebugMode
 
 class AIService {
@@ -10,14 +10,19 @@ class AIService {
     required Function(int) onNewApiKeyIndex,
     required Function(String) onLog,
   }) async {
-    if (geminiApiKeys.isEmpty || geminiApiKeys.every((key) => key.startsWith('YOUR_GEMINI_API_KEY'))) {
-      const errorMsg = "No valid Gemini API keys found. Cannot generate content.";
-      onLog("<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (No API Key or invalid key).</span>");
+    if (geminiApiKeys.isEmpty ||
+        geminiApiKeys.every((key) => key.startsWith('YOUR_GEMINI_API_KEY'))) {
+      const errorMsg =
+          "No valid Gemini API keys found. Cannot generate content.";
+      onLog(
+          "<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (No API Key or invalid key).</span>");
       throw Exception(errorMsg);
     }
     if (geminiModelName.isEmpty) {
-      const errorMsg = "GEMINI_MODEL_NAME not configured. Cannot generate content.";
-      onLog("<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (GEMINI_MODEL_NAME not configured).</span>");
+      const errorMsg =
+          "GEMINI_MODEL_NAME not configured. Cannot generate content.";
+      onLog(
+          "<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (GEMINI_MODEL_NAME not configured).</span>");
       throw Exception(errorMsg);
     }
 
@@ -26,20 +31,24 @@ class AIService {
       print("[AIService] AI Prompt:\n$prompt");
     }
 
-
     for (int i = 0; i < geminiApiKeys.length; i++) {
-      final int keyAttemptIndex = (currentApiKeyIndex + i) % geminiApiKeys.length;
+      final int keyAttemptIndex =
+          (currentApiKeyIndex + i) % geminiApiKeys.length;
       final String apiKey = geminiApiKeys[keyAttemptIndex];
 
       if (apiKey.startsWith('YOUR_GEMINI_API_KEY')) {
-        onLog("<span style=\"color:var(--fh-accent-orange);\">Skipping invalid API key at index $keyAttemptIndex.</span>");
+        onLog(
+            "<span style=\"color:var(--fh-accent-orange);\">Skipping invalid API key at index $keyAttemptIndex.</span>");
         continue;
       }
 
       try {
-        onLog("Trying API key index $keyAttemptIndex for model $geminiModelName...");
-        final model = genai.GenerativeModel(model: geminiModelName, apiKey: apiKey);
-        final response = await model.generateContent([genai.Content.text(prompt)]);
+        onLog(
+            "Trying API key index $keyAttemptIndex for model $geminiModelName...");
+        final model =
+            genai.GenerativeModel(model: geminiModelName, apiKey: apiKey);
+        final response =
+            await model.generateContent([genai.Content.text(prompt)]);
 
         String? rawResponseText = response.text;
         if (rawResponseText == null || rawResponseText.trim().isEmpty) {
@@ -48,10 +57,10 @@ class AIService {
 
         // Log the raw response in debug mode
         if (kDebugMode) {
-          print("[AIService] Raw AI Response (Key Index $keyAttemptIndex):\n$rawResponseText");
+          print(
+              "[AIService] Raw AI Response (Key Index $keyAttemptIndex):\n$rawResponseText");
         }
         onLog("Raw AI Response received. Attempting to parse JSON...");
-
 
         // More robust JSON extraction
         String jsonString = rawResponseText.trim();
@@ -61,44 +70,50 @@ class AIService {
         if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
           jsonString = jsonString.substring(jsonStart, jsonEnd + 1);
         } else {
-          onLog("<span style=\"color:var(--fh-accent-red);\">Error: Could not find valid JSON object delimiters {{ ... }} in AI response.</span>");
+          onLog(
+              "<span style=\"color:var(--fh-accent-red);\">Error: Could not find valid JSON object delimiters {{ ... }} in AI response.</span>");
           if (kDebugMode) {
-            print("[AIService] Failed to find JSON delimiters. Raw response was: $rawResponseText");
+            print(
+                "[AIService] Failed to find JSON delimiters. Raw response was: $rawResponseText");
           }
           throw Exception("Could not extract JSON object from AI response.");
         }
-        
+
         // Attempt to remove common non-JSON prefixes/suffixes if any (like markdown code blocks)
         // This is a secondary check if the above { } extraction wasn't perfect
         if (jsonString.startsWith("```json") && jsonString.endsWith("```")) {
-            jsonString = jsonString.substring(7, jsonString.length - 3).trim();
+          jsonString = jsonString.substring(7, jsonString.length - 3).trim();
         } else if (jsonString.startsWith("```") && jsonString.endsWith("```")) {
-            jsonString = jsonString.substring(3, jsonString.length - 3).trim();
+          jsonString = jsonString.substring(3, jsonString.length - 3).trim();
         }
-
 
         final Map<String, dynamic> generatedData = jsonDecode(jsonString);
         onNewApiKeyIndex(keyAttemptIndex);
-        onLog("<span style=\"color:var(--fh-accent-green);\">Successfully processed AI response with API key index $keyAttemptIndex.</span>");
+        onLog(
+            "<span style=\"color:var(--fh-accent-green);\">Successfully processed AI response with API key index $keyAttemptIndex.</span>");
         return generatedData;
-
       } catch (e) {
         String errorDetail = e.toString();
-         if (e is FormatException) {
-          errorDetail = "JSON FormatException: ${e.message}. Check AI response for syntax errors (e.g., trailing commas, unquoted keys, incorrect string escapes).";
+        if (e is FormatException) {
+          errorDetail =
+              "JSON FormatException: ${e.message}. Check AI response for syntax errors (e.g., trailing commas, unquoted keys, incorrect string escapes).";
           if (kDebugMode) {
-            print("[AIService] JSON Parsing Error: ${e.message}. Offending JSON string part (approx): ${e.source.toString().substring(0, (e.offset ?? e.source.toString().length).clamp(0, e.source.toString().length)).substring(0,100)}");
+            print(
+                "[AIService] JSON Parsing Error: ${e.message}. Offending JSON string part (approx): ${e.source.toString().substring(0, (e.offset ?? e.source.toString().length).clamp(0, e.source.toString().length)).substring(0, 100)}");
           }
         } else if (errorDetail.contains("API key not valid")) {
-            errorDetail = "API key not valid. Please check your configuration.";
+          errorDetail = "API key not valid. Please check your configuration.";
         } else if (errorDetail.contains("quota")) {
-            errorDetail = "API quota exceeded for this key.";
-        } else if (errorDetail.contains("Candidate was blocked due to SAFETY")) {
-            errorDetail = "AI response blocked due to safety settings. Try a different prompt or adjust safety settings if possible.";
+          errorDetail = "API quota exceeded for this key.";
+        } else if (errorDetail
+            .contains("Candidate was blocked due to SAFETY")) {
+          errorDetail =
+              "AI response blocked due to safety settings. Try a different prompt or adjust safety settings if possible.";
         }
-        onLog("<span style=\"color:var(--fh-accent-red);\">Error with API key index $keyAttemptIndex: $errorDetail</span>");
+        onLog(
+            "<span style=\"color:var(--fh-accent-red);\">Error with API key index $keyAttemptIndex: $errorDetail</span>");
         if (i == geminiApiKeys.length - 1) {
-            throw Exception("All API keys failed. Last error: $errorDetail");
+          throw Exception("All API keys failed. Last error: $errorDetail");
         }
       }
     }
@@ -119,11 +134,15 @@ class AIService {
     required List<String> themes,
     required Function(String) onLog,
   }) async {
-    onLog("Attempting to generate themed game content (enemies/artifacts/locations)...");
+    onLog(
+        "Attempting to generate themed game content (enemies/artifacts/locations)...");
 
-    final int numEnemiesToGeneratePerTheme = isInitial ? 1 : 1;
-    final int totalEnemiesToGenerate = themes.length * numEnemiesToGeneratePerTheme + (isInitial ? 2 : 1);
-    final int numLocationsToGenerate = isInitial ? 2 : 1; // Generate a couple of locations initially, then one by one
+    final int numEnemiesToGeneratePerTheme = isInitial ? 3 : 3;
+    final int totalEnemiesToGenerate =
+        themes.length * numEnemiesToGeneratePerTheme + (isInitial ? 2 : 1);
+    final int numLocationsToGenerate = isInitial
+        ? 2
+        : 1; // Generate a couple of locations initially, then one by one
 
     String artifactInstructions = "";
     for (String themeName in themes) {
@@ -210,19 +229,33 @@ Ensure all IDs are unique. Balance stats. Return ONLY the JSON object.
         onLog: onLog,
       );
 
-      final List<Map<String, dynamic>> newEnemies = (rawData['newEnemies'] as List?)
-          ?.map((e) => e as Map<String, dynamic>).toList() ?? [];
-      final List<Map<String, dynamic>> newArtifacts = (rawData['newArtifacts'] as List?)
-          ?.map((a) => a as Map<String, dynamic>).toList() ?? [];
-      final List<Map<String, dynamic>> newGameLocations = (rawData['newGameLocations'] as List?)
-          ?.map((loc) => loc as Map<String, dynamic>).toList() ?? [];
-      
-      onLog("AI content generation successful. Parsed ${newEnemies.length} enemies, ${newArtifacts.length} artifacts, ${newGameLocations.length} locations.");
+      final List<Map<String, dynamic>> newEnemies =
+          (rawData['newEnemies'] as List?)
+                  ?.map((e) => e as Map<String, dynamic>)
+                  .toList() ??
+              [];
+      final List<Map<String, dynamic>> newArtifacts =
+          (rawData['newArtifacts'] as List?)
+                  ?.map((a) => a as Map<String, dynamic>)
+                  .toList() ??
+              [];
+      final List<Map<String, dynamic>> newGameLocations =
+          (rawData['newGameLocations'] as List?)
+                  ?.map((loc) => loc as Map<String, dynamic>)
+                  .toList() ??
+              [];
 
-      return {'newEnemies': newEnemies, 'newArtifacts': newArtifacts, 'newGameLocations': newGameLocations};
+      onLog(
+          "AI content generation successful. Parsed ${newEnemies.length} enemies, ${newArtifacts.length} artifacts, ${newGameLocations.length} locations.");
 
+      return {
+        'newEnemies': newEnemies,
+        'newArtifacts': newArtifacts,
+        'newGameLocations': newGameLocations
+      };
     } catch (e) {
-      onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateGameContent: ${e.toString()}</span>");
+      onLog(
+          "<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateGameContent: ${e.toString()}</span>");
       if (kDebugMode) {
         print("[AIService] generateGameContent caught error: $e");
       }
@@ -241,35 +274,36 @@ Ensure all IDs are unique. Balance stats. Return ONLY the JSON object.
     required Function(int) onNewApiKeyIndex,
     required Function(String) onLog,
   }) async {
-    onLog("Attempting to generate sub-quests for \"$mainTaskName\"... Mode: $generationMode");
+    onLog(
+        "Attempting to generate sub-quests for \"$mainTaskName\"... Mode: $generationMode");
 
     String modeSpecificInstructions = "";
     switch (generationMode) {
-        case "book_chapter":
-            modeSpecificInstructions = """
+      case "book_chapter":
+        modeSpecificInstructions = """
 The user is providing details about a book chapter. Input: "$userInput"
 Break this down into approximately $numSubquests actionable sub-quests.
 For each sub-quest, suggest 1-3 smaller, concrete steps (sub-subtasks).
 If a step involves reading pages, make it "countable" with "targetCount". E.g., "Read pages 10-25" -> name: "Read pages 10-25", isCountable: true, targetCount: 16.
 """;
-            break;
-        case "text_list":
-            modeSpecificInstructions = """
+        break;
+      case "text_list":
+        modeSpecificInstructions = """
 The user provided a hierarchical text list. Top-level items are sub-quests. Indented items are sub-subtasks. Input:
 $userInput
 Convert top-level items to sub-quests, indented items to sub-subtasks.
 If an item mentions quantity (e.g., "3 sets", "10 pages"), make it "countable" and set "targetCount".
 """;
-            break;
-        case "general_plan":
-        default:
-            modeSpecificInstructions = """
+        break;
+      case "general_plan":
+      default:
+        modeSpecificInstructions = """
 The user provided a general plan. Input: "$userInput"
 Break this into approximately $numSubquests logical sub-quests.
 For each sub-quest, suggest 1-3 smaller, concrete steps (sub-subtasks).
 Make items "countable" with "targetCount" if they imply quantity.
 """;
-            break;
+        break;
     }
 
     final String prompt = """
@@ -314,34 +348,37 @@ Return ONLY the JSON object, no markdown or comments. NO TRAILING COMMAS.
         onNewApiKeyIndex: onNewApiKeyIndex,
         onLog: onLog,
       );
-      final List<Map<String, dynamic>> newSubquests = (rawData['newSubquests'] as List?)
-          ?.map((sq) => sq as Map<String, dynamic>).toList() ?? [];
+      final List<Map<String, dynamic>> newSubquests =
+          (rawData['newSubquests'] as List?)
+                  ?.map((sq) => sq as Map<String, dynamic>)
+                  .toList() ??
+              [];
 
       // Basic validation
       bool isValid = newSubquests.every((sq) =>
-        sq['name'] is String &&
-        sq['isCountable'] is bool &&
-        sq['targetCount'] is num &&
-        sq['subSubTasksData'] is List &&
-        (sq['subSubTasksData'] as List).every((sss) =>
-            sss['name'] is String &&
-            sss['isCountable'] is bool &&
-            sss['targetCount'] is num
-        )
-      );
+          sq['name'] is String &&
+          sq['isCountable'] is bool &&
+          sq['targetCount'] is num &&
+          sq['subSubTasksData'] is List &&
+          (sq['subSubTasksData'] as List).every((sss) =>
+              sss['name'] is String &&
+              sss['isCountable'] is bool &&
+              sss['targetCount'] is num));
 
       if (!isValid) {
-        onLog("<span style=\"color:var(--fh-accent-orange);\">AI subquest response malformed.</span>");
+        onLog(
+            "<span style=\"color:var(--fh-accent-orange);\">AI subquest response malformed.</span>");
         if (kDebugMode) {
           print("[AIService] Malformed subquest data: $newSubquests");
         }
         throw Exception("AI subquest response malformed.");
       }
-      onLog("AI subquest generation successful. Parsed ${newSubquests.length} subquests.");
+      onLog(
+          "AI subquest generation successful. Parsed ${newSubquests.length} subquests.");
       return newSubquests;
-
     } catch (e) {
-      onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateAISubquests: ${e.toString()}</span>");
+      onLog(
+          "<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateAISubquests: ${e.toString()}</span>");
       if (kDebugMode) {
         print("[AIService] generateAISubquests caught error: $e");
       }

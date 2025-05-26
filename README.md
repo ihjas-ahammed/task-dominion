@@ -1,4 +1,4 @@
-# myapp_flutter
+# arcane
 
 A Flutter version of the Task Dominion application.
 

@@ -24,6 +24,7 @@ class AppTheme {
   static const String fontDisplay = 'RobotoCondensed'; 
   static const String fontBody = 'OpenSans';
 
+  
   // Method to generate ThemeData with a dynamic primary accent color
   static ThemeData getThemeData({required Color primaryAccent}) {
     final Brightness accentBrightness = ThemeData.estimateBrightnessForColor(primaryAccent);

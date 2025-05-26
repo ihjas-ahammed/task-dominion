@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:myapp_flutter/src/providers/game_provider.dart';
+import 'package:arcane/src/providers/game_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:myapp_flutter/src/theme/app_theme.dart';
+import 'package:arcane/src/theme/app_theme.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuthException
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,7 +24,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
 
   @override
   void dispose() {
@@ -57,7 +55,8 @@ class _LoginScreenState extends State<LoginScreen> {
       // print("[LoginScreen] Auth Error: $e"); // DEBUG
       setState(() {
         if (e is FirebaseAuthException) {
-          _error = e.message ?? "An unknown Firebase authentication error occurred.";
+          _error =
+              e.message ?? "An unknown Firebase authentication error occurred.";
         } else {
           _error = "An unexpected error occurred. Please try again.";
         }
@@ -82,33 +81,41 @@ class _LoginScreenState extends State<LoginScreen> {
           child:
               // Add a ConstrainedBox to limit the width for desktop
               ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400), // Max width of 400 pixels
+            constraints:
+                const BoxConstraints(maxWidth: 400), // Max width of 400 pixels
             child: Card(
               color: AppTheme.fhBgMedium, // Slightly lighter card background
               elevation: 0, // Flatter design
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8.0),
-                side: const BorderSide(color: AppTheme.fhBorderColor, width: 1.5), // Themed border
+                side: const BorderSide(
+                    color: AppTheme.fhBorderColor, width: 1.5), // Themed border
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0, vertical: 32.0),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Icon(MdiIcons.shieldCrownOutline, size: 56, color: AppTheme.fhAccentTealFixed), // Themed Icon
+                      Icon(MdiIcons.shieldCrownOutline,
+                          size: 56,
+                          color: AppTheme.fhAccentTealFixed), // Themed Icon
                       const SizedBox(height: 16),
                       Text(
                         'TASK DOMINION',
-                        style: theme.textTheme.displaySmall?.copyWith( // Use displaySmall for prominent title
+                        style: theme.textTheme.displaySmall?.copyWith(
+                          // Use displaySmall for prominent title
                           color: AppTheme.fhAccentTealFixed,
                         ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _isLogin ? 'Secure Login' : 'Create Account', // Updated subtitle
+                        _isLogin
+                            ? 'Secure Login'
+                            : 'Create Account', // Updated subtitle
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: AppTheme.fhTextSecondary,
                         ),
@@ -122,9 +129,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _usernameController,
                             decoration: InputDecoration(
                               labelText: 'Username',
-                              prefixIcon: Icon(MdiIcons.accountOutline, color: theme.inputDecorationTheme.labelStyle?.color, size: 20),
+                              prefixIcon: Icon(MdiIcons.accountOutline,
+                                  color: theme
+                                      .inputDecorationTheme.labelStyle?.color,
+                                  size: 20),
                             ),
-                            style: const TextStyle(color: AppTheme.fhTextPrimary, fontFamily: AppTheme.fontBody),
+                            style: const TextStyle(
+                                color: AppTheme.fhTextPrimary,
+                                fontFamily: AppTheme.fontBody),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Please enter a username.';
@@ -141,12 +153,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _emailController,
                         decoration: InputDecoration(
                           labelText: 'Email Address',
-                          prefixIcon: Icon(MdiIcons.emailOutline, color: theme.inputDecorationTheme.labelStyle?.color, size: 20),
+                          prefixIcon: Icon(MdiIcons.emailOutline,
+                              color:
+                                  theme.inputDecorationTheme.labelStyle?.color,
+                              size: 20),
                         ),
                         keyboardType: TextInputType.emailAddress,
-                        style: const TextStyle(color: AppTheme.fhTextPrimary, fontFamily: AppTheme.fontBody),
+                        style: const TextStyle(
+                            color: AppTheme.fhTextPrimary,
+                            fontFamily: AppTheme.fontBody),
                         validator: (value) {
-                          if (value == null || value.isEmpty || !value.contains('@')) {
+                          if (value == null ||
+                              value.isEmpty ||
+                              !value.contains('@')) {
                             return 'Please enter a valid email.';
                           }
                           return null;
@@ -158,11 +177,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _passwordController,
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          prefixIcon: Icon(MdiIcons.lockOutline, color: theme.inputDecorationTheme.labelStyle?.color, size: 20),
+                          prefixIcon: Icon(MdiIcons.lockOutline,
+                              color:
+                                  theme.inputDecorationTheme.labelStyle?.color,
+                              size: 20),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? MdiIcons.eyeOutline : MdiIcons.eyeOffOutline,
-                              color: theme.inputDecorationTheme.labelStyle?.color,
+                              _obscurePassword
+                                  ? MdiIcons.eyeOutline
+                                  : MdiIcons.eyeOffOutline,
+                              color:
+                                  theme.inputDecorationTheme.labelStyle?.color,
                             ),
                             onPressed: () {
                               setState(() {
@@ -172,9 +197,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         obscureText: _obscurePassword,
-                        style: const TextStyle(color: AppTheme.fhTextPrimary, fontFamily: AppTheme.fontBody),
+                        style: const TextStyle(
+                            color: AppTheme.fhTextPrimary,
+                            fontFamily: AppTheme.fontBody),
                         validator: (value) {
-                          if (value == null || value.isEmpty || value.length < 6) {
+                          if (value == null ||
+                              value.isEmpty ||
+                              value.length < 6) {
                             return 'Password must be at least 6 characters long.';
                           }
                           return null;
@@ -186,13 +215,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: const EdgeInsets.only(top: 16.0),
                           child: Text(
                             _error,
-                            style: const TextStyle(color: AppTheme.fhAccentRed, fontSize: 12, fontFamily: AppTheme.fontBody),
+                            style: const TextStyle(
+                                color: AppTheme.fhAccentRed,
+                                fontSize: 12,
+                                fontFamily: AppTheme.fontBody),
                             textAlign: TextAlign.center,
                           ),
                         ),
                       const SizedBox(height: 32),
                       if (_isLoading)
-                        const CircularProgressIndicator(color: AppTheme.fhAccentTealFixed)
+                        const CircularProgressIndicator(
+                            color: AppTheme.fhAccentTealFixed)
                       else
                         ElevatedButton(
                           onPressed: _submit,
@@ -214,7 +247,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           });
                         },
                         child: Text(
-                          _isLogin ? 'Need an account? Sign Up' : 'Already have an account? Login',
+                          _isLogin
+                              ? 'Need an account? Sign Up'
+                              : 'Already have an account? Login',
                         ),
                       ),
                     ],

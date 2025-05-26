@@ -7,9 +7,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:myapp_flutter/src/app.dart'; // Changed import
+import 'package:arcane/src/app.dart'; // Changed import
 import 'package:provider/provider.dart'; // Added for GameProvider
-import 'package:myapp_flutter/src/providers/game_provider.dart'; // Added for GameProvider
+import 'package:arcane/src/providers/game_provider.dart'; // Added for GameProvider
 import 'package:firebase_core/firebase_core.dart'; // Added for Firebase
 import './mock.dart'; // For Firebase mock
 
@@ -45,7 +45,7 @@ void main() {
     // This is a placeholder. Actual test would depend on GameProvider's initial state.
     // For now, let's assume we get to a state where a MaterialApp is built.
     expect(find.byType(MaterialApp), findsOneWidget);
-    
+
     // The original test was for a counter app, this app is different.
     // This test needs to be adapted to the new app's functionality.
     // For now, a smoke test that the app builds is sufficient.

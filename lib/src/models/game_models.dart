@@ -1,9 +1,9 @@
 // lib/src/models/game_models.dart
-// import 'package:myapp_flutter/src/utils/constants.dart'; // No longer needed here for constants
+// import 'package:arcane/src/utils/constants.dart'; // No longer needed here for constants
 import 'package:collection/collection.dart'; // For firstWhereOrNull
 import 'package:flutter/material.dart'; // For Color
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:myapp_flutter/src/theme/app_theme.dart'; // For MdiIcons
+import 'package:arcane/src/theme/app_theme.dart'; // For MdiIcons
 
 class MainTask {
   String id;
@@ -50,7 +50,8 @@ class MainTask {
       dailyTimeSpent: json['dailyTimeSpent'] as int? ?? 0,
       lastWorkedDate: json['lastWorkedDate'] as String?,
       subTasks: (json['subTasks'] as List<dynamic>?)
-              ?.map((stJson) => SubTask.fromJson(stJson as Map<String, dynamic>))
+              ?.map(
+                  (stJson) => SubTask.fromJson(stJson as Map<String, dynamic>))
               .toList() ??
           [],
     );
@@ -113,7 +114,8 @@ class SubTask {
       targetCount: json['targetCount'] as int? ?? 0,
       currentCount: json['currentCount'] as int? ?? 0,
       subSubTasks: (json['subSubTasks'] as List<dynamic>?)
-              ?.map((sssJson) => SubSubTask.fromJson(sssJson as Map<String, dynamic>))
+              ?.map((sssJson) =>
+                  SubSubTask.fromJson(sssJson as Map<String, dynamic>))
               .toList() ??
           [],
     );
@@ -208,7 +210,7 @@ class CurrentGame {
   EnemyTemplate? enemy;
   double playerCurrentHp;
   List<String> log;
-  String? currentPlaceKey; 
+  String? currentPlaceKey;
 
   CurrentGame({
     this.enemy,
@@ -217,16 +219,22 @@ class CurrentGame {
     this.currentPlaceKey,
   }) : log = log ?? [];
 
-  factory CurrentGame.fromJson(Map<String, dynamic> json, List<EnemyTemplate> allEnemyTemplates) {
+  factory CurrentGame.fromJson(
+      Map<String, dynamic> json, List<EnemyTemplate> allEnemyTemplates) {
     EnemyTemplate? currentEnemy;
     if (json['enemy'] != null) {
       final enemyData = json['enemy'] as Map<String, dynamic>;
-      currentEnemy = allEnemyTemplates.firstWhereOrNull((t) => t.id == enemyData['id']) ?? EnemyTemplate.fromJson(enemyData);
+      currentEnemy =
+          allEnemyTemplates.firstWhereOrNull((t) => t.id == enemyData['id']) ??
+              EnemyTemplate.fromJson(enemyData);
     }
     return CurrentGame(
       enemy: currentEnemy,
       playerCurrentHp: (json['playerCurrentHp'] as num).toDouble(),
-      log: (json['log'] as List<dynamic>?)?.map((entry) => entry as String).toList() ?? [],
+      log: (json['log'] as List<dynamic>?)
+              ?.map((entry) => entry as String)
+              .toList() ??
+          [],
       currentPlaceKey: json['currentPlaceKey'] as String?,
     );
   }
@@ -245,7 +253,8 @@ class GameSettings {
   bool descriptionsVisible;
   bool autoGenerateContent;
 
-  GameSettings({this.descriptionsVisible = true, this.autoGenerateContent = true});
+  GameSettings(
+      {this.descriptionsVisible = true, this.autoGenerateContent = true});
 
   factory GameSettings.fromJson(Map<String, dynamic> json) {
     return GameSettings(
@@ -279,7 +288,8 @@ class ActiveTimerInfo {
   factory ActiveTimerInfo.fromJson(Map<String, dynamic> json) {
     return ActiveTimerInfo(
       startTime: DateTime.parse(json['startTime'] as String),
-      accumulatedDisplayTime: (json['accumulatedDisplayTime'] as num? ?? 0).toDouble(),
+      accumulatedDisplayTime:
+          (json['accumulatedDisplayTime'] as num? ?? 0).toDouble(),
       isRunning: json['isRunning'] as bool? ?? false,
       type: json['type'] as String? ?? 'subtask',
       mainTaskId: json['mainTaskId'] as String? ?? '',
@@ -319,15 +329,20 @@ class PlayerStat {
       if (val is String) return double.tryParse(val) ?? defaultValue;
       return defaultValue;
     }
+
     String parseString(dynamic val, String defaultValue) {
       if (val == null) return defaultValue;
       if (val is String) return val;
       return val.toString();
     }
+
     return PlayerStat(
       name: parseString(json['name'], 'Unknown Stat'),
       description: parseString(json['description'], 'No description.'),
-      icon: parseString(json['icon'], MdiIcons.helpCircleOutline.codePoint.toString()), // Use MDI icon as string default
+      icon: parseString(
+          json['icon'],
+          MdiIcons.helpCircleOutline.codePoint
+              .toString()), // Use MDI icon as string default
       value: parseNumToDouble(json['value'], 0.0),
       base: parseNumToDouble(json['base'], 0.0),
     );
@@ -347,7 +362,7 @@ class PlayerStat {
 class ArtifactTemplate {
   final String id;
   final String name;
-  final String type; 
+  final String type;
   final String? theme;
   final String description;
   final int cost;
@@ -356,12 +371,12 @@ class ArtifactTemplate {
   final int? baseRunic;
   final int? baseDef;
   final int? baseHealth;
-  final int? baseLuck; 
-  final int? baseCooldown; 
-  final double? bonusXPMod; 
-  final Map<String, int>? upgradeBonus; 
+  final int? baseLuck;
+  final int? baseCooldown;
+  final double? bonusXPMod;
+  final Map<String, int>? upgradeBonus;
   final int? maxLevel;
-  final String? effectType; 
+  final String? effectType;
   final int? effectValue;
   final int? uses;
 
@@ -395,9 +410,10 @@ class ArtifactTemplate {
         (json['upgradeBonus'] as Map<String, dynamic>).forEach((key, value) {
           if (value is num) {
             parsedUpgradeBonus![key] = value.toInt();
-          } else if (value is String) parsedUpgradeBonus![key] = int.tryParse(value) ?? 0;
+          } else if (value is String)
+            parsedUpgradeBonus![key] = int.tryParse(value) ?? 0;
         });
-      } catch (e) { /* ... */ }
+      } catch (e) {/* ... */}
     }
     int? parseInt(dynamic val) {
       if (val == null) return null;
@@ -406,6 +422,7 @@ class ArtifactTemplate {
       if (val is String) return int.tryParse(val);
       return null;
     }
+
     double? parseDouble(dynamic val) {
       if (val == null) return null;
       if (val is double) return val;
@@ -413,14 +430,18 @@ class ArtifactTemplate {
       if (val is String) return double.tryParse(val);
       return null;
     }
+
     return ArtifactTemplate(
-      id: json['id'] as String? ?? 'unknown_id_${DateTime.now().millisecondsSinceEpoch}',
+      id: json['id'] as String? ??
+          'unknown_id_${DateTime.now().millisecondsSinceEpoch}',
       name: json['name'] as String? ?? 'Unknown Artifact',
       type: json['type'] as String? ?? 'unknown',
       theme: json['theme'] as String?,
       description: json['description'] as String? ?? 'No description.',
       cost: parseInt(json['cost']) ?? 0,
-      icon: json['icon'] as String? ?? MdiIcons.treasureChest.codePoint.toString(), // Default to MDI icon string
+      icon: json['icon'] as String? ??
+          MdiIcons.treasureChest.codePoint
+              .toString(), // Default to MDI icon string
       baseAtt: parseInt(json['baseAtt']),
       baseRunic: parseInt(json['baseRunic']),
       baseDef: parseInt(json['baseDef']),
@@ -437,11 +458,25 @@ class ArtifactTemplate {
   }
   Map<String, dynamic> toJson() {
     return {
-      'id': id, 'name': name, 'type': type, 'theme': theme, 'description': description,
-      'cost': cost, 'icon': icon, 'baseAtt': baseAtt, 'baseRunic': baseRunic, 'baseDef': baseDef,
-      'baseHealth': baseHealth, 'baseLuck': baseLuck, 'baseCooldown': baseCooldown,
-      'bonusXPMod': bonusXPMod, 'upgradeBonus': upgradeBonus, 'maxLevel': maxLevel,
-      'effectType': effectType, 'effectValue': effectValue, 'uses': uses,
+      'id': id,
+      'name': name,
+      'type': type,
+      'theme': theme,
+      'description': description,
+      'cost': cost,
+      'icon': icon,
+      'baseAtt': baseAtt,
+      'baseRunic': baseRunic,
+      'baseDef': baseDef,
+      'baseHealth': baseHealth,
+      'baseLuck': baseLuck,
+      'baseCooldown': baseCooldown,
+      'bonusXPMod': bonusXPMod,
+      'upgradeBonus': upgradeBonus,
+      'maxLevel': maxLevel,
+      'effectType': effectType,
+      'effectValue': effectValue,
+      'uses': uses,
     };
   }
 }
@@ -450,12 +485,12 @@ class EnemyTemplate {
   final String id;
   final String name;
   final String? theme;
-  final String? locationKey; 
+  final String? locationKey;
   final int minPlayerLevel;
-  final int health; 
+  final int health;
   final int attack;
   final int defense;
-  int hp; 
+  int hp;
   final int coinReward;
   final int xpReward;
   final String description;
@@ -469,11 +504,11 @@ class EnemyTemplate {
     required this.health,
     required this.attack,
     required this.defense,
-    int? hp, 
+    int? hp,
     required this.coinReward,
     required this.xpReward,
     required this.description,
-  }) : hp = hp ?? health; 
+  }) : hp = hp ?? health;
 
   factory EnemyTemplate.fromJson(Map<String, dynamic> json) {
     int? parseInt(dynamic val) {
@@ -483,9 +518,11 @@ class EnemyTemplate {
       if (val is String) return int.tryParse(val);
       return null;
     }
+
     final maxHealth = parseInt(json['health']) ?? 10;
     return EnemyTemplate(
-      id: json['id'] as String? ?? 'unknown_enemy_${DateTime.now().millisecondsSinceEpoch}',
+      id: json['id'] as String? ??
+          'unknown_enemy_${DateTime.now().millisecondsSinceEpoch}',
       name: json['name'] as String? ?? 'Nameless Foe',
       theme: json['theme'] as String?,
       locationKey: json['locationKey'] as String?,
@@ -502,10 +539,18 @@ class EnemyTemplate {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id, 'name': name, 'theme': theme, 'locationKey': locationKey,
-      'minPlayerLevel': minPlayerLevel, 'health': health, 'hp': hp,
-      'attack': attack, 'defense': defense, 'coinReward': coinReward,
-      'xpReward': xpReward, 'description': description,
+      'id': id,
+      'name': name,
+      'theme': theme,
+      'locationKey': locationKey,
+      'minPlayerLevel': minPlayerLevel,
+      'health': health,
+      'hp': hp,
+      'attack': attack,
+      'defense': defense,
+      'coinReward': coinReward,
+      'xpReward': xpReward,
+      'description': description,
     };
   }
 }
@@ -514,13 +559,13 @@ class Rune {
   String id;
   String name;
   String description;
-  String icon; 
-  String type; 
-  String effectType; 
-  double effectValue; 
-  double? effectDuration; 
-  String? targetStat; 
-  int cost; 
+  String icon;
+  String type;
+  String effectType;
+  double effectValue;
+  double? effectDuration;
+  String? targetStat;
+  int cost;
   int? requiredLevel;
 
   Rune({
@@ -572,8 +617,8 @@ class Rune {
 
 class OwnedRune {
   String uniqueId;
-  String runeId; 
-  bool isActive; 
+  String runeId;
+  bool isActive;
 
   OwnedRune({
     required this.uniqueId,
@@ -581,7 +626,7 @@ class OwnedRune {
     this.isActive = false,
   });
 
-   factory OwnedRune.fromJson(Map<String, dynamic> json) {
+  factory OwnedRune.fromJson(Map<String, dynamic> json) {
     return OwnedRune(
       uniqueId: json['uniqueId'] as String,
       runeId: json['runeId'] as String,
@@ -604,7 +649,7 @@ class MainTaskTemplate {
   final String name;
   final String description;
   final String theme;
-  final String colorHex; 
+  final String colorHex;
 
   MainTaskTemplate({
     required this.id,
@@ -623,7 +668,8 @@ class GameLocation {
   final int minPlayerLevelToUnlock;
   final String iconEmoji; // Using specific field for emoji
   final String? associatedTheme;
-  final String? bossEnemyIdToUnlockNextLocation; // ID of an enemy in this location
+  final String?
+      bossEnemyIdToUnlockNextLocation; // ID of an enemy in this location
 
   GameLocation({
     required this.id,
@@ -637,13 +683,15 @@ class GameLocation {
 
   factory GameLocation.fromJson(Map<String, dynamic> json) {
     return GameLocation(
-      id: json['id'] as String? ?? 'loc_${DateTime.now().millisecondsSinceEpoch}',
+      id: json['id'] as String? ??
+          'loc_${DateTime.now().millisecondsSinceEpoch}',
       name: json['name'] as String? ?? 'Unknown Area',
       description: json['description'] as String? ?? 'A mysterious place.',
       minPlayerLevelToUnlock: json['minPlayerLevelToUnlock'] as int? ?? 1,
       iconEmoji: json['iconEmoji'] as String? ?? '❓',
       associatedTheme: json['associatedTheme'] as String?,
-      bossEnemyIdToUnlockNextLocation: json['bossEnemyIdToUnlockNextLocation'] as String?,
+      bossEnemyIdToUnlockNextLocation:
+          json['bossEnemyIdToUnlockNextLocation'] as String?,
     );
   }
 

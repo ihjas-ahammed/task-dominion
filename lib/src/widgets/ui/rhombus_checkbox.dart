@@ -1,8 +1,10 @@
 // lib/src/widgets/ui/rhombus_checkbox.dart
 import 'package:flutter/material.dart';
-import 'package:myapp_flutter/src/theme/app_theme.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
 import 'dart:math' as math;
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:provider/provider.dart';
 
 enum CheckboxSize { small, medium }
 
@@ -22,25 +24,40 @@ class RhombusCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double dimension = size == CheckboxSize.small ? 18.0 : 22.0; // Overall tap target
+    final double dimension =
+        size == CheckboxSize.small ? 18.0 : 22.0; // Overall tap target
     final double iconSize = size == CheckboxSize.small ? 12.0 : 14.0;
-    final double visualDimension = size == CheckboxSize.small ? 15.0 : 18.0; // Visual size of rhombus
+    final double visualDimension =
+        size == CheckboxSize.small ? 15.0 : 18.0; // Visual size of rhombus
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
 
-    Color bgColor = checked ? AppTheme.fhAccentTeal : AppTheme.fhBgMedium;
+    Color bgColor = checked
+        ? (gameProvider.getSelectedTask()?.taskColor ??
+            AppTheme.fhAccentTealFixed)
+        : AppTheme.fhBgMedium;
     Color borderColor = disabled
-        ? (checked ? AppTheme.fhAccentTeal.withOpacity(0.5) : AppTheme.fhBorderColor.withOpacity(0.5))
-        : (checked ? AppTheme.fhAccentTeal : AppTheme.fhBorderColor);
+        ? (checked
+            ? (gameProvider.getSelectedTask()?.taskColor ??
+                    AppTheme.fhAccentTealFixed)
+                .withOpacity(0.5)
+            : AppTheme.fhBorderColor.withOpacity(0.5))
+        : (checked
+            ? (gameProvider.getSelectedTask()?.taskColor ??
+                AppTheme.fhAccentTealFixed)
+            : AppTheme.fhBorderColor);
 
     if (disabled && checked) {
-      bgColor = AppTheme.fhAccentTeal.withOpacity(0.6);
+      bgColor = (gameProvider.getSelectedTask()?.taskColor ??
+              AppTheme.fhAccentTealFixed)
+          .withOpacity(0.6);
     } else if (disabled && !checked) {
       bgColor = AppTheme.fhBgLight.withOpacity(0.4);
     }
 
-
     return InkWell(
       onTap: disabled ? null : () => onChanged?.call(!checked),
-      borderRadius: BorderRadius.circular(dimension / 4), // Make tap effect slightly rounded
+      borderRadius: BorderRadius.circular(
+          dimension / 4), // Make tap effect slightly rounded
       child: SizedBox(
         width: dimension,
         height: dimension,
@@ -51,7 +68,8 @@ class RhombusCheckbox extends StatelessWidget {
               angle: math.pi / 4, // 45 degrees
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                height: visualDimension * 0.9, // Make it slightly smaller than container for padding
+                height: visualDimension *
+                    0.9, // Make it slightly smaller than container for padding
                 width: visualDimension * 0.9,
                 decoration: BoxDecoration(
                   color: bgColor,
@@ -68,7 +86,9 @@ class RhombusCheckbox extends StatelessWidget {
               Icon(
                 MdiIcons.checkBold, // Using MDI check for a bolder look
                 size: iconSize,
-                color: disabled ? AppTheme.fhTextSecondary.withOpacity(0.7) : AppTheme.fhBgDark, // Dark check on light teal
+                color: disabled
+                    ? AppTheme.fhTextSecondary.withOpacity(0.7)
+                    : AppTheme.fhBgDark, // Dark check on light teal
               ),
           ],
         ),

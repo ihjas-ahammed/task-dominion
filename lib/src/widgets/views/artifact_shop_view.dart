@@ -1,8 +1,8 @@
 // lib/src/widgets/views/artifact_shop_view.dart
 import 'package:flutter/material.dart';
-import 'package:myapp_flutter/src/providers/game_provider.dart';
-import 'package:myapp_flutter/src/theme/app_theme.dart';
-import 'package:myapp_flutter/src/widgets/ui/artifact_card.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/widgets/ui/artifact_card.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
@@ -15,9 +15,12 @@ class ArtifactShopView extends StatelessWidget {
     final theme = Theme.of(context);
     final currentTask = gameProvider.getSelectedTask();
     final String? currentTaskTheme = currentTask?.theme;
-    final Color dynamicAccent = currentTask?.taskColor ?? theme.colorScheme.secondary;
-    final Color buttonTextColor = ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fhTextPrimary : AppTheme.fhBgDark;
-
+    final Color dynamicAccent =
+        currentTask?.taskColor ?? theme.colorScheme.secondary;
+    final Color buttonTextColor =
+        ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark
+            ? AppTheme.fhTextPrimary
+            : AppTheme.fhBgDark;
 
     final itemsToShow = gameProvider.artifactTemplatesList.where((template) {
       final bool themeMatch = currentTaskTheme == null ||
@@ -38,7 +41,8 @@ class ArtifactShopView extends StatelessWidget {
       });
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 16, right: 4, left: 4), // Added left padding
+      padding: const EdgeInsets.only(
+          bottom: 16, right: 4, left: 4), // Added left padding
       child: Column(
         children: [
           Padding(
@@ -52,8 +56,9 @@ class ArtifactShopView extends StatelessWidget {
                 Text(
                   "Brok & Sindri's Wares",
                   style: theme.textTheme.headlineSmall?.copyWith(
-                      fontFamily: AppTheme.fontDisplay, 
-                      color: AppTheme.fhTextPrimary), // Primary text color for title
+                      fontFamily: AppTheme.fontDisplay,
+                      color: AppTheme
+                          .fhTextPrimary), // Primary text color for title
                 ),
               ],
             ),
@@ -73,22 +78,26 @@ class ArtifactShopView extends StatelessWidget {
               int crossAxisCount = 2;
               if (constraints.maxWidth > 900) {
                 crossAxisCount = 4; // Adjusted breakpoints
-              } else if (constraints.maxWidth > 600) crossAxisCount = 3;
+              } else if (constraints.maxWidth > 600)
+                crossAxisCount = 3;
               else if (constraints.maxWidth < 400) crossAxisCount = 1;
 
-
-              double itemWidth = (constraints.maxWidth - (crossAxisCount +1) * 10) / crossAxisCount; // 10 for padding
-              double childAspectRatio = itemWidth / 270; // Adjusted height for better card display
+              double itemWidth =
+                  (constraints.maxWidth - (crossAxisCount + 1) * 10) /
+                      crossAxisCount; // 10 for padding
+              double childAspectRatio =
+                  itemWidth / 270; // Adjusted height for better card display
 
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(10.0), 
+                padding: const EdgeInsets.all(10.0),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
                   crossAxisSpacing: 10.0,
                   mainAxisSpacing: 10.0,
-                  childAspectRatio: childAspectRatio.clamp(0.65, 0.9), // Adjusted clamp
+                  childAspectRatio:
+                      childAspectRatio.clamp(0.65, 0.9), // Adjusted clamp
                 ),
                 itemCount: itemsToShow.length,
                 itemBuilder: (context, index) {
@@ -97,14 +106,20 @@ class ArtifactShopView extends StatelessWidget {
                   final bool isOwned = template.type != 'powerup' &&
                       gameProvider.artifacts
                           .any((art) => art.templateId == template.id);
-                  
+
                   return ArtifactCardWidget(
                     template: template,
                     cost: template.cost,
                     actionSection: SizedBox(
-                      width: double.infinity, 
+                      width: double.infinity,
                       child: ElevatedButton.icon(
-                        icon: Icon(isOwned ? MdiIcons.checkCircleOutline : (canAfford ? MdiIcons.cartPlus : MdiIcons.cartOff), size:16),
+                        icon: Icon(
+                            isOwned
+                                ? MdiIcons.checkCircleOutline
+                                : (canAfford
+                                    ? MdiIcons.cartPlus
+                                    : MdiIcons.cartOff),
+                            size: 16),
                         label: Text(isOwned
                             ? 'ACQUIRED'
                             : (canAfford
@@ -114,22 +129,31 @@ class ArtifactShopView extends StatelessWidget {
                             ? null
                             : () => gameProvider.buyArtifact(template.id),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isOwned ? AppTheme.fhBgDark.withOpacity(0.6) : (canAfford ? dynamicAccent : AppTheme.fhAccentRed.withOpacity(0.7)),
-                          foregroundColor: isOwned ? AppTheme.fhTextSecondary.withOpacity(0.7) : (canAfford ? buttonTextColor : AppTheme.fhTextPrimary),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8), // Adjusted padding
-                          textStyle: const TextStyle(
-                              fontSize: 11,
-                              fontFamily: AppTheme.fontBody, 
-                              fontWeight: FontWeight.bold),
-                          disabledBackgroundColor:
-                              AppTheme.fhBgDark.withOpacity(0.5),
-                          disabledForegroundColor:
-                              AppTheme.fhTextSecondary.withOpacity(0.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))
-                        ),
+                            backgroundColor: isOwned
+                                ? AppTheme.fhBgDark.withOpacity(0.6)
+                                : (canAfford
+                                    ? dynamicAccent
+                                    : AppTheme.fhAccentRed.withOpacity(0.7)),
+                            foregroundColor: isOwned
+                                ? AppTheme.fhTextSecondary.withOpacity(0.7)
+                                : (canAfford
+                                    ? buttonTextColor
+                                    : AppTheme.fhTextPrimary),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8), // Adjusted padding
+                            textStyle: const TextStyle(
+                                fontSize: 11,
+                                fontFamily: AppTheme.fontBody,
+                                fontWeight: FontWeight.bold),
+                            disabledBackgroundColor:
+                                AppTheme.fhBgDark.withOpacity(0.5),
+                            disabledForegroundColor:
+                                AppTheme.fhTextSecondary.withOpacity(0.5),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4))),
                       ),
-                    ), 
+                    ),
                   );
                 },
               );

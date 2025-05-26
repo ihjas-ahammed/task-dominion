@@ -1,11 +1,11 @@
 // lib/src/widgets/views/blacksmith_view.dart
 import 'package:flutter/material.dart';
-import 'package:myapp_flutter/src/providers/game_provider.dart';
-import 'package:myapp_flutter/src/theme/app_theme.dart';
-import 'package:myapp_flutter/src/models/game_models.dart';
-import 'package:myapp_flutter/src/utils/constants.dart';
-import 'package:myapp_flutter/src/utils/helpers.dart' as helper;
-import 'package:myapp_flutter/src/widgets/ui/artifact_card.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/utils/constants.dart';
+import 'package:arcane/src/utils/helpers.dart' as helper;
+import 'package:arcane/src/widgets/ui/artifact_card.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
@@ -16,16 +16,19 @@ class BlacksmithView extends StatelessWidget {
   Widget build(BuildContext context) {
     final gameProvider = Provider.of<GameProvider>(context);
     final theme = Theme.of(context);
-    final Color dynamicAccent = gameProvider.getSelectedTask()?.taskColor ?? theme.colorScheme.secondary;
-    final Color buttonTextColor = ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fhTextPrimary : AppTheme.fhBgDark;
-
+    final Color dynamicAccent = gameProvider.getSelectedTask()?.taskColor ??
+        theme.colorScheme.secondary;
+    final Color buttonTextColor =
+        ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark
+            ? AppTheme.fhTextPrimary
+            : AppTheme.fhBgDark;
 
     final upgradableArtifacts = gameProvider.artifacts.where((art) {
       final template = gameProvider.artifactTemplatesList.firstWhere(
           (t) => t.id == art.templateId,
           orElse: () => ArtifactTemplate(
               id: '', name: '', type: '', description: '', cost: 0, icon: ''));
-      return template.id.isNotEmpty; 
+      return template.id.isNotEmpty;
     }).toList();
 
     if (upgradableArtifacts.isEmpty) {
@@ -39,8 +42,9 @@ class BlacksmithView extends StatelessWidget {
             const SizedBox(height: 16),
             Text("Hephaestus' Forge",
                 style: theme.textTheme.headlineSmall?.copyWith(
-                    fontFamily: AppTheme.fontDisplay, 
-                    color: AppTheme.fhTextPrimary)), // Use primary text color for title
+                    fontFamily: AppTheme.fontDisplay,
+                    color: AppTheme
+                        .fhTextPrimary)), // Use primary text color for title
             const SizedBox(height: 8),
             Text(
               "Your satchel is empty, warrior. Acquire some artifacts to enhance or sell!",
@@ -61,7 +65,8 @@ class BlacksmithView extends StatelessWidget {
       }
       return (template.cost *
               blacksmithUpgradeCostMultiplier *
-              helper.xpLevelMultiplierPow(1.2, currentLevel - 1)) // Keep 1.2 for blacksmith logic
+              helper.xpLevelMultiplierPow(
+                  1.2, currentLevel - 1)) // Keep 1.2 for blacksmith logic
           .floor();
     }
 
@@ -77,7 +82,8 @@ class BlacksmithView extends StatelessWidget {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 16, right: 4, left: 4), // Added left padding
+      padding: const EdgeInsets.only(
+          bottom: 16, right: 4, left: 4), // Added left padding
       child: Column(
         children: [
           Padding(
@@ -85,14 +91,14 @@ class BlacksmithView extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(MdiIcons.hammerWrench,
-                    color: dynamicAccent, size: 32),
+                Icon(MdiIcons.hammerWrench, color: dynamicAccent, size: 32),
                 const SizedBox(width: 12),
                 Text(
                   "Hephaestus' Forge",
                   style: theme.textTheme.headlineSmall?.copyWith(
-                      fontFamily: AppTheme.fontDisplay, 
-                      color: AppTheme.fhTextPrimary), // Use primary text color for title
+                      fontFamily: AppTheme.fontDisplay,
+                      color: AppTheme
+                          .fhTextPrimary), // Use primary text color for title
                 ),
               ],
             ),
@@ -101,11 +107,15 @@ class BlacksmithView extends StatelessWidget {
             int crossAxisCount = 2;
             if (constraints.maxWidth > 900) {
               crossAxisCount = 4; // Adjusted breakpoints
-            } else if (constraints.maxWidth > 600) crossAxisCount = 3;
+            } else if (constraints.maxWidth > 600)
+              crossAxisCount = 3;
             else if (constraints.maxWidth < 400) crossAxisCount = 1;
 
-            double itemWidth = (constraints.maxWidth - (crossAxisCount +1) * 10) / crossAxisCount; // 10 for padding
-            double childAspectRatio = itemWidth / 280; // Adjusted for potentially taller cards with more actions
+            double itemWidth =
+                (constraints.maxWidth - (crossAxisCount + 1) * 10) /
+                    crossAxisCount; // 10 for padding
+            double childAspectRatio = itemWidth /
+                280; // Adjusted for potentially taller cards with more actions
 
             return GridView.builder(
               shrinkWrap: true,
@@ -115,7 +125,8 @@ class BlacksmithView extends StatelessWidget {
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: 10.0,
                 mainAxisSpacing: 10.0,
-                childAspectRatio: childAspectRatio.clamp(0.6, 0.85), // Adjusted clamp
+                childAspectRatio:
+                    childAspectRatio.clamp(0.6, 0.85), // Adjusted clamp
               ),
               itemCount: upgradableArtifacts.length,
               itemBuilder: (context, index) {
@@ -123,10 +134,16 @@ class BlacksmithView extends StatelessWidget {
                 final template = gameProvider.artifactTemplatesList.firstWhere(
                     (t) => t.id == ownedArt.templateId,
                     orElse: () => ArtifactTemplate(
-                        id: '', name: '', type: '', description: '', cost: 0, icon: ''));
+                        id: '',
+                        name: '',
+                        type: '',
+                        description: '',
+                        cost: 0,
+                        icon: ''));
                 if (template.id == '') return const SizedBox.shrink();
 
-                final upgradeCost = getUpgradeCost(template, ownedArt.currentLevel);
+                final upgradeCost =
+                    getUpgradeCost(template, ownedArt.currentLevel);
                 final sellPrice = getSellPrice(template, ownedArt);
                 final bool canUpgrade = template.type != 'powerup' &&
                     template.maxLevel != null &&
@@ -141,58 +158,87 @@ class BlacksmithView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (template.type != 'powerup')
-                         Padding(
-                           padding: const EdgeInsets.only(bottom: 6.0, top: 4.0),
-                           child: Center( // Center the sell price
-                             child: Text(
-                               'Sell Value: $sellPrice Ø',
-                               style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhTextSecondary.withOpacity(0.8), fontSize: 10),
-                             ),
-                           ),
-                         ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6.0, top: 4.0),
+                          child: Center(
+                            // Center the sell price
+                            child: Text(
+                              'Sell Value: $sellPrice Ø',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                  color:
+                                      AppTheme.fhTextSecondary.withOpacity(0.8),
+                                  fontSize: 10),
+                            ),
+                          ),
+                        ),
                       Row(
                         children: [
-                          if (template.type != 'powerup' && template.maxLevel != null) Expanded(
-                            child: ElevatedButton.icon(
-                              icon: Icon(canUpgrade ? MdiIcons.arrowUpBoldCircleOutline : MdiIcons.checkCircleOutline, size: 14),
-                              label: Text(canUpgrade
-                                    ? (canAffordUpgrade
-                                        ? 'UPGRADE ($upgradeCost Ø)'
-                                        : '$upgradeCost Ø')
-                                    : 'MAX LEVEL', style: TextStyle(fontSize: 10)),
-                              onPressed: (canUpgrade && canAffordUpgrade)
-                                  ? () => gameProvider.upgradeArtifact(ownedArt.uniqueId)
-                                  : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: dynamicAccent,
-                                foregroundColor: buttonTextColor,
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6), // Adjusted padding
-                                textStyle: const TextStyle(
-                                    fontFamily: AppTheme.fontBody, 
-                                    fontWeight: FontWeight.bold),
-                                disabledBackgroundColor: AppTheme.fhBgDark.withOpacity(0.5),
-                                disabledForegroundColor: AppTheme.fhTextSecondary.withOpacity(0.5),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))
+                          if (template.type != 'powerup' &&
+                              template.maxLevel != null)
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: Icon(
+                                    canUpgrade
+                                        ? MdiIcons.arrowUpBoldCircleOutline
+                                        : MdiIcons.checkCircleOutline,
+                                    size: 14),
+                                label: Text(
+                                    canUpgrade
+                                        ? (canAffordUpgrade
+                                            ? 'UPGRADE ($upgradeCost Ø)'
+                                            : '$upgradeCost Ø')
+                                        : 'MAX LEVEL',
+                                    style: TextStyle(fontSize: 10)),
+                                onPressed: (canUpgrade && canAffordUpgrade)
+                                    ? () => gameProvider
+                                        .upgradeArtifact(ownedArt.uniqueId)
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: dynamicAccent,
+                                    foregroundColor: buttonTextColor,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 6), // Adjusted padding
+                                    textStyle: const TextStyle(
+                                        fontFamily: AppTheme.fontBody,
+                                        fontWeight: FontWeight.bold),
+                                    disabledBackgroundColor:
+                                        AppTheme.fhBgDark.withOpacity(0.5),
+                                    disabledForegroundColor: AppTheme
+                                        .fhTextSecondary
+                                        .withOpacity(0.5),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(4))),
                               ),
                             ),
-                          ),
-                          if (template.type != 'powerup' && template.maxLevel != null) const SizedBox(width: 6.0), // Gap
-                          if (template.type != 'powerup') Expanded(
-                            child: OutlinedButton.icon(
-                              icon: Icon(MdiIcons.cashMinus, size: 14),
-                              label: const Text('SELL', style: TextStyle(fontSize: 10)),
-                              onPressed: () => gameProvider.sellArtifact(ownedArt.uniqueId),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppTheme.fhAccentOrange,
-                                side: const BorderSide(color: AppTheme.fhAccentOrange, width: 1), // Thicker border
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6), // Adjusted padding
-                                textStyle: const TextStyle(
-                                    fontFamily: AppTheme.fontBody, 
-                                    fontWeight: FontWeight.bold),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))
+                          if (template.type != 'powerup' &&
+                              template.maxLevel != null)
+                            const SizedBox(width: 6.0), // Gap
+                          if (template.type != 'powerup')
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: Icon(MdiIcons.cashMinus, size: 14),
+                                label: const Text('SELL',
+                                    style: TextStyle(fontSize: 10)),
+                                onPressed: () => gameProvider
+                                    .sellArtifact(ownedArt.uniqueId),
+                                style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.fhAccentOrange,
+                                    side: const BorderSide(
+                                        color: AppTheme.fhAccentOrange,
+                                        width: 1), // Thicker border
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 6), // Adjusted padding
+                                    textStyle: const TextStyle(
+                                        fontFamily: AppTheme.fontBody,
+                                        fontWeight: FontWeight.bold),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(4))),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ],

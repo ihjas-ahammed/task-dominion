@@ -1,11 +1,11 @@
 // lib/src/widgets/views/task_details_view.dart
 import 'package:flutter/material.dart';
-import 'package:myapp_flutter/src/providers/game_provider.dart';
-import 'package:myapp_flutter/src/theme/app_theme.dart';
-import 'package:myapp_flutter/src/models/game_models.dart';
-import 'package:myapp_flutter/src/utils/constants.dart';
-import 'package:myapp_flutter/src/utils/helpers.dart' as helper;
-import 'package:myapp_flutter/src/widgets/ui/rhombus_checkbox.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/utils/constants.dart';
+import 'package:arcane/src/utils/helpers.dart' as helper;
+import 'package:arcane/src/widgets/ui/rhombus_checkbox.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
@@ -294,11 +294,13 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
               children: [
                 Icon(MdiIcons.textBoxSearchOutline,
                     size: 56,
-                    color: AppTheme.fhAccentTeal), // Updated icon and color
+                    color: (gameProvider.getSelectedTask()?.taskColor ??
+                        AppTheme.fhAccentTealFixed)), // Updated icon and color
                 const SizedBox(height: 16),
                 Text('Select a Quest',
                     style: theme.textTheme.displaySmall?.copyWith(
-                        color: AppTheme.fhAccentTeal)), // Updated style
+                        color: (gameProvider.getSelectedTask()?.taskColor ??
+                            AppTheme.fhAccentTealFixed))), // Updated style
                 const SizedBox(height: 8),
                 Text(
                   'Details of the selected quest will appear here.',
@@ -327,12 +329,14 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                 dailyTaskGoalMinutes.toDouble() *
                 100) // Ensure double division
             .clamp(0.0, 100.0);
-        Color timeProgressColor =
-            AppTheme.fhAccentTeal; // Default progress color, Changed from fhAccentLightCyan
+        Color timeProgressColor = (gameProvider.getSelectedTask()?.taskColor ??
+            AppTheme
+                .fhAccentTealFixed); // Default progress color, Changed from fhAccentLightCyan
         if (task.dailyTimeSpent >= dailyTaskGoalMinutes * 3) {
           timeProgressColor = AppTheme.fhAccentPurple;
         } else if (task.dailyTimeSpent >= dailyTaskGoalMinutes * 2) {
-          timeProgressColor = AppTheme.fhAccentTeal; // Changed from fhAccentBrightBlue
+          timeProgressColor =
+              AppTheme.fhAccentTeal; // Changed from fhAccentBrightBlue
         } else if (task.dailyTimeSpent >= dailyTaskGoalMinutes) {
           timeProgressColor = AppTheme.fhAccentGreen;
         }
@@ -400,7 +404,10 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                           Text(
                             '${task.theme.toUpperCase()} QUEST PROTOCOL', // Themed title
                             style: theme.textTheme.labelMedium?.copyWith(
-                                color: AppTheme.fhAccentTeal,
+                                color: (gameProvider
+                                        .getSelectedTask()
+                                        ?.taskColor ??
+                                    AppTheme.fhAccentTealFixed),
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.8),
                           ),
@@ -466,7 +473,11 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
                                       border: Border.all(
-                                          color: AppTheme.fhAccentTeal // Changed from fhAccentLightCyan
+                                          color: (gameProvider
+                                                      .getSelectedTask()
+                                                      ?.taskColor ??
+                                                  AppTheme
+                                                      .fhAccentTealFixed) // Changed from fhAccentLightCyan
                                               .withOpacity(0.7),
                                           width: 1.5),
                                       borderRadius: BorderRadius.circular(4),
@@ -476,7 +487,11 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                                           task.streak > 0 ? task.streak : 1),
                                       style: theme.textTheme.titleLarge
                                           ?.copyWith(
-                                              color: AppTheme.fhAccentTeal, // Changed from fhAccentLightCyan
+                                              color: (gameProvider
+                                                      .getSelectedTask()
+                                                      ?.taskColor ??
+                                                  AppTheme
+                                                      .fhAccentTealFixed), // Changed from fhAccentLightCyan
                                               fontWeight: FontWeight.bold),
                                     ),
                                   ),
@@ -574,7 +589,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                 child: Text('Sub-Quests Log',
                     style: theme.textTheme.titleLarge?.copyWith(
                         // Updated style
-                        fontFamily: AppTheme.fontDisplay, // Changed from AppTheme.fontMain
+                        fontFamily: AppTheme
+                            .fontDisplay, // Changed from AppTheme.fontMain
                         color: AppTheme.fhTextPrimary,
                         fontWeight: FontWeight.w600)),
               ),
@@ -724,8 +740,11 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                                             _localCountControllers[st.id]!,
                                         currentValue: st.currentCount,
                                         targetValue: st.targetCount,
-                                        progressColor:
-                                            AppTheme.fhAccentTeal, // Changed from fhAccentBrightBlue
+                                        progressColor: (gameProvider
+                                                .getSelectedTask()
+                                                ?.taskColor ??
+                                            AppTheme
+                                                .fhAccentTealFixed), // Changed from fhAccentBrightBlue
                                         onBlur: () => _handleTimeOrCountBlur(
                                             gameProviderConsumer,
                                             task,
@@ -799,8 +818,11 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                                         IconButton(
                                             icon: Icon(MdiIcons.repeatVariant,
                                                 size: 18,
-                                                color: AppTheme
-                                                    .fhAccentTeal // Changed from fhAccentBrightBlue
+                                                color: (gameProvider
+                                                            .getSelectedTask()
+                                                            ?.taskColor ??
+                                                        AppTheme
+                                                            .fhAccentTealFixed) // Changed from fhAccentBrightBlue
                                                     .withOpacity(0.8)),
                                             onPressed: () =>
                                                 gameProviderConsumer
@@ -956,7 +978,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
         Text(
           helper.formatTime(displayTimeSeconds),
           style: theme.textTheme.labelSmall?.copyWith(
-              color: AppTheme.fhAccentTeal, // Changed from fhAccentLightCyan
+              color: (gameProvider.getSelectedTask()?.taskColor ??
+                  AppTheme.fhAccentTealFixed), // Changed from fhAccentLightCyan
               fontSize: 11,
               fontWeight: FontWeight.w600),
           textAlign: TextAlign.right,
@@ -1086,8 +1109,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                     controller: _newSubSubtaskNameControllers[st.id],
                     decoration: const InputDecoration(
                         hintText: 'Add a checkpoint...',
-                        contentPadding: EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4)),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
                     style: theme.textTheme.bodySmall
                         ?.copyWith(fontSize: 11, color: AppTheme.fhTextPrimary),
                   ))),
@@ -1098,7 +1121,9 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
               value: _newSubSubtaskIsCountableMap[st.id] ?? false,
               onChanged: (val) =>
                   setState(() => _newSubSubtaskIsCountableMap[st.id] = val),
-              activeColor: AppTheme.fhAccentTeal, // Changed from fhAccentBrightBlue
+              activeColor: (gameProvider.getSelectedTask()?.taskColor ??
+                  AppTheme
+                      .fhAccentTealFixed), // Changed from fhAccentBrightBlue
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
@@ -1146,7 +1171,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
           children: [
             Text('Add New Sub-Quest (Manually)',
                 style: theme.textTheme.titleMedium?.copyWith(
-                    fontFamily: AppTheme.fontDisplay, // Changed from AppTheme.fontMain
+                    fontFamily:
+                        AppTheme.fontDisplay, // Changed from AppTheme.fontMain
                     color: AppTheme.fhTextPrimary,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
@@ -1164,11 +1190,14 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                   value: _newSubtaskIsCountable,
                   onChanged: (val) =>
                       setState(() => _newSubtaskIsCountable = val ?? false),
-                  activeColor: AppTheme.fhAccentTeal,
+                  activeColor: (gameProvider.getSelectedTask()?.taskColor ??
+                      AppTheme.fhAccentTealFixed),
                   checkColor: AppTheme.fhBgDark,
                   visualDensity: VisualDensity.compact,
                   side: BorderSide(
-                      color: AppTheme.fhAccentTeal.withOpacity(0.7),
+                      color: (gameProvider.getSelectedTask()?.taskColor ??
+                              AppTheme.fhAccentTealFixed)
+                          .withOpacity(0.7),
                       width: 1.5),
                 ),
                 const Text('Is it countable?',
@@ -1231,7 +1260,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
                 const SizedBox(width: 8),
                 Text('Generate Sub-Quests with AI',
                     style: theme.textTheme.titleMedium?.copyWith(
-                        fontFamily: AppTheme.fontDisplay, // Changed from AppTheme.fontMain
+                        fontFamily: AppTheme
+                            .fontDisplay, // Changed from AppTheme.fontMain
                         color: AppTheme.fhTextPrimary,
                         fontWeight: FontWeight.w600)),
               ],
@@ -1240,8 +1270,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(
                   labelText: 'Generation Mode',
-                  labelStyle: TextStyle(
-                      fontSize: 13, fontFamily: AppTheme.fontBody)),
+                  labelStyle:
+                      TextStyle(fontSize: 13, fontFamily: AppTheme.fontBody)),
               dropdownColor: AppTheme.fhBgLight,
               value: _aiGenerationMode,
               style: theme.textTheme.bodyMedium
@@ -1269,8 +1299,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
               decoration: const InputDecoration(
                 labelText: 'Your Input for AI...',
                 alignLabelWithHint: true,
-                labelStyle: TextStyle(
-                    fontSize: 13, fontFamily: AppTheme.fontBody),
+                labelStyle:
+                    TextStyle(fontSize: 13, fontFamily: AppTheme.fontBody),
               ),
               maxLines: null, // <--- Set maxLines to null for auto-expansion
               minLines: 2,
@@ -1282,8 +1312,8 @@ class _TaskDetailsViewState extends State<TaskDetailsView> {
               controller: _aiNumSubquestsController,
               decoration: const InputDecoration(
                   labelText: 'Approx. # Sub-Quests',
-                  labelStyle: TextStyle(
-                      fontSize: 13, fontFamily: AppTheme.fontBody)),
+                  labelStyle:
+                      TextStyle(fontSize: 13, fontFamily: AppTheme.fontBody)),
               keyboardType: TextInputType.number,
               style: theme.textTheme.bodyMedium
                   ?.copyWith(fontSize: 14, color: AppTheme.fhTextPrimary),

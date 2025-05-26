@@ -1,4 +1,4 @@
-name: myapp_flutter
+name: arcane
 description: "A Flutter version of the Task Dominion application."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
@@ -40,9 +40,31 @@ dev_dependencies:
   mockito: ^5.4.4 
   change_app_package_name: ^1.1.0 
   flutter_app_name: ^0.1.1
+  flutter_launcher_icons: ^0.11.0
 
 flutter_app_name:
-  name: "TaskDominion" # Changed name to be more aligned with project
+  name: "Arcane" # Changed name to be more aligned with project
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/fonts/icons/new_ic.png" # Path to your single PNG icon
+  adaptive_icon_background: "#000000" # Or "assets/icon/background.png"
+  adaptive_icon_foreground_inset: 16
+  adaptive_icon_foreground: "assets/fonts/icons/new_ic.png"
+  min_sdk_android: 21 # Minimum Android SDK version supported (usually default is fine)
+  web:
+    generate: true
+    image_path: "assets/fonts/icons/new_ic.png"
+    background_color: "#000000"
+    theme_color: "#000000"
+  windows:
+    generate: true
+    image_path: "assets/fonts/icons/new_ic.png"
+    icon_size: 48 # Or other supported sizes (48 to 256)
+  macos:
+    generate: true
+    image_path: "assets/fonts/icons/new_ic.png"
 
 flutter:
   uses-material-design: true
