@@ -1,479 +1,3520 @@
---- START OF FILE lib/src/providers/actions/ai_generation_actions.dart ---
-// lib/src/providers/actions/ai_generation_actions.dart
+--- START OF FILE lib/src/utils/constants.dart ---
+// lib/src/utils/constants.dart
+import 'package:arcane/src/models/game_models.dart'; // For PlayerStat, MainTaskTemplate
+
+// Initial Main Task Templates (Moved from game_models.dart)
+List<MainTaskTemplate> initialMainTaskTemplates = [
+  MainTaskTemplate(
+      id: "proj_ui_ai",
+      name: "Summer Project",
+      description: "Develop UI, integrate AI, and gamify applications.",
+      theme: "tech",
+      colorHex: "FF00F8F8"), // Cyan
+  MainTaskTemplate(
+      id: "research_pinn",
+      name: "Research on PINNs",
+      description: "Deep dive into Physics Informed Neural Networks.",
+      theme: "knowledge",
+      colorHex: "FF8A2BE2"), // Purple
+  MainTaskTemplate(
+      id: "study_next_sem",
+      name: "Internship and Sem Prep",
+      description: "Prepare materials for upcoming academic semester.",
+      theme: "learning",
+      colorHex: "FFFF7043"), // Orange
+  MainTaskTemplate(
+      id: "learn_kungfu",
+      name: "Lifestyle: Kung Fu",
+      description: "Practice Kung Fu forms and techniques.",
+      theme: "discipline",
+      colorHex: "FFFD4556"), // Red
+  MainTaskTemplate(
+      id: "build_routine",
+      name: "Routine & Reflection",
+      description: "Establish routines, track progress, reflect.",
+      theme: "order",
+      colorHex: "FF4CAF50") // Green
+];
+
+Map<String, PlayerStat> basePlayerGameStats = {
+  'strength': PlayerStat(
+      name: 'STRENGTH',
+      value: 10,
+      base: 10,
+      description: 'Increases physical damage dealt.',
+      icon: 'mdi-sword'), // MDI Icon
+  'runic': PlayerStat(
+      name: 'RUNIC',
+      value: 5,
+      base: 5,
+      description: 'Increases elemental and special attack damage.',
+      icon: 'mdi-fire'), // MDI Icon
+  'defense': PlayerStat(
+      name: 'DEFENSE',
+      value: 5,
+      base: 5,
+      description: 'Reduces all damage taken.',
+      icon: 'mdi-shield'), // MDI Icon
+  'vitality': PlayerStat(
+      name: 'VITALITY',
+      value: 100,
+      base: 100,
+      description: 'Increases maximum Health.',
+      icon: 'mdi-heart'), // MDI Icon
+  'luck': PlayerStat(
+      name: 'LUCK',
+      value: 1,
+      base: 1,
+      description: 'Increases Perk activation, XP, and Coin gains.',
+      icon: 'mdi-clover'), // MDI Icon
+  'cooldown': PlayerStat(
+      name: 'COOLDOWN',
+      value: 0,
+      base: 0,
+      description: 'Reduces recharge time of special abilities.',
+      icon: 'mdi-clock-fast'), // MDI Icon
+  // bonusXPMod is handled dynamically in GameProvider, not a base displayed stat.
+};
+
+// Game constants
+// ignore_for_file: constant_identifier_names
+const double xpPerLevelBase = 150; // Increased base XP
+const double xpLevelMultiplier = 1.22; // Increased multiplier
+const double baseMaxPlayerEnergy = 100;
+const double playerEnergyPerLevelVitality = 5;
+const double energyPerAttack = 10;
+const double energyRegenPerMinuteTasked = 2;
+
+const double subtaskCompletionXpBase = 5;
+const double subtaskCompletionCoinBase = 2;
+
+const double xpPerMinuteSubtask = 0.2;
+const double coinsPerMinuteSubtask = 0.05;
+const double xpPerCountUnitSubtask = 0.5;
+const double coinsPerCountUnitSubtask = 0.1;
+
+const double subSubtaskCompletionXpBase = 1;
+const double subSubtaskCompletionCoinBase = 0.5;
+
+const double xpPerCountUnitSubSubtask = 0.1;
+const double coinsPerCountUnitSubSubtask = 0.02;
+
+const double blacksmithUpgradeCostMultiplier = 1.5;
+const int dailyTaskGoalMinutes = 15;
+const double streakBonusCoins = 10;
+const double streakBonusXp = 20;
+const double artifactSellPercentage = 0.3;
+
+// Initial Game Locations (Moved from game_models.dart and made part of constants for pre-build)
+// AI can add to this list via GameProvider.
+List<GameLocation> initialGameLocations = [
+  GameLocation(
+      id: "loc_dark_forest",
+      name: "Dark Forest",
+      description: "A menacing forest teeming with shadowy beasts.",
+      minPlayerLevelToUnlock: 1,
+      iconEmoji: "🌲",
+      associatedTheme: "nature",
+      bossEnemyIdToUnlockNextLocation: "enemy_forest_guardian"),
+  GameLocation(
+      id: "loc_ruined_temple",
+      name: "Ruined Temple",
+      description: "Ancient ruins guarded by forgotten constructs.",
+      minPlayerLevelToUnlock: 3,
+      iconEmoji: "🏛️",
+      associatedTheme: "ancient",
+      bossEnemyIdToUnlockNextLocation: "enemy_temple_golem"),
+  // AI can generate more, or they can be added here.
+];
+
+// Initial Enemy Templates
+List<EnemyTemplate> initialEnemyTemplates = [
+  EnemyTemplate(
+      id: "enemy_goblin_scout",
+      name: "Goblin Scout",
+      theme: "nature",
+      locationKey: "loc_dark_forest",
+      minPlayerLevel: 1,
+      health: 40,
+      attack: 6,
+      defense: 2,
+      coinReward: 10,
+      xpReward: 15,
+      description: "A nimble but weak forest scout."),
+  EnemyTemplate(
+      id: "enemy_forest_spider",
+      name: "Giant Forest Spider",
+      theme: "nature",
+      locationKey: "loc_dark_forest",
+      minPlayerLevel: 1,
+      health: 60,
+      attack: 8,
+      defense: 3,
+      coinReward: 15,
+      xpReward: 25,
+      description: "A large, venomous arachnid."),
+  EnemyTemplate(
+      id: "enemy_forest_guardian",
+      name: "Forest Guardian (Boss)",
+      theme: "nature",
+      locationKey: "loc_dark_forest",
+      minPlayerLevel: 2,
+      health: 150,
+      attack: 12,
+      defense: 5,
+      coinReward: 50,
+      xpReward: 70,
+      description: "An ancient protector of the woods."),
+  EnemyTemplate(
+      id: "enemy_stone_servant",
+      name: "Stone Servant",
+      theme: "ancient",
+      locationKey: "loc_ruined_temple",
+      minPlayerLevel: 3,
+      health: 80,
+      attack: 10,
+      defense: 8,
+      coinReward: 25,
+      xpReward: 40,
+      description: "A magically animated stone guard."),
+  EnemyTemplate(
+      id: "enemy_temple_golem",
+      name: "Temple Golem (Boss)",
+      theme: "ancient",
+      locationKey: "loc_ruined_temple",
+      minPlayerLevel: 4,
+      health: 200,
+      attack: 15,
+      defense: 10,
+      coinReward: 80,
+      xpReward: 100,
+      description: "The formidable guardian of the temple's heart."),
+];
+
+// Initial Artifact Templates
+List<ArtifactTemplate> initialArtifactTemplates = [
+  // Weapons
+  ArtifactTemplate(
+      id: "art_rusty_sword",
+      name: "Rusty Sword",
+      type: "weapon",
+      theme: null,
+      description: "A basic, somewhat worn sword.",
+      cost: 20,
+      icon: "mdi-sword", // Keep as MDI for now
+      baseAtt: 2,
+      maxLevel: 3,
+      upgradeBonus: {"att": 1}),
+  ArtifactTemplate(
+      id: "art_hunter_bow",
+      name: "Hunter's Bow",
+      type: "weapon",
+      theme: "nature",
+      description: "A simple bow, good for hunting.",
+      cost: 50,
+      icon: "🏹", // Emoji for this one
+      baseAtt: 3,
+      baseLuck: 1,
+      maxLevel: 5,
+      upgradeBonus: {"att": 1, "luck": 1}),
+  // Armor
+  ArtifactTemplate(
+      id: "art_leather_jerkin",
+      name: "Leather Jerkin",
+      type: "armor",
+      theme: null,
+      description: "Basic leather protection.",
+      cost: 30,
+      icon: "🛡️", // Emoji
+      baseDef: 1,
+      baseHealth: 5,
+      maxLevel: 3,
+      upgradeBonus: {"def": 1, "health": 5}),
+  ArtifactTemplate(
+      id: "art_iron_greaves",
+      name: "Iron Greaves",
+      type: "armor",
+      theme: "tech",
+      description: "Sturdy leg protection.",
+      cost: 60,
+      icon: "mdi-shoe-sneaker", // MDI
+      baseDef: 2,
+      baseHealth: 10,
+      maxLevel: 5,
+      upgradeBonus: {
+        "def": 1,
+        "health": 8
+      }), 
+  // Talismans
+  ArtifactTemplate(
+      id: "art_lucky_clover",
+      name: "Lucky Clover",
+      type: "talisman",
+      theme: "nature",
+      description: "Might bring good fortune.",
+      cost: 40,
+      icon: "🍀", // Emoji
+      baseLuck: 2,
+      bonusXPMod: 0.02,
+      maxLevel: 3,
+      upgradeBonus: {"luck": 1, "bonusXPMod": 0}),
+  // Powerups
+  ArtifactTemplate(
+      id: "art_healing_draught",
+      name: "Healing Draught",
+      type: "powerup",
+      theme: null,
+      description: "Restores a small amount of health.",
+      cost: 25,
+      icon: "🧪", // Emoji
+      effectType: "heal_player",
+      effectValue: 30,
+      uses: 1),
+];
+
+// Park Management Constants
+const double baseMaxParkEnergy = 100; // Player energy also used for park initially
+const double parkEnergyRegenPerMinute = 5; // Player energy regen can be used for park tasks
+const double fossilExcavationEnergyCost = 10; // Player Energy cost
+const double incubationEnergyCost = 25; // Player Energy cost
+const double feedDinoEnergyCost = 5; // Player Energy cost
+const int enclosureBaseFoodCapacity = 100; // Food units an enclosure's feeder can hold
+const int baseIncubationDuration = 5; // Age units for incubation
+const int MAX_PARK_RATING_FOR_STARS = 1000; // Max rating for 5-star display
+const int SKIP_MINUTE_ENERGY_COST = 10;
+const int SKIP_MINUTE_PARK_DOLLAR_BONUS = 50; // Optional: Bonus dollars for skipping
+
+
+// Initial Dinosaur Species
+List<DinosaurSpecies> initialDinosaurSpecies = [
+  DinosaurSpecies(
+    id: "dino_triceratops",
+    name: "Triceratops",
+    description: "A large, herbivorous dinosaur known for its three prominent horns and large frill.",
+    diet: "herbivore",
+    incubationCostDollars: 15000, // Cost in Dollars
+    fossilExcavationEnergyCost: 50, // Player Energy
+    baseRating: 200,
+    comfortThreshold: 0.60, // 60%
+    socialNeedsMin: 2,
+    socialNeedsMax: 5,
+    enclosureSizeNeeds: 10, // e.g., 10 grid units
+    icon: "🦕", 
+  ),
+  DinosaurSpecies(
+    id: "dino_velociraptor",
+    name: "Velociraptor",
+    description: "A small, agile carnivore known for its intelligence and sickle-shaped claws.",
+    diet: "carnivore",
+    incubationCostDollars: 25000, // Cost in Dollars
+    fossilExcavationEnergyCost: 75, // Player Energy
+    baseRating: 350,
+    comfortThreshold: 0.50, // 50%
+    socialNeedsMin: 3,
+    socialNeedsMax: 6,
+    enclosureSizeNeeds: 8,
+    icon: "🦖", 
+  ),
+];
+
+// Initial Building Templates
+List<BuildingTemplate> initialBuildingTemplates = [
+  BuildingTemplate(
+    id: "bldg_small_herb_enclosure",
+    name: "Small Herbivore Paddock",
+    type: "enclosure",
+    costDollars: 10000,
+    icon: "mdi-fence",
+    capacity: 5, 
+    operationalCostPerMinuteDollars: 100,
+    parkRatingBoost: 50,
+    sizeX: 3, sizeY: 3,
+    powerRequired: 5, // Example power requirement
+  ),
+    BuildingTemplate(
+    id: "bldg_small_carn_enclosure",
+    name: "Small Carnivore Paddock",
+    type: "enclosure",
+    costDollars: 15000, 
+    icon: "mdi-gate-alert",
+    capacity: 3, 
+    operationalCostPerMinuteDollars: 200,
+    parkRatingBoost: 70,
+    sizeX: 3, sizeY: 3,
+    powerRequired: 7, // Example power requirement
+  ),
+  BuildingTemplate(
+    id: "bldg_fossil_center",
+    name: "Fossil Center",
+    type: "fossil_center",
+    costDollars: 50000,
+    icon: "mdi-bone",
+    operationalCostPerMinuteDollars: 500,
+    parkRatingBoost: 20,
+    sizeX: 2, sizeY: 2,
+    powerRequired: 15,
+  ),
+  BuildingTemplate(
+    id: "bldg_hatchery",
+    name: "Hammond Creation Lab",
+    type: "hatchery",
+    costDollars: 75000,
+    icon: "mdi-egg-outline",
+    capacity: 1, 
+    operationalCostPerMinuteDollars: 1000,
+    parkRatingBoost: 30,
+    sizeX: 2, sizeY: 3,
+    powerRequired: 25,
+  ),
+   BuildingTemplate(
+    id: "bldg_visitor_center",
+    name: "Visitor Center",
+    type: "visitor_center",
+    costDollars: 30000,
+    icon: "mdi-office-building",
+    operationalCostPerMinuteDollars: 300,
+    incomePerMinuteDollars: 1000, 
+    parkRatingBoost: 100,
+    sizeX: 2, sizeY: 2,
+    powerRequired: 10, // Visitor centers also need some power
+  ),
+  BuildingTemplate(
+    id: "bldg_food_station_herb",
+    name: "Herbivore Feeder",
+    type: "food_station",
+    costDollars: 5000,
+    icon: "mdi-food-apple-outline",
+    capacity: enclosureBaseFoodCapacity, 
+    operationalCostPerMinuteDollars: 50,
+    sizeX: 1, sizeY: 1,
+    powerRequired: 2,
+  ),
+  BuildingTemplate(
+    id: "bldg_food_station_carn",
+    name: "Carnivore Feeder",
+    type: "food_station",
+    costDollars: 7500,
+    icon: "mdi-food-steak",
+    capacity: enclosureBaseFoodCapacity, 
+    operationalCostPerMinuteDollars: 100,
+    sizeX: 1, sizeY: 1,
+    powerRequired: 3,
+  ),
+  BuildingTemplate(
+    id: "bldg_research_outpost",
+    name: "Research Outpost",
+    type: "research_outpost",
+    costDollars: 100000,
+    icon: "mdi-flask-outline",
+    operationalCostPerMinuteDollars: 750,
+    parkRatingBoost: 40,
+    sizeX: 2, sizeY: 2,
+    powerRequired: 20,
+  ),
+   BuildingTemplate(
+    id: "bldg_gift_shop",
+    name: "Gift Shop",
+    type: "amenity_shop",
+    costDollars: 20000,
+    icon: "mdi-gift-outline",
+    operationalCostPerMinuteDollars: 200,
+    incomePerMinuteDollars: 1500,
+    parkRatingBoost: 30,
+    sizeX: 1, sizeY: 2,
+    powerRequired: 5,
+  ),
+  BuildingTemplate(
+    id: "bldg_power_plant_small",
+    name: "Small Power Plant",
+    type: "power_plant",
+    costDollars: 80000,
+    icon: "mdi-transmission-tower",
+    operationalCostPerMinuteDollars: 1200,
+    parkRatingBoost: 10,
+    sizeX: 3, sizeY: 2,
+    powerOutput: 100, // Generates 100 power units
+    powerRequired: 0, // Power plants don't consume their own type of power
+  ),
+];
+--- END OF FILE lib/src/utils/constants.dart ---
+
+--- START OF FILE lib/src/widgets/views/park_view.dart ---
+// lib/src/widgets/views/park_view.dart
+import 'package:flutter/material.dart';
 import 'package:arcane/src/providers/game_provider.dart';
-import 'package:arcane/src/services/ai_service.dart';
-import 'package:arcane/src/models/game_models.dart';
 import 'package:arcane/src/theme/app_theme.dart';
-import 'package:flutter/foundation.dart'; // For kDebugMode
-import 'package:collection/collection.dart'; // For whereNotNull
-import 'dart:math' as math_random;
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/utils/constants.dart'; // For initialDinosaurSpecies etc.
+import 'package:provider/provider.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:collection/collection.dart'; // For firstWhereOrNull
 
-class AIGenerationActions {
-  final GameProvider _provider;
-  final AIService _aiService = AIService();
-  final math_random.Random _random = math_random.Random();
+class ParkView extends StatefulWidget {
+  const ParkView({super.key});
 
-  AIGenerationActions(this._provider);
+  @override
+  State<ParkView> createState() => _ParkViewState();
+}
 
-  // Helper to generate a unique ID
-  String _generateUniqueId(String type, String name, String? theme, int level) {
-    final namePart = name.replaceAll(RegExp(r'\s+'), '_').toLowerCase();
-    final themePart = theme ?? 'general';
-    return 'gen_${type}_${themePart}_${namePart}_lvl${level}_${_random.nextInt(100000)}';
-  }
+class _ParkViewState extends State<ParkView> {
+  // UI State specific to ParkView, e.g., selected dinosaur for more details
+  String? _selectedOwnedDinoId;
 
-  // --- Programmatic Stat Generation ---
-  Map<String, dynamic> _generateEnemyStats(
-      String id, String name, String? theme, String description, int level) {
-    String assignedLocationKey = _provider.gameLocationsList.isNotEmpty
-        ? (_provider.gameLocationsList
-                .firstWhereOrNull(
-                    (loc) => loc.associatedTheme == theme || theme == null)
-                ?.id ??
-            _provider.gameLocationsList.first.id)
-        : 'default_zone'; // Fallback location
+  @override
+  Widget build(BuildContext context) {
+    final gameProvider = Provider.of<GameProvider>(context);
+    final theme = Theme.of(context);
+    final Color dynamicAccent = gameProvider.getSelectedTask()?.taskColor ??
+        theme.colorScheme.secondary;
 
-    return {
-      'id': id,
-      'name': name,
-      'theme': theme,
-      'locationKey': assignedLocationKey,
-      'minPlayerLevel': level,
-      'health': (40 + level * 10) + _random.nextInt(20 + level * 5),
-      'attack': (7 + level * 1.5).toInt() + _random.nextInt(3 + level ~/ 2),
-      'defense': (2 + level * 0.5).toInt() + _random.nextInt(2 + level ~/ 3),
-      'coinReward': (15 + level * 4) + _random.nextInt(20 + level * 4),
-      'xpReward': (25 + level * 6) + _random.nextInt(30 + level * 6),
-      'description': description,
-    };
-  }
-
-  Map<String, dynamic> _generateArtifactStats(String id, String name,
-      String? theme, String description, String icon, String type, int level) {
-    int cost = (30 + level * 10) + _random.nextInt(100 + level * 15);
-    Map<String, dynamic> stats = {
-      'id': id,
-      'name': name,
-      'type': type, // weapon, armor, talisman
-      'theme': theme,
-      'description': description,
-      'cost': cost,
-      'icon': icon,
-      'maxLevel': _random.nextInt(3) + 2, // Max level 2, 3, or 4
-    };
-
-    if (type == 'weapon') {
-      stats['baseAtt'] = (level * 0.2 + 1).toInt() + _random.nextInt(level ~/ 4 + 1);
-      stats['baseRunic'] = (level * 0.15 + (_random.nextBool() ? 1 : 0)).toInt() + _random.nextInt(level ~/ 5 + 1);
-      stats['upgradeBonus'] = {"att": 1 + _random.nextInt(level ~/ 8 + 1)};
-    } else if (type == 'armor') {
-      stats['baseDef'] = (level * 0.18 + 1).toInt() + _random.nextInt(level ~/ 5 + 1);
-      stats['baseHealth'] = (level * 1.2 + 3).toInt() + _random.nextInt(level * 1 + 4);
-      stats['upgradeBonus'] = {"def": 1 + _random.nextInt(level ~/ 8 + 1), "health": 2 + _random.nextInt(level ~/ 4 + 1)};
-    } else if (type == 'talisman') {
-      stats['baseLuck'] = _random.nextInt(level ~/ 2 + 2) + 1; // e.g., max 1 + 1 = 2 at L1, 1+3 = 4 at L5
-      stats['baseCooldown'] = _random.nextInt(level ~/ 2 + 1);
-      stats['bonusXPMod'] = _random.nextDouble() * 0.02; // Max 2%
-      stats['upgradeBonus'] = _random.nextBool() ? {"luck": 1} : {"cooldown": 1};
-       if (_random.nextDouble() < 0.2) { // 20% chance for talisman to also have a small baseAtt or baseRunic
-        if(_random.nextBool()){
-          stats['baseAtt'] = (level * 0.1).toInt() + 1;
-        } else {
-          stats['baseRunic'] = (level * 0.1).toInt() + 1;
-        }
-      }
-    }
-    // Ensure all numeric stat fields are present, defaulting to 0 or null
-    ['baseAtt', 'baseRunic', 'baseDef', 'baseHealth', 'baseLuck', 'baseCooldown'].forEach((key) {
-        stats.putIfAbsent(key, () => 0);
+    // Check for operational buildings
+    final bool fossilCenterOperational = gameProvider.ownedBuildings.any((b) {
+        final template = gameProvider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+        return template?.type == "fossil_center" && b.isOperational;
     });
-    stats.putIfAbsent('bonusXPMod', () => 0.0);
+    final bool hatcheryOperational = gameProvider.ownedBuildings.any((b) {
+        final template = gameProvider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+        return template?.type == "hatchery" && b.isOperational;
+    });
+     final bool enclosuresExistAndOperational = gameProvider.ownedBuildings.any((b) {
+        final template = gameProvider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+        return template?.type == "enclosure" && b.isOperational;
+    });
 
 
-    return stats;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(MdiIcons.island, color: dynamicAccent, size: 36), // Changed icon
+                const SizedBox(width: 12),
+                Text("Isla Nublar Dynamics", // Changed title to be more thematic
+                    style: theme.textTheme.displaySmall
+                        ?.copyWith(color: AppTheme.fhTextPrimary)),
+              ],
+            ),
+          ),
+          _buildParkStatsCard(context, gameProvider, dynamicAccent),
+          const SizedBox(height: 16),
+           _buildParkActionsCard(context, gameProvider, dynamicAccent), // Skip Minute button
+          const SizedBox(height: 24),
+          _buildSectionTitle(
+              theme, "Construction Blueprints", MdiIcons.hardHat), // Changed icon
+          _buildAvailableBuildingsSection(context, gameProvider, dynamicAccent),
+          const SizedBox(height: 24),
+          _buildSectionTitle(
+              theme, "Park Infrastructure", MdiIcons.officeBuildingCogOutline),
+          _buildOwnedBuildingsSection(context, gameProvider, dynamicAccent),
+          
+          if (fossilCenterOperational) ...[
+            const SizedBox(height: 24),
+            _buildSectionTitle(theme, "Expedition Center", MdiIcons.compassRose), // Changed icon
+            _buildFossilCenterSection(context, gameProvider, dynamicAccent),
+          ] else ...[
+            _buildConditionalPlaceholder(theme, "Build and operate an Expedition Center to start fossil hunts.", MdiIcons.compassRoseOffOutline),
+          ],
+
+          if (hatcheryOperational) ...[
+            const SizedBox(height: 24),
+            _buildSectionTitle(theme, "Hammond Creation Lab", MdiIcons.dna),
+            _buildHatcherySection(context, gameProvider, dynamicAccent),
+          ] else ...[
+             _buildConditionalPlaceholder(theme, "Build and operate a Hammond Creation Lab to incubate dinosaurs.", MdiIcons.eggOffOutline),
+          ],
+          
+          if (enclosuresExistAndOperational) ...[
+            const SizedBox(height: 24),
+            _buildSectionTitle(theme, "Dinosaur Paddocks", MdiIcons.fence),
+            _buildEnclosuresSection(context, gameProvider, dynamicAccent),
+          ] else ...[
+            _buildConditionalPlaceholder(theme, "Build and operate Enclosures to house your dinosaurs.", MdiIcons.fenceOff),
+          ],
+          
+          if (_selectedOwnedDinoId != null)
+             _buildOwnedDinosaurDetails(context, gameProvider, dynamicAccent, _selectedOwnedDinoId!),
+
+        ],
+      ),
+    );
   }
 
-  Map<String, dynamic> _generatePowerupStats(
-      String id, String name, String? theme, String description, String icon, int level) {
-    String effectType = _random.nextBool() ? 'direct_damage' : 'heal_player';
-    int effectValue;
-    if (effectType == 'direct_damage') {
-      effectValue = (level * 3 + 10) + _random.nextInt(level * 2 + 10);
-    } else {
-      effectValue = (level * 2 + 8) + _random.nextInt(level * 2 + 8);
-    }
-    return {
-      'id': id,
-      'name': name,
-      'type': 'powerup',
-      'theme': theme,
-      'description': description,
-      'cost': (15 + level * 5) + _random.nextInt(30 + level * 5),
-      'icon': icon,
-      'effectType': effectType,
-      'effectValue': effectValue,
-      'uses': 1,
-    };
-  }
-
- Map<String, dynamic> _generateLocationStats(
-      String id, String name, String description, String iconEmoji, String? theme, int level) {
-    String? bossId;
-    // If there are enemies, try to pick one as a boss. Prioritize by level and theme if possible.
-    if (_provider.enemyTemplatesList.isNotEmpty) {
-        final potentialBosses = _provider.enemyTemplatesList
-            .where((e) => (e.theme == theme || theme == null) && e.minPlayerLevel >= level && e.minPlayerLevel <= level + 2)
-            .toList();
-        if (potentialBosses.isNotEmpty) {
-            bossId = potentialBosses[_random.nextInt(potentialBosses.length)].id;
-        } else {
-           // Fallback: pick any enemy if no theme/level match
-           bossId = _provider.enemyTemplatesList[_random.nextInt(_provider.enemyTemplatesList.length)].id;
-        }
-    }
-
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'minPlayerLevelToUnlock': level + _random.nextInt(2), // Lvl or Lvl+1
-      'iconEmoji': iconEmoji,
-      'associatedTheme': theme,
-      'bossEnemyIdToUnlockNextLocation': bossId, // Can be null
-    };
-  }
-
-
-  Future<void> generateGameContent(int levelForContent,
-      {bool isManual = false,
-      bool isInitial = false,
-      String contentType = "all"}) async {
-    try {
-      if (_provider.isGeneratingContent && !isManual && !isInitial) {
-        print("[AIActions] generateGameContent skipped, already in progress for $contentType.");
-        return;
-      }
-      _provider.setProviderAIGlobalLoading(true,
-          progress: 0.0,
-          statusMessage: "Initializing AI protocol for names/icons generation ($contentType)...");
-
-      List<String?> activeThemes = _provider.mainTasks.map((t) => t.theme).toSet().toList();
-      if (activeThemes.isEmpty) activeThemes.add(null); // Ensure at least general theme for generation requests
-
-      // Build request for AI
-      List<Map<String, dynamic>> aiRequestedItems = [];
-      int numLocations = (contentType == "all" || contentType == "locations") ? (isInitial ? 2 : 1) : 0;
-      int numEnemiesPerTheme = (contentType == "all" || contentType == "enemies") ? (isInitial ? 1 : 1) : 0; // Per theme
-      int numArtifactsPerSubtypePerTheme = (contentType == "all" || contentType == "artifacts") ? (isInitial ? 1 : 1) : 0; // Per weapon/armor/talisman per theme
-      int numPowerupsPerTheme = (contentType == "all" || contentType == "artifacts") ? (isInitial ? 1 : 0) : 0; // Per theme
-
-      if (numLocations > 0) {
-         for (int i = 0; i < numLocations; i++) {
-            aiRequestedItems.add({"itemCategory": "location", "themeHint": activeThemes[_random.nextInt(activeThemes.length)]});
-         }
-      }
-      if (numEnemiesPerTheme > 0) {
-        for (var theme in activeThemes) {
-          for (int i = 0; i < numEnemiesPerTheme; i++) {
-            aiRequestedItems.add({"itemCategory": "enemy", "themeHint": theme});
-          }
-        }
-      }
-      if (numArtifactsPerSubtypePerTheme > 0) {
-        for (var theme in activeThemes) {
-          for (int i = 0; i < numArtifactsPerSubtypePerTheme; i++) {
-            aiRequestedItems.add({"itemCategory": "artifact_weapon", "themeHint": theme});
-            aiRequestedItems.add({"itemCategory": "artifact_armor", "themeHint": theme});
-            aiRequestedItems.add({"itemCategory": "artifact_talisman", "themeHint": theme});
-          }
-        }
-      }
-      if (numPowerupsPerTheme > 0) {
-        for (var theme in activeThemes) {
-          for (int i = 0; i < numPowerupsPerTheme; i++) {
-            aiRequestedItems.add({"itemCategory": "powerup", "themeHint": theme});
-          }
-        }
-      }
-      
-      if (aiRequestedItems.isEmpty) {
-         _provider.setProviderAIGlobalLoading(false, progress: 1.0, statusMessage: "No items requested for AI generation.");
-         return;
-      }
-
-      final String prompt = """
-Generate creative game content. For each item in the 'requestedItems' list, provide a name, a short evocative description, a theme (from the 'themeHint' or null if 'themeHint' is null/general), and a single relevant emoji icon (for artifacts, powerups, locations).
-The 'itemCategory' specifies the type of item.
-Return a single JSON object with one key: "generatedItems". "generatedItems" should be an array of objects, each corresponding to a requested item.
-Each object in "generatedItems" MUST have:
-- "itemCategory": string (must match the category from the request)
-- "name": string (creative and fitting the category and theme)
-- "description": string (short, max 80 chars)
-- "theme": string or null (must match or be consistent with the 'themeHint' from the request)
-- "icon": string (single emoji, applicable for itemCategory 'location', 'artifact_weapon', 'artifact_armor', 'artifact_talisman', 'powerup'. For 'enemy', this can be a simple descriptive emoji or null.)
-
-Example Request:
-{ "requestedItems": [ {"itemCategory": "location", "themeHint": "nature"}, {"itemCategory": "enemy", "themeHint": "nature"} ] }
-
-Example Response:
-{
-  "generatedItems": [
-    { "itemCategory": "location", "name": "Verdant Grove", "description": "A lush, ancient forest.", "theme": "nature", "icon": "🌳" },
-    { "itemCategory": "enemy", "name": "Grove Spider", "description": "A large, camouflaged arachnid.", "theme": "nature", "icon": "🕷️" }
-  ]
-}
-Do NOT generate stats, costs, levels, or IDs. Only name, description, theme, and icon (where applicable).
-Ensure the 'theme' in your response is the same as the 'themeHint' provided for that item, or null if the 'themeHint' was null.
-Existing content IDs to avoid duplicating names for (informational only, focus on unique names):
-Locations: ${_provider.gameLocationsList.map((e) => e.name).join(', ')}
-Enemies: ${_provider.enemyTemplatesList.map((e) => e.name).join(', ')}
-Artifacts: ${_provider.artifactTemplatesList.map((e) => e.name).join(', ')}
-
-Request:
-${({"requestedItems": aiRequestedItems})}
-""";
-      _provider.setProviderAIGlobalLoading(true, progress: 0.2, statusMessage: "Contacting AI for names & icons...");
-      final Map<String, dynamic> aiResponse = await _aiService._makeAICall(
-        prompt: prompt,
-        currentApiKeyIndex: _provider.apiKeyIndex,
-        onNewApiKeyIndex: _provider.setProviderApiKeyIndex,
-        onLog: (log) {
-          print("[AI Service Log - Names/Icons]: $log");
-          _logToGame(log);
-        },
-      );
-       _provider.setProviderAIGlobalLoading(true, progress: 0.5, statusMessage: "AI response received. Processing items...");
-
-      final List<Map<String, dynamic>> generatedAiItems =
-          (aiResponse['generatedItems'] as List?)?.map((item) => item as Map<String, dynamic>).toList() ?? [];
-
-      List<EnemyTemplate> newEnemies = [];
-      List<ArtifactTemplate> newArtifacts = [];
-      List<GameLocation> newLocations = [];
-
-      for (var aiItem in generatedAiItems) {
-        final String itemCategory = aiItem['itemCategory'] as String? ?? 'unknown';
-        final String itemName = aiItem['name'] as String? ?? 'Unnamed';
-        final String itemDescription = aiItem['description'] as String? ?? 'No description.';
-        final String? itemTheme = aiItem['theme'] as String?; // Can be null
-        final String itemIcon = aiItem['icon'] as String? ?? '❓';
-
-        if (itemName == 'Unnamed' || _nameExists(itemName, itemCategory)) {
-            print("[AIActions] Skipping item due to 'Unnamed' or duplicate name: $itemName (Category: $itemCategory)");
-            continue; // Skip if name is default or already exists for that category
-        }
-
-
-        if (itemCategory == 'location') {
-          final id = _generateUniqueId('loc', itemName, itemTheme, levelForContent);
-          newLocations.add(GameLocation.fromJson(_generateLocationStats(id, itemName, itemDescription, itemIcon, itemTheme, levelForContent)));
-        } else if (itemCategory == 'enemy') {
-          final id = _generateUniqueId('enemy', itemName, itemTheme, levelForContent);
-          newEnemies.add(EnemyTemplate.fromJson(_generateEnemyStats(id, itemName, itemTheme, itemDescription, levelForContent)));
-        } else if (itemCategory.startsWith('artifact_')) {
-          final type = itemCategory.split('_')[1]; // weapon, armor, talisman
-          final id = _generateUniqueId('art', itemName, itemTheme, levelForContent);
-          newArtifacts.add(ArtifactTemplate.fromJson(_generateArtifactStats(id, itemName, itemTheme, itemDescription, itemIcon, type, levelForContent)));
-        } else if (itemCategory == 'powerup') {
-          final id = _generateUniqueId('pwp', itemName, itemTheme, levelForContent);
-          newArtifacts.add(ArtifactTemplate.fromJson(_generatePowerupStats(id, itemName, itemTheme, itemDescription, itemIcon, levelForContent)));
-        }
-      }
-      _provider.setProviderAIGlobalLoading(true, progress: 0.8, statusMessage: "Finalizing generated content...");
-
-      if (newLocations.isNotEmpty) {
-        _provider.setProviderState(gameLocationsList: [..._provider.gameLocationsList, ...newLocations], doPersist: false);
-      }
-      if (newEnemies.isNotEmpty) {
-        _provider.setProviderState(enemyTemplatesList: [..._provider.enemyTemplatesList, ...newEnemies], doPersist: false);
-      }
-      if (newArtifacts.isNotEmpty) {
-        _provider.setProviderState(artifactTemplatesList: [..._provider.artifactTemplatesList, ...newArtifacts], doPersist: false);
-      }
-      
-      if (newLocations.isNotEmpty || newEnemies.isNotEmpty || newArtifacts.isNotEmpty) {
-         _logToGame("<span style=\"color:${AppTheme.fhAccentGreen.value.toRadixString(16).substring(2)};\">AI has infused the world with new elements for level $levelForContent ($contentType).</span>");
-         _provider.setProviderState(doPersist: true, doNotify: true); // Trigger a single save and notify
-      } else {
-         _logToGame("<span style=\"color:var(--fh-accent-orange);\">AI generation for $contentType (L$levelForContent) did not yield new unique content.</span>");
-      }
-
-    } catch (e, stackTrace) {
-      final errorMessage = e.toString();
-      print("[AIActions] CRITICAL ERROR in generateGameContent ($contentType): $errorMessage");
-      if (kDebugMode) print("[AIActions] StackTrace for generateGameContent ($contentType) error: $stackTrace");
-      _logToGame("<span style=\"color:${AppTheme.fhAccentRed.value.toRadixString(16).substring(2)};\">AI content generation for $contentType failed critically: $errorMessage</span>");
-    } finally {
-      _provider.setProviderAIGlobalLoading(false,
-          progress: 1.0,
-          statusMessage: "Content generation protocol for $contentType finished.");
-    }
-  }
-
-  bool _nameExists(String name, String itemCategory) {
-    if (itemCategory == 'location') {
-        return _provider.gameLocationsList.any((loc) => loc.name.toLowerCase() == name.toLowerCase());
-    } else if (itemCategory == 'enemy') {
-        return _provider.enemyTemplatesList.any((enemy) => enemy.name.toLowerCase() == name.toLowerCase());
-    } else if (itemCategory.startsWith('artifact_') || itemCategory == 'powerup') {
-        return _provider.artifactTemplatesList.any((art) => art.name.toLowerCase() == name.toLowerCase());
-    }
-    return false;
-}
-
-
-  void _logToGame(String logMessage) {
-    if (kDebugMode) print("[AIActions - _logToGame]: $logMessage");
-    _provider.setProviderState(
-        currentGame: CurrentGame(
-          enemy: _provider.currentGame.enemy,
-          playerCurrentHp: _provider.currentGame.playerCurrentHp,
-          log: [..._provider.currentGame.log, logMessage],
-          currentPlaceKey: _provider.currentGame.currentPlaceKey,
+  Widget _buildConditionalPlaceholder(ThemeData theme, String message, IconData icon) {
+    return Card(
+        margin: const EdgeInsets.symmetric(vertical: 16.0),
+        color: AppTheme.fhBgMedium.withOpacity(0.7),
+        child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Center(
+                child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                        Icon(icon, size: 32, color: AppTheme.fhTextSecondary.withOpacity(0.5)),
+                        const SizedBox(height: 12),
+                        Text(
+                            message,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fhTextSecondary.withOpacity(0.7)),
+                        ),
+                    ],
+                ),
+            ),
         ),
-        doPersist: false, // Persisted at the end of generateGameContent or when subquests are added
-        doNotify: true);
+    );
+}
+
+
+  Widget _buildSectionTitle(ThemeData theme, String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.fhTextSecondary, size: 20),
+          const SizedBox(width: 8),
+          Text(title, style: theme.textTheme.headlineSmall),
+        ],
+      ),
+    );
   }
 
-  Future<void> triggerAISubquestGeneration(MainTask mainTaskForSubquests,
-      String generationMode, String userInput, int numSubquests) async {
-    if (_provider.isGeneratingSubquests) {
-      print("[AIActions] triggerAISubquestGeneration skipped, already in progress for task '${mainTaskForSubquests.name}'.");
+  Widget _buildParkStatsCard(
+      BuildContext context, GameProvider gameProvider, Color dynamicAccent) {
+    final theme = Theme.of(context);
+    final parkManager = gameProvider.parkManager;
+    final int starRating = (parkManager.parkRating / (MAX_PARK_RATING_FOR_STARS / 5.0)).round().clamp(0,5);
+
+
+    return Card(
+      color: AppTheme.fhBgMedium,
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Park Overview",
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold, color: dynamicAccent)),
+            const Divider(height: 20),
+            _buildStatRow(theme, MdiIcons.starCircleOutline, "Park Rating:",
+                parkManager.parkRating.toString(), AppTheme.fhAccentGold),
+            Padding( // Star Rating Display
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                    Row(
+                        children: [
+                            Icon(MdiIcons.trophyOutline, size: 18, color: AppTheme.fhTextSecondary),
+                            const SizedBox(width: 8),
+                            Text("Appeal:", style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fhTextSecondary)),
+                        ],
+                    ),
+                    Row(
+                        children: List.generate(5, (index) {
+                        return Icon(
+                            index < starRating ? MdiIcons.star : MdiIcons.starOutline,
+                            color: AppTheme.fhAccentGold,
+                            size: 22,
+                        );
+                        }),
+                    ),
+                ],
+              ),
+            ),
+            _buildStatRow(
+                theme,
+                MdiIcons.cash, // Changed Icon for dollars
+                "Park Funds:",
+                "\$${parkManager.parkDollars.toStringAsFixed(0)}", // Display with $
+                AppTheme.fhAccentGreen),
+            _buildStatRow(
+                theme,
+                MdiIcons.lightningBoltOutline,
+                "Player Energy (Park Use):", // Clarify energy source
+                "${gameProvider.playerEnergy.toStringAsFixed(0)} / ${gameProvider.calculatedMaxEnergy.toStringAsFixed(0)}", // Use player's energy
+                AppTheme.fhAccentTealFixed),
+             _buildStatRow(
+                theme,
+                MdiIcons.powerPlugOutline,
+                "Total Power:",
+                "${parkManager.currentPowerGenerated} / ${parkManager.currentPowerConsumed}",
+                parkManager.currentPowerGenerated >= parkManager.currentPowerConsumed ? AppTheme.fhAccentGreen : AppTheme.fhAccentOrange,
+             ),
+            _buildStatRow(theme, MdiIcons.arrowUpCircleOutline, "Income / Min:",
+                "\$${parkManager.incomePerMinuteDollars}", AppTheme.fhAccentGreen), // Display with $
+            _buildStatRow(theme, MdiIcons.arrowDownCircleOutline, "Costs / Min:",
+                "\$${parkManager.operationalCostPerMinuteDollars}", AppTheme.fhAccentRed), // Display with $
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 8,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: gameProvider.calculatedMaxEnergy > 0 // Use player's max energy
+                      ? (gameProvider.playerEnergy / gameProvider.calculatedMaxEnergy) // Use player's energy
+                      : 0,
+                  backgroundColor: AppTheme.fhBorderColor.withOpacity(0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      AppTheme.fhAccentTealFixed.withOpacity(0.7)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+   Widget _buildParkActionsCard(BuildContext context, GameProvider gameProvider, Color dynamicAccent) {
+    final theme = Theme.of(context);
+    final Color buttonTextColor = ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark
+            ? AppTheme.fhTextPrimary
+            : AppTheme.fhBgDark;
+
+    return Card(
+      color: AppTheme.fhBgMedium,
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+             Text("Park Management Actions",
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold, color: dynamicAccent.withOpacity(0.8))),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+                icon: Icon(MdiIcons.runFast, size: 18),
+                label: Text("Fast Forward 1 Min (${SKIP_MINUTE_ENERGY_COST}⚡)"),
+                onPressed: gameProvider.playerEnergy >= SKIP_MINUTE_ENERGY_COST 
+                    ? () => gameProvider.skipOneMinute()
+                    : null,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: dynamicAccent,
+                    foregroundColor: buttonTextColor,
+                    disabledBackgroundColor: AppTheme.fhBgDark.withOpacity(0.5),
+                    disabledForegroundColor: AppTheme.fhTextSecondary.withOpacity(0.5),
+                ),
+            ),
+             if (gameProvider.playerEnergy < SKIP_MINUTE_ENERGY_COST)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text("Not enough energy to fast forward.", 
+                            style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.fhAccentOrange), 
+                            textAlign: TextAlign.center,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildStatRow(ThemeData theme, IconData icon, String label,
+      String value, Color valueColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: AppTheme.fhTextSecondary),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: AppTheme.fhTextSecondary)),
+            ],
+          ),
+          Text(value,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: valueColor, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvailableBuildingsSection(
+      BuildContext context, GameProvider gameProvider, Color dynamicAccent) {
+    final theme = Theme.of(context);
+    final availableTemplates = gameProvider.buildingTemplatesList;
+
+    if (availableTemplates.isEmpty) {
+      return const Center(
+          child: Text("No building blueprints available.",
+              style: TextStyle(fontStyle: FontStyle.italic)));
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.82, // Adjusted aspect ratio for more content
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemCount: availableTemplates.length,
+      itemBuilder: (ctx, index) {
+        final template = availableTemplates[index];
+        final canAfford = gameProvider.canAffordBuilding(template);
+        final Color buttonTextColor =
+            ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark
+                ? AppTheme.fhTextPrimary
+                : AppTheme.fhBgDark;
+        return Card(
+          color: AppTheme.fhBgLight,
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(MdiIcons.fromString(template.icon) ?? MdiIcons.domain,
+                        size: 24, color: dynamicAccent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(template.name,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                            )),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Cost: \$${template.costDollars}", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhTextSecondary)), 
+                     if(template.sizeX != null && template.sizeY != null)
+                        Text("Size: ${template.sizeX}x${template.sizeY}", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhTextSecondary)),
+                    if(template.incomePerMinuteDollars != null && template.incomePerMinuteDollars! > 0)
+                        Text("Income: \$${template.incomePerMinuteDollars}/min", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhAccentGreen)), 
+                    if(template.operationalCostPerMinuteDollars != null && template.operationalCostPerMinuteDollars! > 0)
+                        Text("Upkeep: \$${template.operationalCostPerMinuteDollars}/min", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhAccentOrange)), 
+                    if(template.parkRatingBoost != null && template.parkRatingBoost! > 0)
+                        Text("Rating: +${template.parkRatingBoost}", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhAccentGold)),
+                    if(template.capacity != null)
+                        Text("Capacity: ${template.capacity}", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhTextSecondary)),
+                    if(template.powerRequired != null && template.powerRequired! > 0)
+                        Text("Power Req: ${template.powerRequired}", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhAccentOrange)),
+                    if(template.powerOutput != null && template.powerOutput! > 0)
+                        Text("Power Gen: ${template.powerOutput}", style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fhAccentGreen)),
+                  ],
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            canAfford ? dynamicAccent : AppTheme.fhTextDisabled,
+                        foregroundColor: buttonTextColor,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        textStyle: const TextStyle(fontSize: 12)),
+                    onPressed: canAfford
+                        ? () => gameProvider.buyAndPlaceBuilding(template.id)
+                        : null,
+                    child: const Text("CONSTRUCT"),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOwnedBuildingsSection(
+      BuildContext context, GameProvider gameProvider, Color dynamicAccent) {
+    final theme = Theme.of(context);
+    final ownedBuildings = gameProvider.ownedBuildings;
+
+    if (ownedBuildings.isEmpty) {
+      return const Center(
+          child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 16.0),
+        child:
+            Text("No structures built yet.", style: TextStyle(fontStyle: FontStyle.italic)),
+      ));
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: ownedBuildings.length,
+      itemBuilder: (ctx, index) {
+        final owned = ownedBuildings[index];
+        final template = gameProvider.buildingTemplatesList.firstWhere(
+            (t) => t.id == owned.templateId,
+            orElse: () => BuildingTemplate(
+                id: 'unknown',
+                name: 'Unknown Building',
+                type: 'unknown',
+                costDollars: 0, 
+                icon: 'mdi-help-rhombus'));
+        
+        String statusText = owned.isOperational ? 'Online' : 'Offline';
+        Color statusColor = owned.isOperational ? AppTheme.fhAccentGreen : AppTheme.fhAccentOrange;
+        String tooltipAction = owned.isOperational ? "Take Offline" : "Bring Online";
+
+        if (!owned.isOperational && (template.powerRequired ?? 0) > 0) {
+            int totalPowerGenerated = gameProvider.parkManager.currentPowerGenerated;
+            int totalPowerConsumedByOthers = gameProvider.parkManager.currentPowerConsumed - (owned.isOperational ? (template.powerRequired ?? 0) : 0);
+            
+            if (totalPowerGenerated < totalPowerConsumedByOthers + (template.powerRequired ?? 0)) {
+                 statusText = 'Offline - No Power';
+                 statusColor = AppTheme.fhAccentRed;
+                 tooltipAction = "Needs Power";
+            }
+        }
+
+
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          color: AppTheme.fhBgLight,
+          child: ListTile(
+            leading: Icon(MdiIcons.fromString(template.icon) ?? MdiIcons.domain,
+                color: dynamicAccent),
+            title: Text(template.name, style: theme.textTheme.titleMedium),
+            subtitle: Text(
+                "Type: ${template.type.replaceAll('_', ' ').toUpperCase()} - Status: $statusText",
+                style: theme.textTheme.bodySmall?.copyWith(color: statusColor)
+            ),
+            trailing: Wrap(
+              spacing: 0,
+              children: [
+                IconButton(
+                  icon: Icon(
+                      owned.isOperational
+                          ? MdiIcons.powerPlugOffOutline
+                          : MdiIcons.powerPlugOutline,
+                      size: 20,
+                      color: AppTheme.fhTextSecondary),
+                  tooltip: tooltipAction,
+                  onPressed: () =>
+                      gameProvider.toggleBuildingOperationalStatus(owned.uniqueId),
+                ),
+                IconButton(
+                  icon: Icon(MdiIcons.deleteOutline,
+                      size: 20, color: AppTheme.fhAccentRed),
+                  tooltip: "Demolish",
+                  onPressed: () => gameProvider.sellBuilding(owned.uniqueId),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFossilCenterSection(
+      BuildContext context, GameProvider gameProvider, Color dynamicAccent) {
+    final theme = Theme.of(context);
+    final fossilRecords = gameProvider.fossilRecords;
+
+    if (fossilRecords.isEmpty && gameProvider.dinosaurSpeciesList.isEmpty) {
+        // If there are no species defined at all, it implies an initial state or data issue.
+        return const Center(child: Text("No dinosaur species data available to start expeditions.", style: TextStyle(fontStyle: FontStyle.italic)));
+    }
+    // Ensure fossil records exist for all species
+    if (fossilRecords.length != gameProvider.dinosaurSpeciesList.length) {
+        // This might happen if new species are added and records not initialized
+        // GameProvider should handle initialization of FossilRecord for each DinosaurSpecies
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // This is a bit of a hack, ideally GameProvider ensures this.
+           // For now, let's just show what we have or a message.
+        });
+    }
+
+
+    return Card(
+      color: AppTheme.fhBgMedium,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            if (fossilRecords.isEmpty)
+              const Text("No active fossil expeditions. Start discovering!", style: TextStyle(fontStyle: FontStyle.italic)),
+            ...fossilRecords.map((record) {
+              final species = gameProvider.dinosaurSpeciesList
+                  .firstWhereOrNull((s) => s.id == record.speciesId);
+              if (species == null) return const SizedBox.shrink();
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  children: [
+                    Icon(MdiIcons.fromString(species.icon) ?? MdiIcons.bone, size: 24, color: dynamicAccent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(species.name, style: theme.textTheme.titleMedium),
+                          LinearProgressIndicator(
+                            value: record.excavationProgress / 100,
+                            backgroundColor: AppTheme.fhBorderColor.withOpacity(0.3),
+                            valueColor: AlwaysStoppedAnimation<Color>(dynamicAccent),
+                          ),
+                          Text(
+                              "Genome: ${record.excavationProgress.toStringAsFixed(1)}% ${record.isGenomeComplete ? '(Complete)' : ''}",
+                              style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: dynamicAccent, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), textStyle: const TextStyle(fontSize: 10)),
+                      onPressed: record.isGenomeComplete || gameProvider.playerEnergy < species.fossilExcavationEnergyCost // Use player energy
+                          ? null
+                          : () => gameProvider.excavateFossil(species.id),
+                      child: Text(record.isGenomeComplete ? "COMPLETE" : "EXCAVATE (${species.fossilExcavationEnergyCost}⚡)"), // Use player energy symbol
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHatcherySection(
+      BuildContext context, GameProvider gameProvider, Color dynamicAccent) {
+    final theme = Theme.of(context);
+    
+    final bool hatcheryExistsAndOperational = gameProvider.ownedBuildings.any((b) {
+        final template = gameProvider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+        return template?.type == "hatchery" && b.isOperational;
+    });
+
+    if (!hatcheryExistsAndOperational) {
+        return Card(
+            color: AppTheme.fhBgMedium,
+            child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                    child: Text(
+                        "Build and operate a Hammond Creation Lab to incubate dinosaurs.",
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fhTextSecondary),
+                    ),
+                ),
+            ),
+        );
+    }
+
+    final completableFossils = gameProvider.fossilRecords
+        .where((fr) => fr.isGenomeComplete && !gameProvider.ownedDinosaurs.any((od) => od.speciesId == fr.speciesId && od.name.contains("(Incubating)"))) 
+        .toList();
+
+    final incubatingDinos = gameProvider.ownedDinosaurs.where((d) => d.name.contains("(Incubating)")).toList(); 
+
+
+    return Card(
+      color: AppTheme.fhBgMedium,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (completableFossils.isEmpty && incubatingDinos.isEmpty)
+              const Center(child: Text("No complete genomes ready for incubation. Keep excavating!", style: TextStyle(fontStyle: FontStyle.italic))),
+            
+            if (completableFossils.isNotEmpty) ...[
+              Text("Ready for Incubation:", style: theme.textTheme.titleLarge?.copyWith(color: dynamicAccent)),
+              const SizedBox(height: 8),
+            ],
+            ...completableFossils.map((record) {
+              final species = gameProvider.dinosaurSpeciesList
+                  .firstWhereOrNull((s) => s.id == record.speciesId);
+              if (species == null) return const SizedBox.shrink();
+              final canAffordIncubation = gameProvider.parkManager.parkDollars >= species.incubationCostDollars && gameProvider.playerEnergy >= incubationEnergyCost; 
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  children: [
+                    Icon(MdiIcons.fromString(species.icon) ?? MdiIcons.eggOutline, size: 24, color: dynamicAccent),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text("${species.name} Genome Ready", style: theme.textTheme.titleMedium)),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: dynamicAccent, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), textStyle: const TextStyle(fontSize: 10)),
+                      onPressed: canAffordIncubation ? () => gameProvider.incubateDinosaur(species.id) : null,
+                      child: Text(canAffordIncubation ? "INCUBATE (\$${species.incubationCostDollars}, ${incubationEnergyCost}⚡)" : "CAN'T AFFORD"), 
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (incubatingDinos.isNotEmpty) ...[
+              const Divider(height: 20),
+              Text("Currently Incubating:", style: theme.textTheme.titleLarge?.copyWith(color: dynamicAccent)),
+              const SizedBox(height: 8),
+            ],
+            ...incubatingDinos.map((dino) {
+                 final species = gameProvider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == dino.speciesId);
+                 final double incubationProgress = (dino.age / baseIncubationDuration.toDouble()).clamp(0.0, 1.0);
+                 return Padding(
+                   padding: const EdgeInsets.symmetric(vertical: 8.0),
+                   child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Row(
+                         children: [
+                           Icon(MdiIcons.fromString(species?.icon ?? "") ?? MdiIcons.timerSand, color: dynamicAccent, size: 24),
+                           const SizedBox(width: 12),
+                           Expanded(child: Text(species?.name ?? "Dinosaur", style: theme.textTheme.titleMedium)),
+                         ],
+                       ),
+                       const SizedBox(height: 4),
+                       LinearProgressIndicator(
+                         value: incubationProgress,
+                         backgroundColor: AppTheme.fhBorderColor.withOpacity(0.3),
+                         valueColor: AlwaysStoppedAnimation<Color>(dynamicAccent.withOpacity(0.7)),
+                       ),
+                       const SizedBox(height: 2),
+                       Text("Progress: ${(incubationProgress * 100).toStringAsFixed(0)}% (Age: ${dino.age}/$baseIncubationDuration)", style: theme.textTheme.bodySmall),
+                     ],
+                   ),
+                 );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnclosuresSection(
+      BuildContext context, GameProvider gameProvider, Color dynamicAccent) {
+    final theme = Theme.of(context);
+    final enclosures = gameProvider.ownedBuildings.where((b) {
+       final template = gameProvider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+       return template?.type == "enclosure" && b.isOperational;
+    }).toList();
+
+    if (enclosures.isEmpty) {
+        return Card(
+            color: AppTheme.fhBgMedium,
+            child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                    child: Text(
+                        "Build and operate enclosures to house your dinosaurs.",
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fhTextSecondary),
+                    ),
+                ),
+            ),
+        );
+    }
+
+    final hatchedDinosaursNotInEnclosures = gameProvider.ownedDinosaurs.where((dino) {
+        return !gameProvider.ownedBuildings.any((building) =>
+            building.dinosaurUniqueIds.contains(dino.uniqueId)
+        ) && !dino.name.contains("(Incubating)"); 
+    }).toList();
+
+    return Column(
+        children: [
+            ...enclosures.map((enclosure) {
+                    final template = gameProvider.buildingTemplatesList.firstWhereOrNull((t) => t.id == enclosure.templateId)!;
+                    final dinosaursInEnclosure = gameProvider.ownedDinosaurs.where((d) => enclosure.dinosaurUniqueIds.contains(d.uniqueId)).toList();
+                    final foodStation = gameProvider.ownedBuildings.firstWhereOrNull((b) {
+                        final foodTemplate = gameProvider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+                        return foodTemplate?.type == "food_station" && b.isOperational;
+                    });
+
+                    return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8.0),
+                        color: AppTheme.fhBgMedium,
+                        child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                                Text(template.name, style: theme.textTheme.headlineSmall?.copyWith(color: dynamicAccent)),
+                                Text("Capacity: ${dinosaursInEnclosure.length} / ${template.capacity ?? 'N/A'}", style: theme.textTheme.bodySmall),
+                                if (foodStation != null)
+                                    Text("Food Level: ${foodStation.currentFoodLevel ?? 0} / ${enclosureBaseFoodCapacity}", style: theme.textTheme.bodySmall),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                    spacing: 8,
+                                    children: [
+                                        if (foodStation != null)
+                                            ElevatedButton.icon(
+                                                icon: Icon(MdiIcons.foodAppleOutline, size: 16),
+                                                label: Text("Add Food (${feedDinoEnergyCost}⚡)", style: const TextStyle(fontSize: 10)), // Use player energy symbol
+                                                onPressed: gameProvider.playerEnergy >= feedDinoEnergyCost // Check player energy
+                                                  ? () => gameProvider.feedDinosaursInEnclosure(enclosure.uniqueId, 50) // Example amount
+                                                  : null,
+                                                style: ElevatedButton.styleFrom(backgroundColor: dynamicAccent, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                                            ),
+                                        if (hatchedDinosaursNotInEnclosures.isNotEmpty && (template.capacity == null || dinosaursInEnclosure.length < template.capacity!))
+                                           PopupMenuButton<String>(
+                                               onSelected: (dinoUniqueId) => gameProvider.addDinosaurToEnclosure(dinoUniqueId, enclosure.uniqueId),
+                                               enabled: enclosure.isOperational, // Disable if enclosure is not operational
+                                               itemBuilder: (BuildContext context) {
+                                                   return hatchedDinosaursNotInEnclosures.map((dino) {
+                                                       final species = gameProvider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == dino.speciesId);
+                                                       return PopupMenuItem<String>(
+                                                           value: dino.uniqueId,
+                                                           child: Text(species?.name ?? dino.name),
+                                                       );
+                                                   }).toList();
+                                               },
+                                               child: ElevatedButton.icon(
+                                                  icon: Icon(MdiIcons.plusBoxOutline, size: 16),
+                                                  label: Text("Add Dino", style: const TextStyle(fontSize: 10)),
+                                                  onPressed: enclosure.isOperational ? null : (){}, // Null for enabled, empty func for disabled to show correctly
+                                                  style: ElevatedButton.styleFrom(
+                                                      backgroundColor: enclosure.isOperational ? dynamicAccent : AppTheme.fhTextDisabled, 
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8)
+                                                  ),
+                                               )
+                                           ),
+                                    ],
+                                ),
+                                const SizedBox(height: 10),
+                                if (dinosaursInEnclosure.isEmpty)
+                                    const Text("This enclosure is empty.", style: TextStyle(fontStyle: FontStyle.italic)),
+                                ...dinosaursInEnclosure.map((dino) {
+                                    final species = gameProvider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == dino.speciesId);
+                                    return ListTile(
+                                        leading: Icon(MdiIcons.fromString(species?.icon ?? "") ?? MdiIcons.paw, color: dynamicAccent),
+                                        title: Text(dino.name),
+                                        subtitle: Text("${species?.name ?? "Dinosaur"} - Comfort: ${dino.currentComfort.toStringAsFixed(0)}% Food: ${dino.currentFood.toStringAsFixed(0)}%"),
+                                        onTap: () {
+                                            setState(() {
+                                              _selectedOwnedDinoId = dino.uniqueId;
+                                            });
+                                        },
+                                    );
+                                }),
+                            ],
+                            ),
+                        ),
+                        );
+                }),
+        ],
+    );
+  }
+
+  Widget _buildOwnedDinosaurDetails(BuildContext context, GameProvider gameProvider, Color dynamicAccent, String dinoUniqueId) {
+    final theme = Theme.of(context);
+    final ownedDino = gameProvider.ownedDinosaurs.firstWhereOrNull((d) => d.uniqueId == dinoUniqueId);
+    if (ownedDino == null) return const SizedBox.shrink();
+    final species = gameProvider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == ownedDino.speciesId);
+    if (species == null) return const SizedBox.shrink();
+
+    return Dialog( // Or a custom modal bottom sheet, or inline expansion
+        backgroundColor: AppTheme.fhBgMedium,
+        child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: SingleChildScrollView( // Ensure content is scrollable if it overflows
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(ownedDino.name, style: theme.textTheme.headlineMedium?.copyWith(color: dynamicAccent)),
+                      IconButton(icon: Icon(MdiIcons.closeCircleOutline, color: AppTheme.fhTextSecondary), onPressed: () => setState(() => _selectedOwnedDinoId = null))
+                    ],
+                  ),
+                  Text("Species: ${species.name}", style: theme.textTheme.titleMedium),
+                  const Divider(height: 20),
+                  _buildStatRow(theme, MdiIcons.heartPulse, "Health:", "${ownedDino.currentHealth.toStringAsFixed(0)}%", 
+                                ownedDino.currentHealth > 60 ? AppTheme.fhAccentGreen : (ownedDino.currentHealth > 30 ? AppTheme.fhAccentOrange : AppTheme.fhAccentRed)),
+                  _buildStatRow(theme, MdiIcons.emoticonHappyOutline, "Comfort:", "${ownedDino.currentComfort.toStringAsFixed(0)}%", 
+                                ownedDino.currentComfort > species.comfortThreshold * 100 ? AppTheme.fhAccentGreen : AppTheme.fhAccentOrange),
+                  _buildStatRow(theme, MdiIcons.foodDrumstickOutline, "Food:", "${ownedDino.currentFood.toStringAsFixed(0)}%",
+                                ownedDino.currentFood > 50 ? AppTheme.fhAccentGreen : (ownedDino.currentFood > 20 ? AppTheme.fhAccentOrange : AppTheme.fhAccentRed)),
+                  _buildStatRow(theme, MdiIcons.cakeVariantOutline, "Age:", "${ownedDino.age} days", AppTheme.fhTextSecondary),
+                   _buildStatRow(theme, MdiIcons.scaleBalance, "Diet:", species.diet, AppTheme.fhTextSecondary),
+                  const SizedBox(height: 10),
+                  Text("Needs:", style: theme.textTheme.titleSmall),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("- Social Group: ${species.socialNeedsMin}-${species.socialNeedsMax}", style: theme.textTheme.bodySmall),
+                        Text("- Paddock Size: ${species.enclosureSizeNeeds} units", style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                   Text(species.description, style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fhTextSecondary)),
+                  // Add actions like "Move Dinosaur", "Sell Dinosaur" (if implemented)
+                ],
+              ),
+            ),
+        ),
+    );
+}
+
+
+}
+--- END OF FILE lib/src/widgets/views/park_view.dart ---
+
+--- START OF FILE lib/src/providers/game_provider.dart ---
+import 'package:flutter/foundation.dart';
+import 'package:arcane/src/services/firebase_service.dart' as fb_service;
+import 'package:arcane/src/services/storage_service.dart';
+import 'package:arcane/src/utils/constants.dart';
+import 'package:arcane/src/utils/helpers.dart' as helper;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:collection/collection.dart';
+import 'dart:async';
+
+import 'package:arcane/src/models/game_models.dart';
+
+import 'actions/task_actions.dart';
+import 'actions/item_actions.dart';
+import 'actions/combat_actions.dart';
+import 'actions/ai_generation_actions.dart';
+import 'actions/timer_actions.dart';
+import 'actions/park_actions.dart'; 
+
+class GameProvider with ChangeNotifier {
+  final StorageService _storageService = StorageService();
+  Timer? _periodicUiTimer;
+  Timer? _autoSaveTimer;
+  Timer? _parkUpdateTimer; // For park income/costs
+
+  User? _currentUser;
+  User? get currentUser => _currentUser;
+  bool _authLoading = true;
+  bool get authLoading => _authLoading;
+  bool _isDataLoadingAfterLogin = false;
+  bool get isDataLoadingAfterLogin => _isDataLoadingAfterLogin;
+  bool _isUsernameMissing = false;
+  bool get isUsernameMissing => _isUsernameMissing;
+
+  String? _lastLoginDate;
+  double _coins = 100;
+  double _xp = 0;
+  int _playerLevel = 1;
+  double _playerEnergy = baseMaxPlayerEnergy;
+  List<MainTask> _mainTasks =
+      initialMainTaskTemplates.map((t) => MainTask.fromTemplate(t)).toList();
+  Map<String, dynamic> _completedByDay = {};
+  List<OwnedArtifact> _artifacts = [];
+  List<ArtifactTemplate> _artifactTemplatesList = [];
+  List<EnemyTemplate> _enemyTemplatesList = [];
+  List<GameLocation> _gameLocationsList = []; // New list for game locations
+  List<Rune> _runeTemplatesList = [];
+  List<OwnedRune> _ownedRunes = [];
+
+  Map<String, PlayerStat> _playerGameStats = {
+    ...Map.from(basePlayerGameStats.map((key, value) => MapEntry(
+        key,
+        PlayerStat(
+            name: value.name,
+            description: value.description,
+            icon: value.icon,
+            value: value.value,
+            base: value.base)))),
+  };
+  void _ensureBonusXpModStat() {
+    if (!_playerGameStats.containsKey('bonusXPMod')) {
+      _playerGameStats['bonusXPMod'] = PlayerStat(
+          name: 'XP CALC MOD', // Display name for the UI
+          value: 0,
+          base: 0,
+          description: 'Internal XP modifier from gear.',
+          icon: 'mdi-percent-outline'); // Using MDI string
+    }
+  }
+
+  Map<String, String?> _equippedItems = {
+    'weapon': null,
+    'armor': null,
+    'talisman': null
+  };
+  Map<String, String?> _equippedRunes = {
+    'rune_slot_1': null,
+    'rune_slot_2': null
+  };
+
+  List<String> _defeatedEnemyIds = [];
+  List<String> _clearedLocationIds = []; // To track cleared locations
+  List<String> get clearedLocationIds => _clearedLocationIds;
+
+  CurrentGame _currentGame = CurrentGame(
+      playerCurrentHp: basePlayerGameStats['vitality']!.value,
+      currentPlaceKey: initialGameLocations.isNotEmpty
+          ? initialGameLocations.first.id
+          : null);
+  GameSettings _settings = GameSettings();
+  String _currentView = 'task-details';
+  String? _selectedTaskId = initialMainTaskTemplates.isNotEmpty
+      ? initialMainTaskTemplates[0].id
+      : null;
+  int _apiKeyIndex = 0;
+  Map<String, ActiveTimerInfo> _activeTimers = {};
+
+  bool _hasUnsavedChanges = false;
+  bool _isManuallySaving = false;
+  bool get isManuallySaving => _isManuallySaving;
+  bool _isManuallyLoading = false;
+  bool get isManuallyLoading => _isManuallyLoading;
+  DateTime? _lastSuccessfulSaveTimestamp;
+  DateTime? get lastSuccessfulSaveTimestamp => _lastSuccessfulSaveTimestamp;
+
+  bool _isGeneratingGlobalContent = false;
+  bool get isGeneratingContent => _isGeneratingGlobalContent;
+  bool _isGeneratingSubquestsForTask = false;
+  bool get isGeneratingSubquests => _isGeneratingSubquestsForTask;
+
+  double _aiGenerationProgress = 0.0;
+  double get aiGenerationProgress => _aiGenerationProgress;
+  String _aiGenerationStatusMessage = "";
+  String get aiGenerationStatusMessage => _aiGenerationStatusMessage;
+
+  // Park Management State
+  List<DinosaurSpecies> _dinosaurSpeciesList = [];
+  List<BuildingTemplate> _buildingTemplatesList = [];
+  List<OwnedBuilding> _ownedBuildings = [];
+  List<OwnedDinosaur> _ownedDinosaurs = [];
+  List<FossilRecord> _fossilRecords = [];
+  ParkManager _parkManager = ParkManager();
+  
+  List<DinosaurSpecies> get dinosaurSpeciesList => _dinosaurSpeciesList;
+  List<BuildingTemplate> get buildingTemplatesList => _buildingTemplatesList;
+  List<OwnedBuilding> get ownedBuildings => _ownedBuildings;
+  List<OwnedDinosaur> get ownedDinosaurs => _ownedDinosaurs;
+  List<FossilRecord> get fossilRecords => _fossilRecords;
+  ParkManager get parkManager => _parkManager;
+
+
+  String? get lastLoginDate => _lastLoginDate;
+  double get coins => _coins;
+  double get xp => _xp;
+  int get playerLevel => _playerLevel;
+  double get playerEnergy => _playerEnergy;
+  List<MainTask> get mainTasks => _mainTasks;
+  Map<String, dynamic> get completedByDay => _completedByDay;
+  List<OwnedArtifact> get artifacts => _artifacts;
+  List<ArtifactTemplate> get artifactTemplatesList => _artifactTemplatesList;
+  List<EnemyTemplate> get enemyTemplatesList => _enemyTemplatesList;
+  List<GameLocation> get gameLocationsList =>
+      _gameLocationsList; // Getter for locations
+  List<Rune> get runeTemplatesList => _runeTemplatesList;
+  List<OwnedRune> get ownedRunes => _ownedRunes;
+
+  Map<String, PlayerStat> get playerGameStats => _playerGameStats;
+  Map<String, String?> get equippedItems => _equippedItems;
+  Map<String, String?> get equippedRunes => _equippedRunes;
+
+  List<String> get defeatedEnemyIds => _defeatedEnemyIds;
+  CurrentGame get currentGame => _currentGame;
+  GameSettings get settings => _settings;
+  String get currentView => _currentView;
+  String? get selectedTaskId => _selectedTaskId;
+  int get apiKeyIndex => _apiKeyIndex;
+  Map<String, ActiveTimerInfo> get activeTimers => _activeTimers;
+
+  double get calculatedMaxEnergy =>
+      baseMaxPlayerEnergy + (_playerLevel - 1) * playerEnergyPerLevelVitality;
+  double get xpNeededForNextLevel =>
+      helper.xpToNext(_playerLevel, xpPerLevelBase, xpLevelMultiplier);
+  double get currentLevelXPStart =>
+      helper.xpForLevel(_playerLevel, xpPerLevelBase, xpLevelMultiplier);
+  double get currentLevelXPProgress => _xp - currentLevelXPStart;
+  double get xpProgressPercent => xpNeededForNextLevel > 0
+      ? (currentLevelXPProgress / xpNeededForNextLevel).clamp(0.0, 1.0) * 100
+      : 0;
+
+  late final TaskActions _taskActions;
+  late final ItemActions _itemActions;
+  late final CombatActions _combatActions;
+  late final AIGenerationActions _aiGenerationActions;
+  late final TimerActions _timerActions;
+  late final ParkActions _parkActions; 
+
+  GameProvider() {
+    print("[GameProvider] Constructor called. Initializing actions first...");
+    // Initialize actions first to prevent LateInitializationError from async callbacks
+    _taskActions = TaskActions(this);
+    _itemActions = ItemActions(this);
+    _combatActions = CombatActions(this);
+    _aiGenerationActions = AIGenerationActions(this);
+    _timerActions = TimerActions(this);
+    _parkActions = ParkActions(this); 
+
+    print("[GameProvider] Actions initialized. Ensuring bonusXPModStat...");
+    _ensureBonusXpModStat();
+
+    print("[GameProvider] Initializing core systems and listeners...");
+    _initialize(); // Now call initialize, which sets up listeners
+
+    _periodicUiTimer?.cancel();
+    _periodicUiTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_activeTimers.values.any((info) => info.isRunning)) {
+        notifyListeners();
+      }
+    });
+
+    _parkUpdateTimer?.cancel();
+    _parkUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _parkActions.updateAllDinosaursStatus(); // Periodically update dinosaur needs
+      _parkActions.recalculateParkStats(); // This also calls _updateBuildingOperationalStatusBasedOnPower and updates income/costs
+    });
+    print("[GameProvider] Initialization complete.");
+  }
+
+  @override
+  void dispose() {
+    print("[GameProvider] dispose called.");
+    _periodicUiTimer?.cancel();
+    _autoSaveTimer?.cancel();
+    _parkUpdateTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initialize() async {
+    // Made async
+    fb_service.authStateChanges.listen(_onAuthStateChanged);
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (_hasUnsavedChanges &&
+          _currentUser != null &&
+          !_isManuallySaving &&
+          !_isManuallyLoading) {
+        print("[GameProvider] Auto-saving changes...");
+        _performActualSave();
+      }
+    });
+  }
+
+  Future<void> _onAuthStateChanged(User? user) async {
+    print("[GameProvider] _onAuthStateChanged triggered. User: ${user?.uid}");
+    if (_authLoading &&
+        _currentUser != null &&
+        user != null &&
+        _currentUser!.uid == user.uid) {
+      print("[GameProvider] Auth state unchanged for same user, returning.");
       return;
     }
-    _provider.setProviderAISubquestLoading(true);
-    print("[AIActions] Starting triggerAISubquestGeneration for task '${mainTaskForSubquests.name}'. Mode: $generationMode, User Input: '$userInput', Num Subquests: $numSubquests");
 
-    try {
-      print("[AIActions] Attempting to call _aiService.generateAISubquests for task '${mainTaskForSubquests.name}'.");
-      final generatedSubquestsRaw = await _aiService.generateAISubquests(
-        mainTaskName: mainTaskForSubquests.name,
-        mainTaskDescription: mainTaskForSubquests.description,
-        mainTaskTheme: mainTaskForSubquests.theme,
-        generationMode: generationMode,
-        userInput: userInput,
-        numSubquests: numSubquests,
-        currentApiKeyIndex: _provider.apiKeyIndex,
-        onNewApiKeyIndex: (newIndex) {
-          print("[AIActions] API key index updated to $newIndex during subquest gen for task '${mainTaskForSubquests.name}'.");
-          _provider.setProviderApiKeyIndex(newIndex);
-        },
-        onLog: (log) {
-          print("[AI Service Log - Subquests - Task: ${mainTaskForSubquests.name}]: $log");
-          _logToGame(log);
-        },
-      );
+    _authLoading = true;
+    notifyListeners();
 
-      print("[AIActions] _aiService.generateAISubquests returned for task '${mainTaskForSubquests.name}'. Raw data length: ${generatedSubquestsRaw.length}");
-      if (kDebugMode && generatedSubquestsRaw.isNotEmpty) {
-        print("[AIActions] Raw subquest data for task '${mainTaskForSubquests.name}': $generatedSubquestsRaw");
+    if (user != null) {
+      print("[GameProvider] User signed in: ${user.uid}. Loading data...");
+      _currentUser = user;
+      _isDataLoadingAfterLogin = true;
+      notifyListeners();
+
+      final data = await _storageService.getUserData(user.uid);
+      if (data != null) {
+        print("[GameProvider] User data found, loading state.");
+        _loadStateFromMap(data);
+        _hasUnsavedChanges = false;
+      } else {
+        print("[GameProvider] No user data found, resetting to initial state.");
+        await _resetToInitialState(); // Make reset async if it involves async ops
+        _lastLoginDate = helper.getTodayDateString();
+        _hasUnsavedChanges = true; // Mark as changed to trigger initial save
+        await _performActualSave();
       }
 
-      final List<SubTask> newSubTasksForParent = [];
-      for (var subquestData in generatedSubquestsRaw) {
-        if (kDebugMode) print("[AIActions] Processing raw subquest data: $subquestData");
-        if (subquestData == null || subquestData is! Map<String, dynamic>) {
-          print("[AIActions] Skipping invalid raw subquest data (null or not a Map): $subquestData");
-          continue;
+      _handleDailyReset();
+      if (settings.autoGenerateContent &&
+          (_enemyTemplatesList.isEmpty ||
+              _artifactTemplatesList.isEmpty ||
+              _runeTemplatesList.isEmpty ||
+              _gameLocationsList.isEmpty ||
+              _dinosaurSpeciesList.isEmpty || // Check for park content
+              _buildingTemplatesList.isEmpty
+              )) {
+        print("[GameProvider] Initial content generation needed.");
+        // Don't await here if it blocks UI too much, let it run in background
+        _aiGenerationActions
+            .generateGameContent(_playerLevel,
+                isManual: false, isInitial: true, contentType: "all")
+            .catchError((e) {
+          print("Error during initial content generation: $e");
+        });
+      }
+
+      if (_currentUser?.displayName == null ||
+          _currentUser!.displayName!.trim().isEmpty) {
+        print("[GameProvider] Username is missing for current user.");
+        _isUsernameMissing = true;
+      } else {
+        _isUsernameMissing = false;
+      }
+      _isDataLoadingAfterLogin = false;
+    } else {
+      print("[GameProvider] User signed out or null. Resetting state.");
+      _currentUser = null;
+      await _resetToInitialState(); // Make reset async
+      _isDataLoadingAfterLogin = false;
+      _hasUnsavedChanges = false;
+    }
+
+    _authLoading = false;
+    notifyListeners();
+    print(
+        "[GameProvider] _onAuthStateChanged finished. AuthLoading: $_authLoading, IsDataLoadingAfterLogin: $_isDataLoadingAfterLogin");
+  }
+
+  Map<String, dynamic> _gameStateToMap() {
+    return {
+      'lastLoginDate': _lastLoginDate,
+      'coins': _coins,
+      'xp': _xp,
+      'playerLevel': _playerLevel,
+      'playerEnergy': _playerEnergy,
+      'mainTasks': _mainTasks.map((mt) => mt.toJson()).toList(),
+      'completedByDay': _completedByDay,
+      'artifacts': _artifacts.map((a) => a.toJson()).toList(),
+      'artifactTemplatesList':
+          _artifactTemplatesList.map((at) => at.toJson()).toList(),
+      'enemyTemplatesList':
+          _enemyTemplatesList.map((et) => et.toJson()).toList(),
+      'gameLocationsList': _gameLocationsList
+          .map((gl) => gl.toJson())
+          .toList(), // Save locations
+      'runeTemplatesList': _runeTemplatesList.map((rt) => rt.toJson()).toList(),
+      'ownedRunes': _ownedRunes.map((or) => or.toJson()).toList(),
+      'playerGameStats':
+          _playerGameStats.map((key, stat) => MapEntry(key, stat.toJson())),
+      'equippedItems': _equippedItems,
+      'equippedRunes': _equippedRunes,
+      'defeatedEnemyIds': _defeatedEnemyIds,
+      'clearedLocationIds': _clearedLocationIds, // Save cleared locations
+      'currentGame': _currentGame.toJson(),
+      'settings': settings.toJson(),
+      'currentView': _currentView,
+      'selectedTaskId': _selectedTaskId,
+      'apiKeyIndex': _apiKeyIndex,
+      'activeTimers':
+          _activeTimers.map((key, value) => MapEntry(key, value.toJson())),
+      'lastSuccessfulSaveTimestamp':
+          _lastSuccessfulSaveTimestamp?.toIso8601String(),
+      // Park Management Data
+      'dinosaurSpeciesList': _dinosaurSpeciesList.map((ds) => ds.toJson()).toList(),
+      'buildingTemplatesList': _buildingTemplatesList.map((bt) => bt.toJson()).toList(),
+      'ownedBuildings': _ownedBuildings.map((ob) => ob.toJson()).toList(),
+      'ownedDinosaurs': _ownedDinosaurs.map((od) => od.toJson()).toList(),
+      'fossilRecords': _fossilRecords.map((fr) => fr.toJson()).toList(),
+      'parkManager': _parkManager.toJson(),
+    };
+  }
+
+  void _loadStateFromMap(Map<String, dynamic> data) {
+    print("[GameProvider] Loading state from map: ${data.keys.toList()}");
+    _lastLoginDate = data['lastLoginDate'] as String?;
+    _coins = (data['coins'] as num? ?? 100).toDouble();
+    _xp = (data['xp'] as num? ?? 0).toDouble();
+    _playerLevel = data['playerLevel'] as int? ?? 1;
+    _playerEnergy =
+        (data['playerEnergy'] as num? ?? baseMaxPlayerEnergy).toDouble();
+
+    _mainTasks = (data['mainTasks'] as List<dynamic>?)
+            ?.map((mtJson) => MainTask.fromJson(mtJson as Map<String, dynamic>))
+            .toList() ??
+        initialMainTaskTemplates.map((t) => MainTask.fromTemplate(t)).toList();
+
+    _completedByDay = data['completedByDay'] as Map<String, dynamic>? ?? {};
+    _completedByDay.forEach((date, dayDataMap) {
+      if (dayDataMap is Map<String, dynamic>) {
+        dayDataMap.putIfAbsent('taskTimes', () => <String, int>{});
+        dayDataMap.putIfAbsent(
+            'subtasksCompleted', () => <Map<String, dynamic>>[]);
+        dayDataMap.putIfAbsent(
+            'checkpointsCompleted', () => <Map<String, dynamic>>[]);
+      }
+    });
+
+    _artifacts = (data['artifacts'] as List<dynamic>?)
+            ?.map((aJson) =>
+                OwnedArtifact.fromJson(aJson as Map<String, dynamic>))
+            .toList() ??
+        [];
+
+    _artifactTemplatesList = (data['artifactTemplatesList'] as List<dynamic>?)
+            ?.map((atJson) =>
+                ArtifactTemplate.fromJson(atJson as Map<String, dynamic>))
+            .toList() ??
+        initialArtifactTemplates; // Use initial if not present
+
+    _enemyTemplatesList = (data['enemyTemplatesList'] as List<dynamic>?)
+            ?.map((etJson) =>
+                EnemyTemplate.fromJson(etJson as Map<String, dynamic>))
+            .toList() ??
+        initialEnemyTemplates; // Use initial if not present
+
+    _gameLocationsList = (data['gameLocationsList'] as List<dynamic>?)
+            ?.map((glJson) =>
+                GameLocation.fromJson(glJson as Map<String, dynamic>))
+            .toList() ??
+        initialGameLocations; // Use initial if not present
+
+    _runeTemplatesList = (data['runeTemplatesList'] as List<dynamic>?)
+            ?.map((rtJson) => Rune.fromJson(rtJson as Map<String, dynamic>))
+            .toList() ??
+        [];
+    _ownedRunes = (data['ownedRunes'] as List<dynamic>?)
+            ?.map(
+                (orJson) => OwnedRune.fromJson(orJson as Map<String, dynamic>))
+            .toList() ??
+        [];
+
+    final statsData = data['playerGameStats'] as Map<String, dynamic>?;
+    _playerGameStats = {
+      ...Map.from(basePlayerGameStats.map((key, value) => MapEntry(
+          key,
+          PlayerStat(
+              name: value.name,
+              description: value.description,
+              icon: value.icon,
+              value: value.value,
+              base: value.base)))),
+    };
+    _ensureBonusXpModStat();
+
+    if (statsData != null) {
+      statsData.forEach((String key, dynamic statJsonValue) {
+        if (_playerGameStats.containsKey(key) &&
+            statJsonValue is Map<String, dynamic>) {
+          _playerGameStats[key] = PlayerStat.fromJson(statJsonValue);
+        } else if (!_playerGameStats.containsKey(key) &&
+            statJsonValue is Map<String, dynamic> &&
+            key == 'bonusXPMod') {
+          _playerGameStats[key] = PlayerStat.fromJson(statJsonValue);
         }
+      });
+    }
 
-        final List<Map<String, dynamic>> subSubTasksDataList =
-            (subquestData['subSubTasksData'] as List<dynamic>? ?? [])
-                .map((item) {
-                  if (item is Map<String, dynamic>) return item;
-                  print("[AIActions] Invalid sub-sub-task data item, expected Map<String, dynamic>, got ${item.runtimeType}: $item");
-                  return null; 
-                })
-                .whereNotNull()
-                .toList();
+    _equippedItems = Map<String, String?>.from(
+        data['equippedItems'] as Map<dynamic, dynamic>? ??
+            {'weapon': null, 'armor': null, 'talisman': null});
+    _equippedRunes = Map<String, String?>.from(
+        data['equippedRunes'] as Map<dynamic, dynamic>? ??
+            {'rune_slot_1': null, 'rune_slot_2': null});
+    _defeatedEnemyIds = (data['defeatedEnemyIds'] as List<dynamic>?)
+            ?.map((id) => id as String)
+            .toList() ??
+        [];
+    _clearedLocationIds = (data['clearedLocationIds'] as List<dynamic>?)
+            ?.map((id) => id as String)
+            .toList() ??
+        []; // Load cleared locations
 
-        final List<SubSubTask> currentSubSubTasks = [];
-        for (int i = 0; i < subSubTasksDataList.length; i++) {
-          final sssData = subSubTasksDataList[i];
-          if (kDebugMode) print("[AIActions] Processing raw sub-sub-task data: $sssData");
-          try {
-            currentSubSubTasks.add(SubSubTask(
-              id: 'ssub_${DateTime.now().millisecondsSinceEpoch}_${newSubTasksForParent.length}_$i',
-              name: sssData['name'] as String? ?? 'Unnamed Sub-Sub-Task',
-              isCountable: sssData['isCountable'] as bool? ?? false,
-              targetCount: (sssData['isCountable'] as bool? ?? false)
-                  ? (sssData['targetCount'] as int? ?? 1)
-                  : 0,
-            ));
-          } catch (e, s) {
-            print("[AIActions] Error parsing SubSubTask from data: $sssData. Error: $e. Stacktrace: $s");
+    _currentGame = data['currentGame'] != null
+        ? CurrentGame.fromJson(
+            data['currentGame'] as Map<String, dynamic>, _enemyTemplatesList)
+        : CurrentGame(
+            playerCurrentHp: _playerGameStats['vitality']!.value,
+            currentPlaceKey: _gameLocationsList.isNotEmpty
+                ? _gameLocationsList.first.id
+                : null);
+
+    // Ensure currentPlaceKey is valid
+    if (_currentGame.currentPlaceKey == null && _gameLocationsList.isNotEmpty) {
+      _currentGame.currentPlaceKey = _gameLocationsList.first.id;
+    } else if (_currentGame.currentPlaceKey != null &&
+        !_gameLocationsList
+            .any((loc) => loc.id == _currentGame.currentPlaceKey)) {
+      _currentGame.currentPlaceKey =
+          _gameLocationsList.isNotEmpty ? _gameLocationsList.first.id : null;
+    }
+
+    _settings = data['settings'] != null
+        ? GameSettings.fromJson(data['settings'] as Map<String, dynamic>)
+        : GameSettings();
+
+    _currentView = data['currentView'] as String? ?? 'task-details';
+    _selectedTaskId = data['selectedTaskId'] as String? ??
+        (_mainTasks.isNotEmpty ? _mainTasks[0].id : null);
+    _apiKeyIndex = data['apiKeyIndex'] as int? ?? 0;
+
+    _activeTimers = (data['activeTimers'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key,
+                ActiveTimerInfo.fromJson(value as Map<String, dynamic>))) ??
+        {};
+
+    final timestampString = data['lastSuccessfulSaveTimestamp'] as String?;
+    _lastSuccessfulSaveTimestamp =
+        timestampString != null ? DateTime.tryParse(timestampString) : null;
+
+    // Park Management Data Loading
+    _dinosaurSpeciesList = (data['dinosaurSpeciesList'] as List<dynamic>?)
+        ?.map((dsJson) => DinosaurSpecies.fromJson(dsJson as Map<String, dynamic>))
+        .toList() ?? initialDinosaurSpecies;
+    _buildingTemplatesList = (data['buildingTemplatesList'] as List<dynamic>?)
+        ?.map((btJson) => BuildingTemplate.fromJson(btJson as Map<String, dynamic>))
+        .toList() ?? initialBuildingTemplates;
+    _ownedBuildings = (data['ownedBuildings'] as List<dynamic>?)
+        ?.map((obJson) => OwnedBuilding.fromJson(obJson as Map<String, dynamic>))
+        .toList() ?? [];
+    _ownedDinosaurs = (data['ownedDinosaurs'] as List<dynamic>?)
+        ?.map((odJson) => OwnedDinosaur.fromJson(odJson as Map<String, dynamic>))
+        .toList() ?? [];
+    _fossilRecords = (data['fossilRecords'] as List<dynamic>?)
+        ?.map((frJson) => FossilRecord.fromJson(frJson as Map<String, dynamic>))
+        .toList() ?? [];
+    // Ensure fossil records list matches species list
+    if (_fossilRecords.length != _dinosaurSpeciesList.length) {
+      _fossilRecords = _dinosaurSpeciesList
+        .map((species) => _fossilRecords.firstWhere((fr) => fr.speciesId == species.id, orElse: () => FossilRecord(speciesId: species.id)))
+        .toList();
+    }
+
+    _parkManager = data['parkManager'] != null
+        ? ParkManager.fromJson(data['parkManager'] as Map<String, dynamic>)
+        : ParkManager();
+
+
+    _recalculatePlayerLevel();
+    _updatePlayerStatsFromItemsAndRunes();
+    _parkActions.recalculateParkStats(); // Recalculate park stats after loading
+    print(
+        "[GameProvider] State loaded. Current XP: $_xp, Level: $_playerLevel");
+  }
+
+  Future<void> _resetToInitialState() async {
+    // Make async
+    print("[GameProvider] Resetting to initial state.");
+    _lastLoginDate = null;
+    _coins = 100;
+    _xp = 0;
+    _playerLevel = 1;
+    _playerEnergy = baseMaxPlayerEnergy;
+    _mainTasks =
+        initialMainTaskTemplates.map((t) => MainTask.fromTemplate(t)).toList();
+    _completedByDay = {};
+    _artifacts = [];
+
+    // Potentially load these from assets async if they become large
+    _artifactTemplatesList = List.from(initialArtifactTemplates);
+    _enemyTemplatesList = List.from(initialEnemyTemplates);
+    _gameLocationsList = List.from(initialGameLocations);
+
+    _runeTemplatesList = [];
+    _ownedRunes = [];
+    _playerGameStats = {
+      ...Map.from(basePlayerGameStats.map((key, value) => MapEntry(
+          key,
+          PlayerStat(
+              name: value.name,
+              description: value.description,
+              icon: value.icon,
+              value: value.value,
+              base: value.base)))),
+    };
+    _ensureBonusXpModStat();
+    _equippedItems = {'weapon': null, 'armor': null, 'talisman': null};
+    _equippedRunes = {'rune_slot_1': null, 'rune_slot_2': null};
+    _defeatedEnemyIds = [];
+    _clearedLocationIds = []; // Reset cleared locations
+    _currentGame = CurrentGame(
+        playerCurrentHp: _playerGameStats['vitality']!.value,
+        currentPlaceKey:
+            _gameLocationsList.isNotEmpty ? _gameLocationsList.first.id : null);
+    _settings = GameSettings();
+    _currentView = 'task-details';
+    _selectedTaskId = _mainTasks.isNotEmpty ? _mainTasks[0].id : null;
+    _apiKeyIndex = 0;
+    _activeTimers = {};
+    _isUsernameMissing = false;
+    _lastSuccessfulSaveTimestamp = null;
+    
+    // Park Management Reset
+    _dinosaurSpeciesList = List.from(initialDinosaurSpecies);
+    _buildingTemplatesList = List.from(initialBuildingTemplates);
+    _ownedBuildings = [];
+    _ownedDinosaurs = [];
+    _fossilRecords = _dinosaurSpeciesList.map((species) => FossilRecord(speciesId: species.id)).toList();
+    _parkManager = ParkManager(parkDollars: 50000, parkEnergy: _playerEnergy, maxParkEnergy: calculatedMaxEnergy); // Start with some dollars and link park energy to player energy
+
+    _hasUnsavedChanges = true;
+
+    final rustySword = _artifactTemplatesList
+        .firstWhereOrNull((art) => art.id == "art_rusty_sword");
+    if (rustySword != null) {
+      _artifacts.add(OwnedArtifact(
+          uniqueId: "owned_${rustySword.id}_init",
+          templateId: rustySword.id,
+          currentLevel: 1));
+      _equippedItems['weapon'] = "owned_${rustySword.id}_init";
+    }
+    final leatherJerkin = _artifactTemplatesList
+        .firstWhereOrNull((art) => art.id == "art_leather_jerkin");
+    if (leatherJerkin != null) {
+      _artifacts.add(OwnedArtifact(
+          uniqueId: "owned_${leatherJerkin.id}_init",
+          templateId: leatherJerkin.id,
+          currentLevel: 1));
+      _equippedItems['armor'] = "owned_${leatherJerkin.id}_init";
+    }
+    _updatePlayerStatsFromItemsAndRunes();
+    _parkActions.recalculateParkStats(); // Recalculate park stats after reset
+    print("[GameProvider] Initial state reset complete.");
+  }
+
+  Future<void> _performActualSave() async {
+    if (_currentUser != null) {
+      print(
+          "[GameProvider] Performing actual save to Firestore for user ${_currentUser!.uid}");
+      final success = await _storageService.setUserData(_currentUser!.uid,
+          _gameStateToMap()); // Changed to setUserData for full overwrite
+      if (success) {
+        _lastSuccessfulSaveTimestamp = DateTime.now();
+        _hasUnsavedChanges = false;
+        notifyListeners(); // To update UI with new save timestamp if displayed
+        print(
+            "[GameProvider] Save successful. Timestamp: $_lastSuccessfulSaveTimestamp");
+      } else {
+        print("[GameProvider] Save FAILED.");
+        // Optionally, add a log to the game's UI log about save failure
+        setProviderState(
+            currentGame: CurrentGame(
+              enemy: _currentGame.enemy,
+              playerCurrentHp: _currentGame.playerCurrentHp,
+              log: [
+                ..._currentGame.log,
+                "<span style=\"color:${AppTheme.fhAccentRed.value.toRadixString(16).substring(2)};\">Critical Error: Failed to save game data to cloud!</span>"
+              ],
+              currentPlaceKey: _currentGame.currentPlaceKey,
+            ),
+            doPersist: false, // Don't try to re-save immediately
+            doNotify: true);
+      }
+    } else {
+      print("[GameProvider] Cannot save, no current user.");
+    }
+  }
+
+  Future<void> manuallySaveToCloud() async {
+    if (_currentUser == null) throw Exception("Not logged in. Cannot save.");
+    print("[GameProvider] Manually saving to cloud...");
+    _isManuallySaving = true;
+    notifyListeners();
+    try {
+      await _performActualSave();
+    } finally {
+      _isManuallySaving = false;
+      notifyListeners();
+      print("[GameProvider] Manual save finished.");
+    }
+  }
+
+  Future<void> manuallyLoadFromCloud() async {
+    if (_currentUser == null) throw Exception("Not logged in. Cannot load.");
+    print("[GameProvider] Manually loading from cloud...");
+    _isManuallyLoading = true;
+    notifyListeners();
+    try {
+      final data = await _storageService.getUserData(_currentUser!.uid);
+      if (data != null) {
+        _loadStateFromMap(data);
+        _handleDailyReset();
+        if (settings.autoGenerateContent &&
+            (_enemyTemplatesList.isEmpty ||
+                _artifactTemplatesList.isEmpty ||
+                _runeTemplatesList.isEmpty ||
+                _gameLocationsList.isEmpty ||
+                _dinosaurSpeciesList.isEmpty || // Check for park content
+                _buildingTemplatesList.isEmpty 
+                )) {
+          // Don't await this if it blocks UI too much
+          _aiGenerationActions
+              .generateGameContent(_playerLevel,
+                  isManual: false, isInitial: true, contentType: "all")
+              .catchError((e) {
+            print("Error during manual load content gen: $e");
+          });
+        }
+        if (_currentUser?.displayName == null ||
+            _currentUser!.displayName!.trim().isEmpty) {
+          _isUsernameMissing = true;
+        } else {
+          _isUsernameMissing = false;
+        }
+        _hasUnsavedChanges = false; // Data is now in sync with cloud
+      } else {
+        throw Exception("No data found on cloud.");
+      }
+    } finally {
+      _isManuallyLoading = false;
+      notifyListeners();
+      print("[GameProvider] Manual load finished.");
+    }
+  }
+
+  Future<void> loginUser(String email, String password) async {
+    print("[GameProvider] Attempting login for email: $email");
+    await fb_service.signInWithEmail(email, password);
+  }
+
+  Future<void> signupUser(
+      String email, String password, String username) async {
+    print(
+        "[GameProvider] Attempting signup for email: $email, username: $username");
+    _authLoading = true;
+    notifyListeners();
+    try {
+      UserCredential userCredential =
+          await fb_service.firebaseAuthInstance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      _currentUser = userCredential.user;
+      if (_currentUser != null) {
+        print(
+            "[GameProvider] Signup successful, user UID: ${_currentUser!.uid}. Updating display name.");
+        await _currentUser!.updateDisplayName(username);
+        await _currentUser!.reload();
+        _currentUser =
+            fb_service.firebaseAuthInstance.currentUser; // Refresh user object
+
+        await _resetToInitialState(); // Make reset async
+        _lastLoginDate = helper.getTodayDateString();
+        _hasUnsavedChanges = true; // Mark for initial save
+        await _performActualSave();
+
+        _handleDailyReset();
+        if (settings.autoGenerateContent &&
+            (_enemyTemplatesList.isEmpty ||
+                _artifactTemplatesList.isEmpty ||
+                _runeTemplatesList.isEmpty ||
+                _gameLocationsList.isEmpty ||
+                _dinosaurSpeciesList.isEmpty || // Check for park content
+                _buildingTemplatesList.isEmpty)) {
+          // Don't await this if it blocks UI too much
+          _aiGenerationActions
+              .generateGameContent(_playerLevel,
+                  isManual: false, isInitial: true, contentType: "all")
+              .catchError((e) {
+            print("Error during signup content gen: $e");
+          });
+        }
+        _isDataLoadingAfterLogin = false;
+        _isUsernameMissing = false;
+        print(
+            "[GameProvider] Signup and initial setup complete for user: $username");
+      } else {
+        throw Exception("Signup successful but user object is null.");
+      }
+    } catch (e) {
+      _currentUser = null;
+      print("[GameProvider] Signup failed: $e");
+      rethrow;
+    } finally {
+      _authLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> logoutUser() async {
+    print("[GameProvider] Logging out user...");
+    if (_hasUnsavedChanges && _currentUser != null) {
+      print("[GameProvider] Saving unsaved changes before logout.");
+      await _performActualSave();
+    }
+    try {
+      await fb_service.signOut();
+      print("[GameProvider] User signed out successfully.");
+    } catch (e) {
+      print("[GameProvider] Error during sign out: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> changePasswordHandler(String newPassword) async {
+    if (_currentUser != null) {
+      print(
+          "[GameProvider] Attempting to change password for user ${_currentUser!.uid}");
+      await fb_service.changePassword(newPassword);
+      _hasUnsavedChanges = true;
+      notifyListeners();
+      print("[GameProvider] Password change successful (client-side).");
+    } else {
+      throw Exception("No user is currently signed in.");
+    }
+  }
+
+  Future<void> updateUserDisplayName(String newUsername) async {
+    if (_currentUser != null) {
+      print(
+          "[GameProvider] Updating display name to '$newUsername' for user ${_currentUser!.uid}");
+      await _currentUser!.updateDisplayName(newUsername);
+      await _currentUser!.reload();
+      _currentUser = fb_service.firebaseAuthInstance.currentUser;
+
+      _isUsernameMissing = false;
+      _hasUnsavedChanges = true;
+      notifyListeners();
+      await _performActualSave();
+      print("[GameProvider] Display name updated and saved.");
+    }
+  }
+
+  void setCurrentView(String view) {
+    if (_currentView != view) {
+      print(
+          "[GameProvider] Setting current view from '$_currentView' to '$view'");
+      _currentView = view;
+      _hasUnsavedChanges = true;
+      notifyListeners();
+    }
+  }
+
+  void setSelectedTaskId(String? taskId) {
+    if (_selectedTaskId != taskId) {
+      print(
+          "[GameProvider] Setting selected task ID from '$_selectedTaskId' to '$taskId'");
+      _selectedTaskId = taskId;
+      _hasUnsavedChanges = true;
+      notifyListeners();
+    }
+  }
+
+  void setSettings(GameSettings newSettings) {
+    _settings = newSettings;
+    _hasUnsavedChanges = true;
+    notifyListeners();
+    print(
+        "[GameProvider] Settings updated. DescriptionsVisible: ${newSettings.descriptionsVisible}, AutoGenerate: ${newSettings.autoGenerateContent}");
+  }
+
+  String romanize(int num) => num.toString(); // Changed to common numbering
+
+  MainTask? getSelectedTask() {
+    if (_selectedTaskId == null) {
+      return _mainTasks.firstOrNull;
+    }
+    return _mainTasks.firstWhereOrNull((t) => t.id == _selectedTaskId) ??
+        _mainTasks.firstOrNull;
+  }
+
+  void _recalculatePlayerLevel() {
+    int newLevel = 1;
+    double xpAtStartOfLvl = 0;
+    while (true) {
+      final double xpNeeded =
+          helper.xpToNext(newLevel, xpPerLevelBase, xpLevelMultiplier);
+      if (_xp >= xpAtStartOfLvl + xpNeeded) {
+        xpAtStartOfLvl += xpNeeded;
+        newLevel++;
+      } else {
+        break;
+      }
+    }
+    if (_playerLevel != newLevel) {
+      final oldLevel = _playerLevel;
+      _playerLevel = newLevel;
+      print(
+          "[GameProvider] Player level changed from $oldLevel to $_playerLevel. XP: $_xp");
+      if (_playerLevel > oldLevel) {
+        _handleLevelUpEffect();
+      } else {
+        _hasUnsavedChanges = true;
+        notifyListeners();
+      }
+    }
+  }
+
+  void _handleLevelUpEffect() {
+    if (_currentUser == null) return;
+    print(
+        "[GameProvider] Player leveled up to $_playerLevel! Handling effects.");
+
+    const double strengthIncreasePerLevel = 0.5;
+    const double defenseIncreasePerLevel = 0.3;
+    const double runicIncreasePerLevel = 0.25;
+
+    _playerGameStats['vitality']!.base = basePlayerGameStats['vitality']!.base +
+        ((_playerLevel - 1) * playerEnergyPerLevelVitality);
+    _playerGameStats['strength']!.base = basePlayerGameStats['strength']!.base +
+        ((_playerLevel - 1) * strengthIncreasePerLevel).roundToDouble();
+    _playerGameStats['defense']!.base = basePlayerGameStats['defense']!.base +
+        ((_playerLevel - 1) * defenseIncreasePerLevel).roundToDouble();
+    _playerGameStats['runic']!.base = basePlayerGameStats['runic']!.base +
+        ((_playerLevel - 1) * runicIncreasePerLevel).roundToDouble();
+
+    _updatePlayerStatsFromItemsAndRunes();
+
+    _playerEnergy = calculatedMaxEnergy;
+    _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
+
+    if (settings.autoGenerateContent) {
+      print(
+          "[GameProvider] Auto-generating content for new level $_playerLevel.");
+      _aiGenerationActions
+          .generateGameContent(_playerLevel,
+              isManual: false, isInitial: false, contentType: "all")
+          .catchError((e) {
+        print("Error during level up content gen: $e");
+      });
+    } else {
+      _currentGame.log = [
+        ..._currentGame.log,
+        "<span style=\"color:#${(getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed).value.toRadixString(16).substring(2)}\">You feel a surge of power! New opportunities might await (check settings).</span>"
+      ];
+    }
+    _hasUnsavedChanges = true;
+    notifyListeners();
+  }
+
+  void _handleDailyReset() {
+    if (_currentUser == null) return;
+    final today = helper.getTodayDateString();
+    if (_lastLoginDate != today) {
+      print(
+          "[GameProvider] Daily reset triggered. Last login: $_lastLoginDate, Today: $today");
+      _mainTasks = _mainTasks.map((task) {
+        int newStreak = task.streak;
+        if (_lastLoginDate != null) {
+          final yesterday = DateTime.now().subtract(const Duration(days: 1));
+          final yesterdayStr = DateFormat('yyyy-MM-dd').format(yesterday);
+          if (task.dailyTimeSpent < dailyTaskGoalMinutes &&
+              task.lastWorkedDate != null &&
+              task.lastWorkedDate != today &&
+              task.lastWorkedDate != yesterdayStr) {
+            newStreak = 0;
+            print(
+                "[GameProvider] Task '${task.name}' streak reset due to inactivity.");
           }
         }
-
-        try {
-          final newSubTask = SubTask(
-            id: 'sub_${DateTime.now().millisecondsSinceEpoch}_${newSubTasksForParent.length}',
-            name: subquestData['name'] as String? ?? 'Unnamed Sub-Task',
-            isCountable: subquestData['isCountable'] as bool? ?? false,
-            targetCount: (subquestData['isCountable'] as bool? ?? false)
-                ? (subquestData['targetCount'] as int? ?? 1)
-                : 0,
-            subSubTasks: currentSubSubTasks,
-          );
-          newSubTasksForParent.add(newSubTask);
-          if (kDebugMode) print("[AIActions] Created SubTask: ${newSubTask.name} with ${currentSubSubTasks.length} sub-sub-tasks.");
-        } catch (e, s) {
-          print("[AIActions] Error parsing SubTask from data: $subquestData. Error: $e. Stacktrace: $s");
-        }
-      }
-
-      if (newSubTasksForParent.isEmpty && generatedSubquestsRaw.isNotEmpty) {
-        print("[AIActions] Warning: Raw subquests were received, but no valid SubTasks could be parsed for task '${mainTaskForSubquests.name}'.");
-        _logToGame("<span style=\"color:var(--fh-accent-orange);\">AI returned sub-quest data for '${mainTaskForSubquests.name}', but it could not be processed.</span>");
-      }
-
-      final newMainTasks = _provider.mainTasks.map((task) {
-        if (task.id == mainTaskForSubquests.id) {
-          return MainTask(
-            id: task.id,
-            name: task.name,
-            description: task.description,
-            theme: task.theme,
-            colorHex: task.colorHex,
-            streak: task.streak,
-            dailyTimeSpent: task.dailyTimeSpent,
-            lastWorkedDate: task.lastWorkedDate,
-            subTasks: [...task.subTasks, ...newSubTasksForParent],
-          );
-        }
-        return task;
+        return MainTask(
+          id: task.id,
+          name: task.name,
+          description: task.description,
+          theme: task.theme,
+          colorHex: task.colorHex,
+          streak: newStreak,
+          dailyTimeSpent: 0,
+          lastWorkedDate: task.lastWorkedDate,
+          subTasks: task.subTasks,
+        );
       }).toList();
 
-      print("[AIActions] Generated ${newSubTasksForParent.length} new valid sub-quests for task '${mainTaskForSubquests.name}'.");
+      _playerEnergy = calculatedMaxEnergy;
+      _defeatedEnemyIds = []; // Reset defeated enemies for the day
+      _clearedLocationIds = []; // Reset cleared locations for the day
+      _lastLoginDate = today;
+      _hasUnsavedChanges = true;
+      notifyListeners();
+      print(
+          "[GameProvider] Daily reset complete. Player energy restored. Streaks updated.");
+    }
+  }
 
-      _provider.setProviderState(
-          mainTasks: newMainTasks,
-          currentGame: CurrentGame(
-            enemy: _provider.currentGame.enemy,
-            playerCurrentHp: _provider.currentGame.playerCurrentHp,
-            log: [
-              ..._provider.currentGame.log,
-              if (newSubTasksForParent.isNotEmpty)
-                "<span style=\"color:${AppTheme.fhAccentGreen.value.toRadixString(16).substring(2)};\">AI successfully generated ${newSubTasksForParent.length} new sub-quests for '${mainTaskForSubquests.name}'.</span>"
-              else if (generatedSubquestsRaw.isNotEmpty) 
-                "<span style=\"color:var(--fh-accent-orange);\">AI sub-quest generation for '${mainTaskForSubquests.name}' returned data, but it could not be fully processed.</span>"
-              else 
-                "<span style=\"color:var(--fh-accent-orange);\">AI sub-quest generation for '${mainTaskForSubquests.name}' did not yield new quests.</span>"
-            ],
-            currentPlaceKey: _provider.currentGame.currentPlaceKey,
-          ),
-          doPersist: true, 
-          doNotify: true);
-      print("[AIActions] Subquest state update successful for task '${mainTaskForSubquests.name}', data persisted.");
-    } catch (e, stackTrace) {
-      final errorMessage = e.toString();
-      print("[AIActions] CRITICAL ERROR in triggerAISubquestGeneration for task '${mainTaskForSubquests.name}': $errorMessage");
-      if (kDebugMode) print("[AIActions] StackTrace for triggerAISubquestGeneration error: $stackTrace");
-      _logToGame("<span style=\"color:${AppTheme.fhAccentRed.value.toRadixString(16).substring(2)};\">AI sub-quest generation for '${mainTaskForSubquests.name}' failed critically: $errorMessage</span>");
-    } finally {
-      _provider.setProviderAISubquestLoading(false);
-      print("[AIActions] Finished triggerAISubquestGeneration for task '${mainTaskForSubquests.name}'.");
+  void _updatePlayerStatsFromItemsAndRunes() {
+    final Map<String, PlayerStat> newStats = {
+      ...Map.from(basePlayerGameStats.map((key, bs) => MapEntry(
+          key,
+          PlayerStat(
+              name: bs.name,
+              base: bs.base,
+              value: bs.base,
+              description: bs.description,
+              icon: bs.icon)))),
+    };
+    _ensureBonusXpModStat();
+    if (!newStats.containsKey('bonusXPMod')) {
+      newStats['bonusXPMod'] = PlayerStat(
+          name: 'XP CALC MOD',
+          value: 0,
+          base: 0,
+          description: 'Internal XP modifier from gear.',
+          icon: 'mdi-percent-outline');
+    }
+
+    const double strengthIncreasePerLevel = 0.5;
+    const double defenseIncreasePerLevel = 0.3;
+    const double runicIncreasePerLevel = 0.25;
+
+    newStats['vitality']!.base = basePlayerGameStats['vitality']!.base +
+        ((_playerLevel - 1) * playerEnergyPerLevelVitality);
+    newStats['strength']!.base = basePlayerGameStats['strength']!.base +
+        ((_playerLevel - 1) * strengthIncreasePerLevel).roundToDouble();
+    newStats['defense']!.base = basePlayerGameStats['defense']!.base +
+        ((_playerLevel - 1) * defenseIncreasePerLevel).roundToDouble();
+    newStats['runic']!.base = basePlayerGameStats['runic']!.base +
+        ((_playerLevel - 1) * runicIncreasePerLevel).roundToDouble();
+
+    newStats.forEach((key, stat) {
+      stat.value = stat.base;
+    });
+
+    _equippedItems.forEach((slot, uniqueId) {
+      if (uniqueId != null) {
+        final owned =
+            _artifacts.firstWhereOrNull((art) => art.uniqueId == uniqueId);
+        if (owned != null) {
+          final template = _artifactTemplatesList
+              .firstWhereOrNull((t) => t.id == owned.templateId);
+          if (template != null && template.type != 'powerup') {
+            final effective = _itemActions.getArtifactEffectiveStats(owned);
+            newStats['strength']!.value += effective.baseAtt ?? 0;
+            newStats['defense']!.value += effective.baseDef ?? 0;
+            newStats['vitality']!.value += effective.baseHealth ?? 0;
+            newStats['runic']!.value += effective.baseRunic ?? 0;
+            newStats['luck']!.value += effective.baseLuck?.toDouble() ?? 0;
+            newStats['cooldown']!.value +=
+                effective.baseCooldown?.toDouble() ?? 0;
+            newStats['bonusXPMod']!.value += effective.bonusXPMod ?? 0.0;
+          }
+        }
+      }
+    });
+
+    _equippedRunes.forEach((slot, uniqueOwnedRuneId) {
+      if (uniqueOwnedRuneId != null) {
+        final ownedRune = _ownedRunes
+            .firstWhereOrNull((or) => or.uniqueId == uniqueOwnedRuneId);
+        if (ownedRune != null) {
+          final runeTemplate = _runeTemplatesList
+              .firstWhereOrNull((rt) => rt.id == ownedRune.runeId);
+          if (runeTemplate != null && runeTemplate.type.contains("passive")) {
+            if (runeTemplate.effectType == 'stat_boost' &&
+                runeTemplate.targetStat != null &&
+                newStats.containsKey(runeTemplate.targetStat!)) {
+              newStats[runeTemplate.targetStat!]!.value +=
+                  runeTemplate.effectValue;
+            }
+          }
+        }
+      }
+    });
+
+    newStats['luck']!.value =
+        newStats['luck']!.value.clamp(0, double.infinity).toDouble();
+    newStats['bonusXPMod']!.value =
+        newStats['bonusXPMod']!.value.clamp(0, double.infinity).toDouble();
+
+    _playerGameStats = newStats;
+
+    if (_currentGame.playerCurrentHp > _playerGameStats['vitality']!.value) {
+      _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
+    } else if (_currentGame.enemy == null &&
+        _currentGame.playerCurrentHp < _playerGameStats['vitality']!.value) {
+      _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
+    }
+    print(
+        "[GameProvider] Player stats updated. Vitality: ${_playerGameStats['vitality']!.value}, Strength: ${_playerGameStats['strength']!.value}");
+  }
+
+  bool isLocationUnlocked(String locationId) {
+    final location =
+        _gameLocationsList.firstWhereOrNull((loc) => loc.id == locationId);
+    if (location == null) {
+      print(
+          "[GameProvider] isLocationUnlocked: Location ID '$locationId' not found.");
+      return false;
+    }
+
+    if (_playerLevel < location.minPlayerLevelToUnlock) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> clearAllGameData() async {
+    if (_currentUser == null) return;
+    print(
+        "[GameProvider] Clearing all game data for user ${_currentUser!.uid}");
+    await _storageService.deleteUserData(_currentUser!.uid);
+    await _resetToInitialState(); // Make reset async
+    await _performActualSave();
+
+    if (settings.autoGenerateContent) {
+      print("[GameProvider] Generating initial content after data purge.");
+      await _aiGenerationActions.generateGameContent(1,
+          isManual: true, isInitial: true, contentType: "all");
+    }
+    notifyListeners();
+    print("[GameProvider] All game data cleared and reset.");
+  }
+
+  Future<void> resetPlayerLevelAndProgress() async {
+    if (_currentUser == null) return;
+    print("[GameProvider] Resetting player level and progress.");
+    _playerLevel = 1;
+    _xp = 0;
+    _playerGameStats = {
+      ...Map.from(basePlayerGameStats.map((key, value) => MapEntry(
+          key,
+          PlayerStat(
+              name: value.name,
+              description: value.description,
+              icon: value.icon,
+              value: value.value,
+              base: value.base)))),
+    };
+    _ensureBonusXpModStat();
+    _updatePlayerStatsFromItemsAndRunes();
+    _playerEnergy = calculatedMaxEnergy;
+    _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
+    _defeatedEnemyIds = [];
+    if (settings.autoGenerateContent) {
+      print("[GameProvider] Generating content for reset level 1.");
+      await _aiGenerationActions.generateGameContent(1,
+          isManual: false, isInitial: false, contentType: "all");
+    }
+    _currentGame.log = [
+      ..._currentGame.log,
+      "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Player level and progress have been reset.</span>"
+    ];
+    _hasUnsavedChanges = true;
+    notifyListeners();
+    print("[GameProvider] Player level and progress reset complete.");
+  }
+
+  void clearAllOwnedArtifacts() {
+    if (_currentUser == null) return;
+    print("[GameProvider] Clearing all owned artifacts.");
+    setProviderState(
+      artifacts: [], // Clear owned artifacts
+      equippedItems: {
+        'weapon': null,
+        'armor': null,
+        'talisman': null
+      }, // Unequip all
+      currentGame: CurrentGame(
+        enemy: _currentGame.enemy,
+        playerCurrentHp: _currentGame.playerCurrentHp,
+        log: [
+          ..._currentGame.log,
+          "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">All artifacts cleared from inventory.</span>"
+        ],
+        currentPlaceKey: _currentGame.currentPlaceKey,
+      ),
+    );
+  }
+
+  Future<void> clearDiscoverablePowerUps() async {
+    if (_currentUser == null) return;
+    print("[GameProvider] Clearing discoverable power-ups.");
+    final List<String> ownedPowerUpTemplateIds = _artifacts
+        .where((owned) {
+          final template = _artifactTemplatesList
+              .firstWhereOrNull((t) => t.id == owned.templateId);
+          return template != null && template.type == 'powerup';
+        })
+        .map((owned) => owned.templateId)
+        .toSet()
+        .toList();
+
+    final List<ArtifactTemplate> newArtifactTemplates =
+        _artifactTemplatesList.where((template) {
+      return template.type != 'powerup' ||
+          ownedPowerUpTemplateIds.contains(template.id);
+    }).toList();
+
+    setProviderState(
+        artifactTemplatesList: newArtifactTemplates,
+        currentGame: CurrentGame(
+          enemy: _currentGame.enemy,
+          playerCurrentHp: _currentGame.playerCurrentHp,
+          log: [
+            ..._currentGame.log,
+            "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Discoverable power-up schematics purged. Owned items remain.</span>"
+          ],
+          currentPlaceKey: _currentGame.currentPlaceKey,
+        ));
+  }
+
+  Future<void> removeAllEnemyTemplates() async {
+    if (_currentUser == null) return;
+    print("[GameProvider] Removing all enemy templates.");
+    setProviderState(
+        enemyTemplatesList: [],
+        currentGame: CurrentGame(
+          enemy: _currentGame.enemy,
+          playerCurrentHp: _currentGame.playerCurrentHp,
+          log: [
+            ..._currentGame.log,
+            "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">All enemy intelligence wiped from the database.</span>"
+          ],
+          currentPlaceKey: _currentGame.currentPlaceKey,
+        ));
+  }
+
+  void deleteGameLocation(String locationId) {
+    final newLocations =
+        _gameLocationsList.where((loc) => loc.id != locationId).toList();
+    final newClearedIds =
+        _clearedLocationIds.where((id) => id != locationId).toList();
+    String? newCurrentPlaceKey = _currentGame.currentPlaceKey;
+    if (newCurrentPlaceKey == locationId) {
+      newCurrentPlaceKey =
+          newLocations.isNotEmpty ? newLocations.first.id : null;
+    }
+
+    setProviderState(
+        gameLocationsList: newLocations,
+        clearedLocationIds: newClearedIds,
+        currentGame: CurrentGame(
+          enemy: _currentGame.currentPlaceKey == locationId
+              ? null
+              : _currentGame.enemy, // Clear enemy if it was in deleted location
+          playerCurrentHp: _currentGame.playerCurrentHp,
+          log: [
+            ..._currentGame.log,
+            "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Realm '${_gameLocationsList.firstWhereOrNull((l) => l.id == locationId)?.name ?? locationId}' has been destabilized and removed.</span>"
+          ],
+          currentPlaceKey: newCurrentPlaceKey,
+        ));
+  }
+
+  void markLocationAsCleared(String locationId) {
+    final newLocations = _gameLocationsList.map((loc) {
+      if (loc.id == locationId) {
+        return GameLocation(
+          id: loc.id,
+          name: loc.name,
+          description: loc.description,
+          minPlayerLevelToUnlock: loc.minPlayerLevelToUnlock,
+          iconEmoji: loc.iconEmoji,
+          associatedTheme: loc.associatedTheme,
+          bossEnemyIdToUnlockNextLocation: loc.bossEnemyIdToUnlockNextLocation,
+          isCleared: true, // Mark as cleared
+        );
+      }
+      return loc;
+    }).toList();
+
+    final newClearedLocationIds =
+        List<String>.from(_clearedLocationIds)..add(locationId);
+
+    setProviderState(
+        gameLocationsList: newLocations,
+        clearedLocationIds: newClearedLocationIds,
+        currentGame: CurrentGame(
+          enemy: _currentGame.enemy, // Keep current enemy if any
+          playerCurrentHp: _currentGame.playerCurrentHp,
+          log: [
+            ..._currentGame.log,
+            "<span style=\"color:${AppTheme.fhAccentGreen.value.toRadixString(16).substring(2)};\">Zone '${_gameLocationsList.firstWhereOrNull((loc) => loc.id == locationId)?.name ?? locationId}' has been pacified!</span>"
+          ],
+          currentPlaceKey: _currentGame.currentPlaceKey,
+        ));
+  }
+
+
+  // Delegated methods
+  Future<void> generateGameContent(int level,
+          {bool isManual = false,
+          bool isInitial = false,
+          String contentType = "all"}) =>
+      _aiGenerationActions.generateGameContent(level,
+          isManual: isManual,
+          isInitial: isInitial,
+          contentType: contentType);
+
+  void addMainTask(
+          {required String name,
+          required String description,
+          required String theme,
+          required String colorHex}) =>
+      _taskActions.addMainTask(
+          name: name,
+          description: description,
+          theme: theme,
+          colorHex: colorHex);
+  void editMainTask(String taskId,
+          {required String name,
+          required String description,
+          required String theme,
+          required String colorHex}) =>
+      _taskActions.editMainTask(taskId,
+          name: name,
+          description: description,
+          theme: theme,
+          colorHex: colorHex);
+  void logToDailySummary(String type, Map<String, dynamic> data) =>
+      _taskActions.logToDailySummary(type, data);
+  String addSubtask(String mainTaskId, Map<String, dynamic> subtaskData) =>
+      _taskActions.addSubtask(mainTaskId, subtaskData);
+  void updateSubtask(
+          String mainTaskId, String subtaskId, Map<String, dynamic> updates) =>
+      _taskActions.updateSubtask(mainTaskId, subtaskId, updates);
+  bool completeSubtask(String mainTaskId, String subtaskId) =>
+      _taskActions.completeSubtask(mainTaskId, subtaskId);
+  void deleteSubtask(String mainTaskId, String subtaskId) =>
+      _taskActions.deleteSubtask(mainTaskId, subtaskId);
+  void duplicateCompletedSubtask(String mainTaskId, String subtaskId) =>
+      _taskActions.duplicateCompletedSubtask(mainTaskId, subtaskId);
+  void addSubSubtask(String mainTaskId, String parentSubtaskId,
+          Map<String, dynamic> subSubtaskData) =>
+      _taskActions.addSubSubtask(mainTaskId, parentSubtaskId, subSubtaskData);
+  void updateSubSubtask(String mainTaskId, String parentSubtaskId,
+          String subSubtaskId, Map<String, dynamic> updates) =>
+      _taskActions.updateSubSubtask(
+          mainTaskId, parentSubtaskId, subSubtaskId, updates);
+  void completeSubSubtask(
+          String mainTaskId, String parentSubtaskId, String subSubtaskId) =>
+      _taskActions.completeSubSubtask(
+          mainTaskId, parentSubtaskId, subSubtaskId);
+  void deleteSubSubtask(
+          String mainTaskId, String parentSubtaskId, String subSubtaskId) =>
+      _taskActions.deleteSubSubtask(mainTaskId, parentSubtaskId, subSubtaskId);
+
+  OwnedArtifact? getArtifactByUniqueId(String uniqueId) =>
+      _itemActions.getArtifactByUniqueId(uniqueId);
+  ArtifactTemplate? getArtifactTemplateById(String templateId) =>
+      _itemActions.getArtifactTemplateById(templateId);
+  ArtifactTemplate getArtifactEffectiveStats(OwnedArtifact ownedArtifact) =>
+      _itemActions.getArtifactEffectiveStats(ownedArtifact);
+  void buyArtifact(String templateId) => _itemActions.buyArtifact(templateId);
+  bool upgradeArtifact(String uniqueId) =>
+      _itemActions.upgradeArtifact(uniqueId);
+  bool sellArtifact(String uniqueId) => _itemActions.sellArtifact(uniqueId);
+  void equipArtifact(String uniqueId) => _itemActions.equipArtifact(uniqueId);
+  void unequipArtifact(String slot) => _itemActions.unequipArtifact(slot);
+  void acquireRune(String runeId) {
+    print("[GameProvider] Placeholder: Acquire Rune $runeId");
+    notifyListeners();
+  }
+
+  void equipRune(String ownedRuneUniqueId, String slot) {
+    print("[GameProvider] Placeholder: Equip Rune $ownedRuneUniqueId to $slot");
+    _updatePlayerStatsFromItemsAndRunes();
+    notifyListeners();
+  }
+
+  void unequipRune(String slot) {
+    print("[GameProvider] Placeholder: Unequip Rune from $slot");
+    _updatePlayerStatsFromItemsAndRunes();
+    notifyListeners();
+  }
+
+  void startGame(String enemyId) => _combatActions.startGame(enemyId);
+  void handleFight() => _combatActions.handleFight();
+  void usePowerUp(String uniqueId) => _combatActions.usePowerUp(uniqueId);
+  void forfeitMatch() => _combatActions.forfeitMatch();
+  void checkAndClearLocationIfAllEnemiesDefeated(String locationId) =>
+      _combatActions.checkAndClearLocationIfAllEnemiesDefeated(locationId);
+
+  Future<void> triggerAISubquestGeneration(MainTask mainTask,
+          String generationMode, String userInput, int numSubquests) =>
+      _aiGenerationActions.triggerAISubquestGeneration(
+          mainTask, generationMode, userInput, numSubquests);
+
+  void startTimer(String id, String type, String mainTaskId) =>
+      _timerActions.startTimer(id, type, mainTaskId);
+  void pauseTimer(String id) => _timerActions.pauseTimer(id);
+  void logTimerAndReset(String id) => _timerActions.logTimerAndReset(id);
+  
+  // Park Actions Delegation
+  bool canAffordBuilding(BuildingTemplate buildingTemplate) => _parkActions.canAffordBuilding(buildingTemplate);
+  void buyAndPlaceBuilding(String buildingTemplateId) => _parkActions.buyAndPlaceBuilding(buildingTemplateId);
+  void sellBuilding(String ownedBuildingUniqueId) => _parkActions.sellBuilding(ownedBuildingUniqueId);
+  void excavateFossil(String speciesId) => _parkActions.excavateFossil(speciesId);
+  void incubateDinosaur(String speciesId) => _parkActions.incubateDinosaur(speciesId);
+  void addDinosaurToEnclosure(String dinosaurUniqueId, String enclosureUniqueId) => _parkActions.addDinosaurToEnclosure(dinosaurUniqueId, enclosureUniqueId);
+  void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) => _parkActions.feedDinosaursInEnclosure(enclosureUniqueId, amount);
+  void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) => _parkActions.toggleBuildingOperationalStatus(ownedBuildingUniqueId);
+  void skipOneMinute() => _parkActions.skipOneMinute(); // New skip minute method
+
+
+  void setProviderState({
+    String? lastLoginDate,
+    double? coins,
+    double? xp,
+    double? playerEnergy,
+    List<MainTask>? mainTasks,
+    Map<String, dynamic>? completedByDay,
+    List<OwnedArtifact>? artifacts,
+    List<ArtifactTemplate>? artifactTemplatesList,
+    List<EnemyTemplate>? enemyTemplatesList,
+    List<GameLocation>? gameLocationsList,
+    List<Rune>? runeTemplatesList,
+    List<OwnedRune>? ownedRunes,
+    Map<String, PlayerStat>? playerGameStats,
+    Map<String, String?>? equippedItems,
+    Map<String, String?>? equippedRunes,
+    List<String>? defeatedEnemyIds,
+    List<String>? clearedLocationIds, // Add for setProviderState
+    CurrentGame? currentGame,
+    Map<String, ActiveTimerInfo>? activeTimers,
+    DateTime? lastSuccessfulSaveTimestamp,
+    bool? isUsernameMissing,
+    // Park Management
+    List<DinosaurSpecies>? dinosaurSpeciesList,
+    List<BuildingTemplate>? buildingTemplatesList,
+    List<OwnedBuilding>? ownedBuildings,
+    List<OwnedDinosaur>? ownedDinosaurs,
+    List<FossilRecord>? fossilRecords,
+    ParkManager? parkManager,
+    bool doNotify = true,
+    bool doPersist = true,
+  }) {
+    bool changed = false;
+    int oldLevel = _playerLevel;
+
+    if (lastLoginDate != null && _lastLoginDate != lastLoginDate) {
+      _lastLoginDate = lastLoginDate;
+      changed = true;
+    }
+    if (coins != null && _coins != coins) {
+      _coins = coins;
+      changed = true;
+    }
+
+    if (xp != null && _xp != xp) {
+      _xp = xp;
+      _recalculatePlayerLevel();
+      changed = true;
+    }
+
+    if (playerEnergy != null && _playerEnergy != playerEnergy) {
+      _playerEnergy = playerEnergy.clamp(0, calculatedMaxEnergy);
+      changed = true;
+    }
+
+    // For lists and maps, ensure a change is detected if the reference changes or content changes
+    if (mainTasks != null && !listEquals(_mainTasks, mainTasks)) {
+      _mainTasks =
+          List.from(mainTasks); // Create new list to ensure change detection
+      changed = true;
+    }
+    if (completedByDay != null && !mapEquals(_completedByDay, completedByDay)) {
+      _completedByDay = Map.from(completedByDay);
+      changed = true;
+    }
+
+    bool itemsOrRunesOrEquippedChanged = false;
+    if (artifacts != null && !listEquals(_artifacts, artifacts)) {
+      _artifacts = List.from(artifacts);
+      itemsOrRunesOrEquippedChanged = true;
+      changed = true;
+    }
+    if (artifactTemplatesList != null &&
+        !listEquals(_artifactTemplatesList, artifactTemplatesList)) {
+      _artifactTemplatesList = List.from(artifactTemplatesList);
+      changed = true;
+    }
+    if (enemyTemplatesList != null &&
+        !listEquals(_enemyTemplatesList, enemyTemplatesList)) {
+      _enemyTemplatesList = List.from(enemyTemplatesList);
+      changed = true;
+    }
+    if (gameLocationsList != null &&
+        !listEquals(_gameLocationsList, gameLocationsList)) {
+      _gameLocationsList = List.from(gameLocationsList);
+      changed = true;
+    }
+    if (clearedLocationIds != null &&
+        !listEquals(_clearedLocationIds, clearedLocationIds)) {
+      _clearedLocationIds = List.from(clearedLocationIds);
+      changed = true;
+    }
+    if (runeTemplatesList != null &&
+        !listEquals(_runeTemplatesList, runeTemplatesList)) {
+      _runeTemplatesList = List.from(runeTemplatesList);
+      changed = true;
+    }
+    if (ownedRunes != null && !listEquals(_ownedRunes, ownedRunes)) {
+      _ownedRunes = List.from(ownedRunes);
+      itemsOrRunesOrEquippedChanged = true;
+      changed = true;
+    }
+
+    if (playerGameStats != null &&
+        !mapEquals(_playerGameStats, playerGameStats)) {
+      playerGameStats.forEach((key, newStat) {
+        if (_playerGameStats.containsKey(key)) {
+          _playerGameStats[key]!.base = newStat.base;
+          _playerGameStats[key]!.value =
+              newStat.value; // Ensure value is also updated
+        } else {
+          _playerGameStats[key] = newStat;
+        }
+      });
+      _ensureBonusXpModStat();
+      itemsOrRunesOrEquippedChanged = true;
+      changed = true;
+    }
+
+    if (equippedItems != null && !mapEquals(_equippedItems, equippedItems)) {
+      _equippedItems = Map.from(equippedItems);
+      itemsOrRunesOrEquippedChanged = true;
+      changed = true;
+    }
+    if (equippedRunes != null && !mapEquals(_equippedRunes, equippedRunes)) {
+      _equippedRunes = Map.from(equippedRunes);
+      itemsOrRunesOrEquippedChanged = true;
+      changed = true;
+    }
+
+    if (itemsOrRunesOrEquippedChanged || oldLevel != _playerLevel) {
+      _updatePlayerStatsFromItemsAndRunes();
+    }
+
+    if (defeatedEnemyIds != null &&
+        !listEquals(_defeatedEnemyIds, defeatedEnemyIds)) {
+      _defeatedEnemyIds = List.from(defeatedEnemyIds);
+      changed = true;
+    }
+    if (currentGame != null && _currentGame != currentGame) {
+      // This comparison might need to be deeper
+      _currentGame = currentGame; // Assume currentGame is a new instance
+      if (_playerGameStats['vitality'] != null &&
+          _currentGame.playerCurrentHp > _playerGameStats['vitality']!.value) {
+        _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
+      }
+      changed = true;
+    }
+    if (activeTimers != null && !mapEquals(_activeTimers, activeTimers)) {
+      _activeTimers = Map.from(activeTimers);
+      changed = true;
+    }
+    if (lastSuccessfulSaveTimestamp != null &&
+        _lastSuccessfulSaveTimestamp != lastSuccessfulSaveTimestamp) {
+      _lastSuccessfulSaveTimestamp = lastSuccessfulSaveTimestamp;
+      changed = true;
+    }
+    if (isUsernameMissing != null && _isUsernameMissing != isUsernameMissing) {
+      _isUsernameMissing = isUsernameMissing;
+      changed = true;
+    }
+
+    // Park Management State Updates
+    if (dinosaurSpeciesList != null && !listEquals(_dinosaurSpeciesList, dinosaurSpeciesList)) {
+      _dinosaurSpeciesList = List.from(dinosaurSpeciesList);
+      changed = true;
+    }
+    if (buildingTemplatesList != null && !listEquals(_buildingTemplatesList, buildingTemplatesList)) {
+      _buildingTemplatesList = List.from(buildingTemplatesList);
+      changed = true;
+    }
+    if (ownedBuildings != null && !listEquals(_ownedBuildings, ownedBuildings)) {
+      _ownedBuildings = List.from(ownedBuildings);
+      changed = true;
+    }
+    if (ownedDinosaurs != null && !listEquals(_ownedDinosaurs, ownedDinosaurs)) {
+      _ownedDinosaurs = List.from(ownedDinosaurs);
+      changed = true;
+    }
+    if (fossilRecords != null && !listEquals(_fossilRecords, fossilRecords)) {
+      _fossilRecords = List.from(fossilRecords);
+      changed = true;
+    }
+    if (parkManager != null && _parkManager != parkManager) { // Simple comparison, might need deep compare if ParkManager becomes complex
+      _parkManager = parkManager;
+      // When ParkManager state is updated, ensure player energy is consistent if used for park ops
+      if (_parkManager.parkEnergy != _playerEnergy || _parkManager.maxParkEnergy != calculatedMaxEnergy) {
+          _parkManager.parkEnergy = _playerEnergy;
+          _parkManager.maxParkEnergy = calculatedMaxEnergy;
+      }
+      changed = true;
+    }
+
+
+    if (changed) {
+      if (kDebugMode && doNotify) {
+        print(
+            "[GameProvider] setProviderState detected changes, will notify. Persist: $doPersist.");
+      }
+      if (doPersist) _hasUnsavedChanges = true;
+      if (doNotify) notifyListeners();
+    }
+  }
+
+  void setProviderAIGlobalLoading(bool isLoading,
+      {double progress = 0.0, String statusMessage = ""}) {
+    bool changed = false;
+    if (_isGeneratingGlobalContent != isLoading) {
+      _isGeneratingGlobalContent = isLoading;
+      changed = true;
+    }
+    if (_aiGenerationProgress != progress) {
+      _aiGenerationProgress = progress;
+      changed = true;
+    }
+    if (_aiGenerationStatusMessage != statusMessage) {
+      _aiGenerationStatusMessage = statusMessage;
+      changed = true;
+    }
+    if (changed) {
+      print(
+          "[GameProvider] AI Global Loading set to: $isLoading, Progress: $progress, Message: $statusMessage");
+      notifyListeners();
+    }
+  }
+
+  void setProviderAISubquestLoading(bool isLoading) {
+    if (_isGeneratingSubquestsForTask != isLoading) {
+      _isGeneratingSubquestsForTask = isLoading;
+      print("[GameProvider] AI Subquest Loading set to: $isLoading");
+      notifyListeners();
+    }
+  }
+
+  void setProviderApiKeyIndex(int index) {
+    if (_apiKeyIndex != index) {
+      _apiKeyIndex = index;
+      print("[GameProvider] API Key Index set to: $index");
+      // No need to notify listeners for this internal state unless UI depends on it directly
     }
   }
 }
---- END OF FILE lib/src/providers/actions/ai_generation_actions.dart ---
+
+--- END OF FILE lib/src/providers/game_provider.dart ---
+
+--- START OF FILE lib/src/providers/actions/park_actions.dart ---
+// lib/src/providers/actions/park_actions.dart
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/utils/constants.dart';
+import 'package:collection/collection.dart'; // For firstWhereOrNull
+import 'dart:math'; // For Random
+
+class ParkActions {
+  final GameProvider _provider;
+  final Random _random = Random();
+
+
+  ParkActions(this._provider);
+
+  void _logToPark(String message, {bool isError = false}) {
+    final color = isError ? AppTheme.fhAccentRed : AppTheme.fhAccentGreen;
+    final logMessage = "<span style=\"color:${color.value.toRadixString(16).substring(2)};\">[Park] $message</span>";
+    print("[ParkActions Log] $message");
+    _provider.setProviderState(
+        currentGame: CurrentGame(
+            enemy: _provider.currentGame.enemy,
+            playerCurrentHp: _provider.currentGame.playerCurrentHp,
+            log: [..._provider.currentGame.log, logMessage],
+            currentPlaceKey: _provider.currentGame.currentPlaceKey),
+        doPersist: false,
+        doNotify: true
+    );
+  }
+
+  bool canAffordBuilding(BuildingTemplate buildingTemplate) {
+    return _provider.parkManager.parkDollars >= buildingTemplate.costDollars;
+  }
+
+  void buyAndPlaceBuilding(String buildingTemplateId) {
+    final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == buildingTemplateId);
+    if (template == null) {
+      _logToPark("Error: Building blueprint not found.", isError: true);
+      return;
+    }
+
+    if (!canAffordBuilding(template)) {
+      _logToPark("Cannot afford ${template.name}. Cost: \$${template.costDollars}.", isError: true);
+      return;
+    }
+
+    bool canBeOperationalInitially = true;
+    if ((template.powerRequired ?? 0) > 0 && template.type != "power_plant") {
+        final totalPowerGenerated = _provider.parkManager.currentPowerGenerated;
+        final totalPowerConsumedByOthers = _provider.parkManager.currentPowerConsumed;
+
+        if (totalPowerGenerated < totalPowerConsumedByOthers + (template.powerRequired ?? 0)) {
+            canBeOperationalInitially = false;
+            _logToPark("${template.name} constructed but offline due to insufficient power.", isError: true);
+        }
+    }
+
+
+    final newBuilding = OwnedBuilding(
+      uniqueId: 'ob_${DateTime.now().millisecondsSinceEpoch}_${template.id.hashCode}',
+      templateId: template.id,
+      currentFoodLevel: template.type == "food_station" ? enclosureBaseFoodCapacity : null,
+      isOperational: template.type == "power_plant" ? true : canBeOperationalInitially,
+    );
+
+    final List<OwnedBuilding> updatedOwnedBuildings = [..._provider.ownedBuildings, newBuilding];
+    final double newParkDollars = _provider.parkManager.parkDollars - template.costDollars;
+
+    _provider.setProviderState(
+      parkManager: _provider.parkManager..parkDollars = newParkDollars,
+      ownedBuildings: updatedOwnedBuildings,
+      doPersist: true,
+      doNotify: true,
+    );
+
+    _logToPark("Constructed ${template.name}!");
+    _recalculateParkStats(); // This will also update power status
+  }
+
+  void sellBuilding(String ownedBuildingUniqueId) {
+    final ownedBuilding = _provider.ownedBuildings.firstWhereOrNull((b) => b.uniqueId == ownedBuildingUniqueId);
+    if (ownedBuilding == null) {
+        _logToPark("Error: Building not found in park.", isError: true);
+        return;
+    }
+    final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == ownedBuilding.templateId);
+    if (template == null) {
+        _logToPark("Error: Building blueprint corrupted for owned building.", isError: true);
+        return;
+    }
+
+    final double sellPercentage = 0.5;
+    final int sellPrice = (template.costDollars * sellPercentage).floor();
+
+    List<OwnedBuilding> updatedOwnedBuildings = _provider.ownedBuildings.where((b) => b.uniqueId != ownedBuildingUniqueId).toList();
+    final double newParkDollars = _provider.parkManager.parkDollars + sellPrice;
+    List<OwnedDinosaur> updatedOwnedDinosaurs = List.from(_provider.ownedDinosaurs);
+
+    if (template.type == "enclosure" && ownedBuilding.dinosaurUniqueIds.isNotEmpty) {
+        updatedOwnedDinosaurs = _provider.ownedDinosaurs
+            .where((dino) => !ownedBuilding.dinosaurUniqueIds.contains(dino.uniqueId))
+            .toList();
+        _logToPark("Dinosaurs from demolished ${template.name} have been released to the wild (removed from park).", isError: true);
+    }
+
+    _provider.setProviderState(
+      parkManager: _provider.parkManager..parkDollars = newParkDollars,
+      ownedBuildings: updatedOwnedBuildings,
+      ownedDinosaurs: template.type == "enclosure" ? updatedOwnedDinosaurs : null, // Only update if it was an enclosure
+      doPersist: true,
+      doNotify: true,
+    );
+    _logToPark("Demolished ${template.name}. Recovered \$${sellPrice}.");
+    _recalculateParkStats();
+  }
+
+  void excavateFossil(String speciesId) {
+    final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == speciesId);
+    if (species == null) {
+        _logToPark("Species $speciesId not found for excavation.", isError: true);
+        return;
+    }
+     final bool fossilCenterOperational = _provider.ownedBuildings.any((b) {
+        final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+        return template?.type == "fossil_center" && b.isOperational;
+    });
+    if (!fossilCenterOperational) {
+        _logToPark("Fossil Center is not operational. Cannot excavate.", isError: true);
+        return;
+    }
+
+    if (_provider.playerEnergy < species.fossilExcavationEnergyCost) { // Use player energy
+      _logToPark("Not enough player energy to excavate. Cost: ${species.fossilExcavationEnergyCost}⚡", isError: true);
+      return;
+    }
+
+    final recordIndex = _provider.fossilRecords.indexWhere((fr) => fr.speciesId == speciesId);
+    if (recordIndex == -1) {
+      _logToPark("Fossil record for species $speciesId not found.", isError: true);
+      return;
+    }
+    final record = _provider.fossilRecords[recordIndex];
+    if (record.isGenomeComplete) {
+      _logToPark("Genome for ${record.speciesId} is already complete.", isError: false);
+      return;
+    }
+
+    final double progressIncrease = 10.0 + _random.nextDouble() * 15.0; // 10-25% progress
+    record.excavationProgress = (record.excavationProgress + progressIncrease).clamp(0.0, 100.0);
+    if (record.excavationProgress >= 100.0) {
+      record.isGenomeComplete = true;
+      _logToPark("Genome for ${record.speciesId} is now 100% complete and ready for incubation!");
+    } else {
+      _logToPark("Fossil excavation for ${record.speciesId} progressed to ${record.excavationProgress.toStringAsFixed(1)}%.");
+    }
+    
+    final List<FossilRecord> updatedRecords = List.from(_provider.fossilRecords);
+    updatedRecords[recordIndex] = record;
+
+    _provider.setProviderState(
+      fossilRecords: updatedRecords,
+      playerEnergy: _provider.playerEnergy - species.fossilExcavationEnergyCost, // Deduct player energy
+      doPersist: true,
+      doNotify: true
+    );
+  }
+
+  void incubateDinosaur(String speciesId) {
+    final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == speciesId);
+    if (species == null) {
+      _logToPark("Species $speciesId not found for incubation.", isError: true);
+      return;
+    }
+    final fossilRecord = _provider.fossilRecords.firstWhereOrNull((fr) => fr.speciesId == speciesId);
+    if (fossilRecord == null || !fossilRecord.isGenomeComplete) {
+      _logToPark("Genome for ${species.name} is not complete. Excavate more fossils.", isError: true);
+      return;
+    }
+    if (_provider.parkManager.parkDollars < species.incubationCostDollars) {
+      _logToPark("Not enough park funds to incubate ${species.name}. Cost: \$${species.incubationCostDollars}.", isError: true);
+      return;
+    }
+    if (_provider.playerEnergy < incubationEnergyCost) { // Use player energy
+       _logToPark("Not enough player energy to incubate ${species.name}. Cost: $incubationEnergyCost⚡.", isError: true);
+      return;
+    }
+
+    // Check if a hatchery is available and has capacity
+    final operationalHatcheries = _provider.ownedBuildings.where((b) {
+        final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+        return template?.type == "hatchery" && b.isOperational;
+    }).toList();
+
+    if (operationalHatcheries.isEmpty) {
+        _logToPark("No operational hatchery available to incubate dinosaurs.", isError: true);
+        return;
+    }
+    
+    int totalHatcheryCapacity = operationalHatcheries.fold(0, (sum, hatchery) {
+        final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == hatchery.templateId);
+        return sum + (template?.capacity ?? 0);
+    });
+    
+    final incubatingDinosCount = _provider.ownedDinosaurs.where((d) => d.name.contains("(Incubating)")).length;
+    if (incubatingDinosCount >= totalHatcheryCapacity) {
+         _logToPark("All hatcheries are at full capacity. Wait for current incubations to finish.", isError: true);
+        return;
+    }
+
+
+    final newDinosaur = OwnedDinosaur(
+      uniqueId: 'dino_${DateTime.now().millisecondsSinceEpoch}_${species.id.hashCode}',
+      speciesId: species.id,
+      name: "${species.name} (Incubating)", // Indicate status
+      age: 0, // Represents incubation progress
+    );
+
+    _provider.setProviderState(
+      parkManager: _provider.parkManager..parkDollars -= species.incubationCostDollars,
+      playerEnergy: _provider.playerEnergy - incubationEnergyCost, // Deduct player energy
+      ownedDinosaurs: [..._provider.ownedDinosaurs, newDinosaur],
+      doPersist: true,
+      doNotify: true
+    );
+    _logToPark("Incubation started for a ${species.name}!");
+  }
+
+  void addDinosaurToEnclosure(String dinosaurUniqueId, String enclosureUniqueId) {
+    final dinosaur = _provider.ownedDinosaurs.firstWhereOrNull((d) => d.uniqueId == dinosaurUniqueId);
+    final enclosure = _provider.ownedBuildings.firstWhereOrNull((b) => b.uniqueId == enclosureUniqueId);
+    final enclosureTemplate = enclosure != null ? _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == enclosure.templateId) : null;
+
+    if (dinosaur == null || enclosure == null || enclosureTemplate == null || enclosureTemplate.type != "enclosure") {
+      _logToPark("Invalid dinosaur or enclosure for transfer.", isError: true);
+      return;
+    }
+    if (!enclosure.isOperational) {
+        _logToPark("${enclosureTemplate.name} is not operational. Cannot add dinosaurs.", isError: true);
+        return;
+    }
+    if (enclosure.dinosaurUniqueIds.length >= (enclosureTemplate.capacity ?? 999)) {
+        _logToPark("${enclosureTemplate.name} is at full capacity.", isError: true);
+        return;
+    }
+    if(dinosaur.name.contains("(Incubating)")) {
+        _logToPark("${dinosaur.name} is still incubating and cannot be moved.", isError: true);
+        return;
+    }
+
+
+    final List<OwnedBuilding> updatedBuildings = _provider.ownedBuildings.map((b) {
+      if (b.uniqueId == enclosureUniqueId) {
+        return OwnedBuilding(
+          uniqueId: b.uniqueId,
+          templateId: b.templateId,
+          dinosaurUniqueIds: [...b.dinosaurUniqueIds, dinosaurUniqueId],
+          currentFoodLevel: b.currentFoodLevel,
+          isOperational: b.isOperational,
+        );
+      }
+      return b;
+    }).toList();
+
+    _provider.setProviderState(
+      ownedBuildings: updatedBuildings,
+      doPersist: true,
+      doNotify: true
+    );
+    _logToPark("${dinosaur.name} moved to ${enclosureTemplate.name}.");
+    _recalculateParkStats();
+  }
+
+  void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) {
+    final enclosure = _provider.ownedBuildings.firstWhereOrNull((b) => b.uniqueId == enclosureUniqueId);
+     if (enclosure == null) {
+        _logToPark("Enclosure not found for feeding.", isError: true);
+        return;
+    }
+    // Find an associated food station. Simplified: assumes one generic food station for the park or per enclosure.
+    // For more complex scenarios, link food stations to enclosures.
+    final foodStationIndex = _provider.ownedBuildings.indexWhere((b) {
+        final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == b.templateId);
+        // Assuming food stations are generic for now and not tied to specific enclosures in data model
+        // If they were, would add: && b.linkedEnclosureId == enclosureUniqueId
+        return template?.type == "food_station" && b.isOperational; 
+    });
+
+    if (foodStationIndex == -1) {
+        _logToPark("No operational food station found.", isError: true); // Generic message if not linked
+        return;
+    }
+    if (_provider.playerEnergy < feedDinoEnergyCost) { // Check player energy
+        _logToPark("Not enough player energy to refill feeder. Cost: $feedDinoEnergyCost⚡", isError: true);
+        return;
+    }
+    
+    final List<OwnedBuilding> updatedBuildings = List.from(_provider.ownedBuildings);
+    final foodStation = updatedBuildings[foodStationIndex];
+    final newFoodLevel = (foodStation.currentFoodLevel ?? 0) + amount;
+    updatedBuildings[foodStationIndex] = OwnedBuilding(
+        uniqueId: foodStation.uniqueId,
+        templateId: foodStation.templateId,
+        dinosaurUniqueIds: foodStation.dinosaurUniqueIds,
+        currentFoodLevel: newFoodLevel.clamp(0, enclosureBaseFoodCapacity),
+        isOperational: foodStation.isOperational
+    );
+
+    _provider.setProviderState(
+        ownedBuildings: updatedBuildings,
+        playerEnergy: _provider.playerEnergy - feedDinoEnergyCost, // Deduct player energy
+        doPersist: true,
+        doNotify: true
+    );
+    _logToPark("Refilled food by $amount. New level: ${updatedBuildings[foodStationIndex].currentFoodLevel}.");
+  }
+
+  void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) {
+    final ownedBuilding = _provider.ownedBuildings.firstWhereOrNull((b) => b.uniqueId == ownedBuildingUniqueId);
+    if (ownedBuilding == null) return;
+    final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == ownedBuilding.templateId);
+    if (template == null) return;
+
+    bool currentStatus = ownedBuilding.isOperational;
+    bool newStatus = !currentStatus;
+    List<OwnedBuilding> tempUpdatedBuildings = List.from(_provider.ownedBuildings);
+    int buildingIndex = tempUpdatedBuildings.indexWhere((b) => b.uniqueId == ownedBuildingUniqueId);
+
+    if (newStatus) { // Attempting to turn ON
+        if ((template.powerRequired ?? 0) > 0) { // Only check for consumers
+            int totalPowerGenerated = _provider.parkManager.currentPowerGenerated;
+            // If the building being turned on IS a power plant, its output is not yet in totalPowerGenerated.
+            // So, we add its potential output if it's the one being toggled.
+            if (template.type == "power_plant") {
+                // This case is fine, power plants don't consume to turn on
+            } else { // Consumer building
+                int currentTotalPowerConsumedByOthers = _provider.parkManager.currentPowerConsumed;
+                // If the building was already on and included in currentPowerConsumed, this check is slightly off,
+                // but the goal is to check if turning *this one* on exceeds generation.
+                // A more precise `currentPowerConsumed` would exclude this building if it was already on.
+                // However, `_updateBuildingOperationalStatusBasedOnPower` will correct things.
+                if (totalPowerGenerated < currentTotalPowerConsumedByOthers + (template.powerRequired ?? 0)) {
+                    _logToPark("Cannot turn on ${template.name}. Insufficient power. Available: $totalPowerGenerated, Required (incl. this): ${currentTotalPowerConsumedByOthers + (template.powerRequired ?? 0)}", isError: true);
+                    return; // Don't change status
+                }
+            }
+        }
+    }
+    
+    // If we reach here, the toggle is permissible
+    tempUpdatedBuildings[buildingIndex] = OwnedBuilding(
+        uniqueId: ownedBuilding.uniqueId,
+        templateId: ownedBuilding.templateId,
+        dinosaurUniqueIds: ownedBuilding.dinosaurUniqueIds,
+        currentFoodLevel: ownedBuilding.currentFoodLevel,
+        isOperational: newStatus,
+    );
+    
+    _provider.setProviderState(
+      ownedBuildings: tempUpdatedBuildings,
+      doPersist: false, // Recalculate will persist
+      doNotify: true,
+    );
+    
+    _logToPark("${template.name} is now ${newStatus ? 'operational' : 'offline'}.", isError: !newStatus);
+    _recalculateParkStats(); // This will update power grid and persist
+  }
+
+
+  void _updateBuildingOperationalStatusBasedOnPower() {
+    int totalPowerGenerated = 0;
+    int totalPowerRequiredByOperationalConsumers = 0;
+    List<OwnedBuilding> currentBuildings = List.from(_provider.ownedBuildings); // Work on a mutable copy
+
+    // First pass: ensure all power plants are considered for generation,
+    // and sum up demand from all *currently* (potentially user-set) operational consumers.
+    for (var building in currentBuildings) {
+        final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == building.templateId);
+        if (template == null) continue;
+
+        if (template.type == "power_plant" && building.isOperational) {
+            totalPowerGenerated += template.powerOutput ?? 0;
+        } else if (template.type != "power_plant" && building.isOperational) {
+            totalPowerRequiredByOperationalConsumers += template.powerRequired ?? 0;
+        }
+    }
+    
+    bool changesMadeToOperationalStatus = false;
+    if (totalPowerRequiredByOperationalConsumers > totalPowerGenerated) {
+        _logToPark("Power shortage! Demand ($totalPowerRequiredByOperationalConsumers) exceeds supply ($totalPowerGenerated). Attempting to manage load...", isError: true);
+        
+        // Sort consumers by power requirement descending to turn off heaviest consumers first
+        List<OwnedBuilding> consumersToPotentiallyTurnOff = currentBuildings
+            .where((b) {
+                final t = _provider.buildingTemplatesList.firstWhereOrNull((tmpl) => tmpl.id == b.templateId);
+                return t?.type != "power_plant" && b.isOperational && (t?.powerRequired ?? 0) > 0;
+            })
+            .toList()
+            ..sort((a, b) {
+                final ta = _provider.buildingTemplatesList.firstWhere((t) => t.id == a.templateId);
+                final tb = _provider.buildingTemplatesList.firstWhere((t) => t.id == b.templateId);
+                return (tb.powerRequired ?? 0).compareTo(ta.powerRequired ?? 0);
+            });
+
+        int currentDemand = totalPowerRequiredByOperationalConsumers;
+        for (var buildingToTurnOff in consumersToPotentiallyTurnOff) {
+            if (currentDemand <= totalPowerGenerated) break; // Power balanced
+
+            final template = _provider.buildingTemplatesList.firstWhere((t) => t.id == buildingToTurnOff.templateId);
+            int buildingIndex = currentBuildings.indexWhere((b) => b.uniqueId == buildingToTurnOff.uniqueId);
+            
+            if (buildingIndex != -1 && currentBuildings[buildingIndex].isOperational) { // Check if it's still considered operational
+                currentBuildings[buildingIndex] = OwnedBuilding(
+                    uniqueId: buildingToTurnOff.uniqueId,
+                    templateId: buildingToTurnOff.templateId,
+                    dinosaurUniqueIds: buildingToTurnOff.dinosaurUniqueIds,
+                    currentFoodLevel: buildingToTurnOff.currentFoodLevel,
+                    isOperational: false, // Turn it off
+                );
+                currentDemand -= (template.powerRequired ?? 0);
+                _logToPark("${template.name} turned offline due to power shortage.", isError: true);
+                changesMadeToOperationalStatus = true;
+            }
+        }
+        totalPowerRequiredByOperationalConsumers = currentDemand; 
+    }
+
+    // Update GameProvider's ParkManager with new power stats
+    // And potentially update ownedBuildings if changes were made
+    _provider.setProviderState(
+        ownedBuildings: changesMadeToOperationalStatus ? currentBuildings : null, 
+        parkManager: _provider.parkManager
+            ..currentPowerGenerated = totalPowerGenerated
+            ..currentPowerConsumed = totalPowerRequiredByOperationalConsumers,
+        doPersist: true, // Persist if any building status or power calculation changed.
+        doNotify: true 
+    );
+}
+
+
+  void updateAllDinosaursStatus() {
+    if (_provider.ownedDinosaurs.isEmpty) return;
+    bool changed = false;
+
+    final List<OwnedDinosaur> updatedDinos = _provider.ownedDinosaurs.map((dino) {
+        final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == dino.speciesId);
+        if (species == null) return dino; // Should not happen
+
+        OwnedDinosaur updatedDino = OwnedDinosaur.fromJson(dino.toJson()); // Create a mutable copy
+
+        if (updatedDino.name.contains("(Incubating)")) {
+            updatedDino.age += 1; // Increment incubation time (e.g., 1 unit per minute)
+            // Check if incubation is complete
+            if (updatedDino.age >= baseIncubationDuration) { 
+                updatedDino.name = species.name; // Remove "(Incubating)"
+                _logToPark("${species.name} has hatched!");
+                updatedDino.age = 0; // Reset age to 0 for hatched dinos (or start actual aging)
+                changed = true;
+            }
+            return updatedDino;
+        }
+
+        // For hatched dinosaurs:
+        updatedDino.age +=1; // Age them up
+
+        // Food decay
+        updatedDino.currentFood = (updatedDino.currentFood - (_random.nextDouble() * 2 + 1)).clamp(0.0, 100.0); // Decay 1-3 food
+
+        // Comfort calculation (simplified)
+        double comfortImpact = 0;
+        final enclosure = _provider.ownedBuildings.firstWhereOrNull((b) => b.dinosaurUniqueIds.contains(dino.uniqueId));
+        
+        if (enclosure != null) {
+            final enclosureTemplate = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == enclosure.templateId);
+            if (enclosureTemplate != null) {
+                final dinosInSameEnclosure = enclosure.dinosaurUniqueIds.length;
+                // Social needs
+                if (dinosInSameEnclosure < species.socialNeedsMin || dinosInSameEnclosure > species.socialNeedsMax) {
+                    comfortImpact -= 5;
+                } else {
+                    comfortImpact += 2;
+                }
+                // Enclosure size (very basic check)
+                if (enclosureTemplate.capacity != null && species.enclosureSizeNeeds * dinosInSameEnclosure > enclosureTemplate.capacity! * 5 /* arbitrary multiplier */) {
+                     comfortImpact -= 3; // Overcrowded based on a simple capacity notion
+                }
+            }
+             // Check food station linked to this enclosure (if any)
+            final foodStation = _provider.ownedBuildings.firstWhereOrNull((b) {
+                final fTemplate = _provider.buildingTemplatesList.firstWhereOrNull((ft) => ft.id == b.templateId);
+                // This assumes a generic food station for now, or you'd link them
+                return fTemplate?.type == "food_station" && b.isOperational;
+            });
+            if (foodStation != null && (foodStation.currentFoodLevel ?? 0) > 0) {
+                // Consume food
+                final int foodConsumed = _random.nextInt(5) + 1; // Consumes 1-5 food
+                final newFoodStationLevel = (foodStation.currentFoodLevel ?? 0) - foodConsumed;
+                 List<OwnedBuilding> tempBuildings = List.from(_provider.ownedBuildings);
+                 int fsIndex = tempBuildings.indexWhere((b) => b.uniqueId == foodStation.uniqueId);
+                 if (fsIndex != -1) {
+                    tempBuildings[fsIndex] = OwnedBuilding(
+                        uniqueId: foodStation.uniqueId,
+                        templateId: foodStation.templateId,
+                        dinosaurUniqueIds: foodStation.dinosaurUniqueIds,
+                        isOperational: foodStation.isOperational,
+                        currentFoodLevel: newFoodStationLevel.clamp(0, enclosureBaseFoodCapacity)
+                    );
+                    // This state change should ideally be batched with other dino updates
+                     _provider.setProviderState(ownedBuildings: tempBuildings, doPersist: false, doNotify: false); // Notify at the end
+                     changed = true;
+                 }
+                updatedDino.currentFood = (updatedDino.currentFood + foodConsumed * 5).clamp(0.0, 100.0); // food value per unit
+            }
+
+
+        } else {
+            comfortImpact -= 10; // Not in an enclosure
+        }
+
+        // Food impact on comfort
+        if (updatedDino.currentFood < 20) comfortImpact -= 10;
+        else if (updatedDino.currentFood < 50) comfortImpact -= 5;
+        else if (updatedDino.currentFood > 80) comfortImpact += 3;
+
+        updatedDino.currentComfort = (updatedDino.currentComfort + comfortImpact).clamp(0.0, 100.0);
+
+        // Health impact from low comfort or food
+        if (updatedDino.currentComfort < species.comfortThreshold * 100 * 0.5) { // If comfort is less than half the threshold
+            updatedDino.currentHealth = (updatedDino.currentHealth - 2).clamp(0.0, 100.0);
+        }
+        if (updatedDino.currentFood < 10) {
+            updatedDino.currentHealth = (updatedDino.currentHealth - 3).clamp(0.0, 100.0);
+        }
+
+        if (dino.currentComfort != updatedDino.currentComfort || dino.currentFood != updatedDino.currentFood || dino.currentHealth != updatedDino.currentHealth || dino.name != updatedDino.name || dino.age != updatedDino.age) {
+            changed = true;
+        }
+        return updatedDino;
+    }).toList();
+
+    if (changed) {
+        _provider.setProviderState(ownedDinosaurs: updatedDinos, doPersist: true, doNotify: true);
+        _recalculateParkStats(); // Dinosaur health/status might affect rating indirectly
+    }
+}
+
+
+
+  void _recalculateParkStats() {
+    _updateBuildingOperationalStatusBasedOnPower(); // Ensure operational statuses are up-to-date first
+
+    int newParkRating = 0;
+    int newIncomePerMinuteDollars = 0;
+    int newOperationalCostPerMinuteDollars = 0;
+    
+    // Recalculate power generated and consumed based on the potentially updated operational statuses
+    int currentPowerGenerated = 0;
+    int currentPowerConsumed = 0;
+
+    for (var ownedBuilding in _provider.ownedBuildings) { // Use the latest list from provider
+      final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == ownedBuilding.templateId);
+      if (template != null && ownedBuilding.isOperational) { // Only count operational buildings
+        newParkRating += template.parkRatingBoost ?? 0;
+        newIncomePerMinuteDollars += template.incomePerMinuteDollars ?? 0;
+        newOperationalCostPerMinuteDollars += template.operationalCostPerMinuteDollars ?? 0;
+        
+        if (template.type == "power_plant") {
+            currentPowerGenerated += template.powerOutput ?? 0;
+        } else {
+            currentPowerConsumed += template.powerRequired ?? 0;
+        }
+      }
+    }
+    
+    for (var ownedDino in _provider.ownedDinosaurs) {
+        final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == ownedDino.speciesId);
+        if (species != null && !ownedDino.name.contains("(Incubating)")) { // Only count hatched dinos
+            double ratingModifier = 1.0;
+            if(ownedDino.currentComfort < species.comfortThreshold * 100) ratingModifier *= 0.5; // Penalty for low comfort
+            if(ownedDino.currentHealth < 50) ratingModifier *= 0.7; // Penalty for low health
+            newParkRating += (species.baseRating * ratingModifier).round();
+        }
+    }
+    newParkRating = newParkRating.clamp(0, MAX_PARK_RATING_FOR_STARS * 2); 
+
+    _provider.setProviderState(
+      parkManager: ParkManager(
+        parkRating: newParkRating,
+        parkDollars: _provider.parkManager.parkDollars, 
+        parkEnergy: _provider.playerEnergy, 
+        maxParkEnergy: _provider.calculatedMaxEnergy, 
+        incomePerMinuteDollars: newIncomePerMinuteDollars,
+        operationalCostPerMinuteDollars: newOperationalCostPerMinuteDollars,
+        currentPowerGenerated: currentPowerGenerated,
+        currentPowerConsumed: currentPowerConsumed,
+      ),
+      doPersist: true, // Persist after recalculation
+      doNotify: true,
+    );
+  }
+  void recalculateParkStats(){ 
+    _recalculateParkStats();
+  }
+
+  void skipOneMinute() {
+    if (_provider.playerEnergy < SKIP_MINUTE_ENERGY_COST) {
+        _logToPark("Not enough energy to fast forward time. Cost: $SKIP_MINUTE_ENERGY_COST⚡", isError: true);
+        return;
+    }
+
+    // Deduct energy
+    final newPlayerEnergy = _provider.playerEnergy - SKIP_MINUTE_ENERGY_COST;
+
+    // Simulate one minute of park updates
+    updateAllDinosaursStatus(); // Update dinosaur needs & incubation
+    
+    // Recalculate park stats immediately after dino status update which might affect income/costs
+    // _recalculateParkStats() already calls _updateBuildingOperationalStatusBasedOnPower
+    // and then updates the ParkManager instance with new income/costs based on *operational* buildings.
+    // So, we first get the income/cost *before* potentially changing dino states for this skipped minute.
+    int incomeThisSkippedMinute = _provider.parkManager.incomePerMinuteDollars;
+    int costsThisSkippedMinute = _provider.parkManager.operationalCostPerMinuteDollars;
+
+    double newParkDollars = _provider.parkManager.parkDollars + incomeThisSkippedMinute - costsThisSkippedMinute + SKIP_MINUTE_PARK_DOLLAR_BONUS;
+
+    _provider.setProviderState(
+        playerEnergy: newPlayerEnergy,
+        parkManager: _provider.parkManager..parkDollars = newParkDollars.isNegative ? 0 : newParkDollars,
+        // ownedDinosaurs and ownedBuildings are updated within their respective methods called by updateAllDinosaursStatus or _recalculateParkStats
+        doPersist: true,
+        doNotify: true
+    );
+    
+    // Final recalculate and log after all changes for the skipped minute are applied.
+    // This ensures ParkManager's generated/consumed power is also accurate.
+    _recalculateParkStats(); 
+    _logToPark("Fast forwarded 1 minute. Income: \$${incomeThisSkippedMinute}, Costs: \$${costsThisSkippedMinute}. Bonus: \$${SKIP_MINUTE_PARK_DOLLAR_BONUS}. Energy Cost: ${SKIP_MINUTE_ENERGY_COST}⚡");
+  }
+
+}
+--- END OF FILE lib/src/providers/actions/park_actions.dart ---

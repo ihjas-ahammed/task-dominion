@@ -711,3 +711,300 @@ class GameLocation {
     };
   }
 }
+
+// Park Management Models
+class DinosaurSpecies {
+  final String id;
+  final String name;
+  final String description;
+  final String diet; // "carnivore" or "herbivore"
+  final int incubationCostDollars; // Park currency (Dollars)
+  final int fossilExcavationEnergyCost; // Player energy
+  final int baseRating; // Contribution to park rating
+  final double comfortThreshold; // Min comfort % to be happy
+  final int socialNeedsMin; // Min number of same species
+  final int socialNeedsMax; // Max number of same species
+  final int enclosureSizeNeeds; // Arbitrary units (e.g., squares)
+  final String icon; // Emoji or MDI icon name
+
+  DinosaurSpecies({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.diet,
+    required this.incubationCostDollars,
+    required this.fossilExcavationEnergyCost,
+    required this.baseRating,
+    required this.comfortThreshold,
+    required this.socialNeedsMin,
+    required this.socialNeedsMax,
+    required this.enclosureSizeNeeds,
+    required this.icon,
+  });
+
+  factory DinosaurSpecies.fromJson(Map<String, dynamic> json) {
+    return DinosaurSpecies(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String,
+      diet: json['diet'] as String,
+      incubationCostDollars: json['incubationCostDollars'] as int? ?? json['incubationCost'] as int, // Handle legacy 'incubationCost'
+      fossilExcavationEnergyCost: json['fossilExcavationEnergyCost'] as int? ?? json['fossilExcavationCost'] as int, // Handle legacy 'fossilExcavationCost'
+      baseRating: json['baseRating'] as int,
+      comfortThreshold: (json['comfortThreshold'] as num).toDouble(),
+      socialNeedsMin: json['socialNeedsMin'] as int,
+      socialNeedsMax: json['socialNeedsMax'] as int,
+      enclosureSizeNeeds: json['enclosureSizeNeeds'] as int,
+      icon: json['icon'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'diet': diet,
+      'incubationCostDollars': incubationCostDollars,
+      'fossilExcavationEnergyCost': fossilExcavationEnergyCost,
+      'baseRating': baseRating,
+      'comfortThreshold': comfortThreshold,
+      'socialNeedsMin': socialNeedsMin,
+      'socialNeedsMax': socialNeedsMax,
+      'enclosureSizeNeeds': enclosureSizeNeeds,
+      'icon': icon,
+    };
+  }
+}
+
+class BuildingTemplate {
+  final String id;
+  final String name;
+  final String type; // e.g., "enclosure", "hatchery", "fossil_center", "food_station", "visitor_center", "power_plant"
+  final int costDollars; // Park currency (Dollars)
+  final String icon; // MDI icon name
+  final int? capacity; // e.g., number of dinos for enclosure, incubation slots for hatchery
+  final int? operationalCostPerMinuteDollars; // Park currency
+  final int? incomePerMinuteDollars; // Park currency (for visitor centers, etc.)
+  final int? parkRatingBoost;
+  final int? sizeX; // Grid size X
+  final int? sizeY; // Grid size Y
+  final int? powerRequired; // Power units this building consumes when operational
+  final int? powerOutput;   // Power units this building generates (for power plants)
+
+
+  BuildingTemplate({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.costDollars,
+    required this.icon,
+    this.capacity,
+    this.operationalCostPerMinuteDollars,
+    this.incomePerMinuteDollars,
+    this.parkRatingBoost,
+    this.sizeX,
+    this.sizeY,
+    this.powerRequired,
+    this.powerOutput,
+  });
+
+  factory BuildingTemplate.fromJson(Map<String, dynamic> json) {
+    return BuildingTemplate(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      type: json['type'] as String,
+      costDollars: json['costDollars'] as int? ?? json['cost'] as int, // Handle legacy 'cost'
+      icon: json['icon'] as String,
+      capacity: json['capacity'] as int?,
+      operationalCostPerMinuteDollars: json['operationalCostPerMinuteDollars'] as int? ?? json['operationalCostPerMinute'] as int?,
+      incomePerMinuteDollars: json['incomePerMinuteDollars'] as int? ?? json['incomePerMinute'] as int?,
+      parkRatingBoost: json['parkRatingBoost'] as int?,
+      sizeX: json['sizeX'] as int?,
+      sizeY: json['sizeY'] as int?,
+      powerRequired: json['powerRequired'] as int?,
+      powerOutput: json['powerOutput'] as int?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type,
+      'costDollars': costDollars,
+      'icon': icon,
+      'capacity': capacity,
+      'operationalCostPerMinuteDollars': operationalCostPerMinuteDollars,
+      'incomePerMinuteDollars': incomePerMinuteDollars,
+      'parkRatingBoost': parkRatingBoost,
+      'sizeX': sizeX,
+      'sizeY': sizeY,
+      'powerRequired': powerRequired,
+      'powerOutput': powerOutput,
+    };
+  }
+}
+
+class OwnedBuilding {
+  final String uniqueId;
+  final String templateId;
+  // GridPosition position; // Placeholder for later grid system
+  List<String> dinosaurUniqueIds; // For enclosures
+  int? currentFoodLevel; // For food stations (0-100)
+  bool isOperational;
+
+  OwnedBuilding({
+    required this.uniqueId,
+    required this.templateId,
+    // required this.position,
+    List<String>? dinosaurUniqueIds,
+    this.currentFoodLevel,
+    this.isOperational = true,
+  }) : dinosaurUniqueIds = dinosaurUniqueIds ?? [];
+
+  factory OwnedBuilding.fromJson(Map<String, dynamic> json) {
+    return OwnedBuilding(
+      uniqueId: json['uniqueId'] as String,
+      templateId: json['templateId'] as String,
+      // position: GridPosition.fromJson(json['position']),
+      dinosaurUniqueIds: (json['dinosaurUniqueIds'] as List<dynamic>?)
+          ?.map((id) => id as String)
+          .toList() ?? [],
+      currentFoodLevel: json['currentFoodLevel'] as int?,
+      isOperational: json['isOperational'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'uniqueId': uniqueId,
+      'templateId': templateId,
+      // 'position': position.toJson(),
+      'dinosaurUniqueIds': dinosaurUniqueIds,
+      'currentFoodLevel': currentFoodLevel,
+      'isOperational': isOperational,
+    };
+  }
+}
+
+class OwnedDinosaur {
+  final String uniqueId;
+  final String speciesId;
+  String name; // Can be nicknamed by player
+  double currentHealth; // 0-100
+  double currentComfort; // 0-100
+  double currentFood; // 0-100 (satiation)
+  int age; // In game days/minutes
+
+  OwnedDinosaur({
+    required this.uniqueId,
+    required this.speciesId,
+    required this.name,
+    this.currentHealth = 100.0,
+    this.currentComfort = 75.0,
+    this.currentFood = 75.0,
+    this.age = 0,
+  });
+
+  factory OwnedDinosaur.fromJson(Map<String, dynamic> json) {
+    return OwnedDinosaur(
+      uniqueId: json['uniqueId'] as String,
+      speciesId: json['speciesId'] as String,
+      name: json['name'] as String,
+      currentHealth: (json['currentHealth'] as num? ?? 100.0).toDouble(),
+      currentComfort: (json['currentComfort'] as num? ?? 75.0).toDouble(),
+      currentFood: (json['currentFood'] as num? ?? 75.0).toDouble(),
+      age: json['age'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'uniqueId': uniqueId,
+      'speciesId': speciesId,
+      'name': name,
+      'currentHealth': currentHealth,
+      'currentComfort': currentComfort,
+      'currentFood': currentFood,
+      'age': age,
+    };
+  }
+}
+
+class FossilRecord {
+  final String speciesId;
+  double excavationProgress; // 0.0 to 100.0
+  bool isGenomeComplete;
+
+  FossilRecord({
+    required this.speciesId,
+    this.excavationProgress = 0.0,
+    this.isGenomeComplete = false,
+  });
+
+  factory FossilRecord.fromJson(Map<String, dynamic> json) {
+    return FossilRecord(
+      speciesId: json['speciesId'] as String,
+      excavationProgress: (json['excavationProgress'] as num? ?? 0.0).toDouble(),
+      isGenomeComplete: json['isGenomeComplete'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'speciesId': speciesId,
+      'excavationProgress': excavationProgress,
+      'isGenomeComplete': isGenomeComplete,
+    };
+  }
+}
+
+class ParkManager {
+  int parkRating;
+  double parkDollars; // New currency for park
+  double parkEnergy; // Player energy for park operations
+  double maxParkEnergy;
+  int incomePerMinuteDollars; // Total from all income-generating buildings (Dollars)
+  int operationalCostPerMinuteDollars; // Total from all buildings (Dollars)
+  int currentPowerGenerated;
+  int currentPowerConsumed;
+
+
+  ParkManager({
+    this.parkRating = 0,
+    this.parkDollars = 50000, // Starting park dollars
+    this.parkEnergy = 100.0, // Starting park energy, linked to player energy
+    this.maxParkEnergy = 100.0,
+    this.incomePerMinuteDollars = 0,
+    this.operationalCostPerMinuteDollars = 0,
+    this.currentPowerGenerated = 0,
+    this.currentPowerConsumed = 0,
+  });
+
+  factory ParkManager.fromJson(Map<String, dynamic> json) {
+    return ParkManager(
+      parkRating: json['parkRating'] as int? ?? 0,
+      parkDollars: (json['parkDollars'] as num? ?? 50000.0).toDouble(),
+      parkEnergy: (json['parkEnergy'] as num? ?? 100.0).toDouble(),
+      maxParkEnergy: (json['maxParkEnergy'] as num? ?? 100.0).toDouble(),
+      incomePerMinuteDollars: json['incomePerMinuteDollars'] as int? ?? json['incomePerMinute'] as int? ?? 0,
+      operationalCostPerMinuteDollars: json['operationalCostPerMinuteDollars'] as int? ?? json['operationalCostPerMinute'] as int? ?? 0,
+      currentPowerGenerated: json['currentPowerGenerated'] as int? ?? 0,
+      currentPowerConsumed: json['currentPowerConsumed'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'parkRating': parkRating,
+      'parkDollars': parkDollars,
+      'parkEnergy': parkEnergy,
+      'maxParkEnergy': maxParkEnergy,
+      'incomePerMinuteDollars': incomePerMinuteDollars,
+      'operationalCostPerMinuteDollars': operationalCostPerMinuteDollars,
+      'currentPowerGenerated': currentPowerGenerated,
+      'currentPowerConsumed': currentPowerConsumed,
+    };
+  }
+}

@@ -16,11 +16,13 @@ import 'actions/item_actions.dart';
 import 'actions/combat_actions.dart';
 import 'actions/ai_generation_actions.dart';
 import 'actions/timer_actions.dart';
+import 'actions/park_actions.dart'; 
 
 class GameProvider with ChangeNotifier {
   final StorageService _storageService = StorageService();
   Timer? _periodicUiTimer;
   Timer? _autoSaveTimer;
+  Timer? _parkUpdateTimer; // For park income/costs
 
   User? _currentUser;
   User? get currentUser => _currentUser;
@@ -112,6 +114,22 @@ class GameProvider with ChangeNotifier {
   String _aiGenerationStatusMessage = "";
   String get aiGenerationStatusMessage => _aiGenerationStatusMessage;
 
+  // Park Management State
+  List<DinosaurSpecies> _dinosaurSpeciesList = [];
+  List<BuildingTemplate> _buildingTemplatesList = [];
+  List<OwnedBuilding> _ownedBuildings = [];
+  List<OwnedDinosaur> _ownedDinosaurs = [];
+  List<FossilRecord> _fossilRecords = [];
+  ParkManager _parkManager = ParkManager();
+  
+  List<DinosaurSpecies> get dinosaurSpeciesList => _dinosaurSpeciesList;
+  List<BuildingTemplate> get buildingTemplatesList => _buildingTemplatesList;
+  List<OwnedBuilding> get ownedBuildings => _ownedBuildings;
+  List<OwnedDinosaur> get ownedDinosaurs => _ownedDinosaurs;
+  List<FossilRecord> get fossilRecords => _fossilRecords;
+  ParkManager get parkManager => _parkManager;
+
+
   String? get lastLoginDate => _lastLoginDate;
   double get coins => _coins;
   double get xp => _xp;
@@ -155,6 +173,7 @@ class GameProvider with ChangeNotifier {
   late final CombatActions _combatActions;
   late final AIGenerationActions _aiGenerationActions;
   late final TimerActions _timerActions;
+  late final ParkActions _parkActions; 
 
   GameProvider() {
     print("[GameProvider] Constructor called. Initializing actions first...");
@@ -164,6 +183,7 @@ class GameProvider with ChangeNotifier {
     _combatActions = CombatActions(this);
     _aiGenerationActions = AIGenerationActions(this);
     _timerActions = TimerActions(this);
+    _parkActions = ParkActions(this); 
 
     print("[GameProvider] Actions initialized. Ensuring bonusXPModStat...");
     _ensureBonusXpModStat();
@@ -177,6 +197,12 @@ class GameProvider with ChangeNotifier {
         notifyListeners();
       }
     });
+
+    _parkUpdateTimer?.cancel();
+    _parkUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _parkActions.updateAllDinosaursStatus(); // Periodically update dinosaur needs
+      _parkActions.recalculateParkStats(); // This also calls _updateBuildingOperationalStatusBasedOnPower and updates income/costs
+    });
     print("[GameProvider] Initialization complete.");
   }
 
@@ -185,6 +211,7 @@ class GameProvider with ChangeNotifier {
     print("[GameProvider] dispose called.");
     _periodicUiTimer?.cancel();
     _autoSaveTimer?.cancel();
+    _parkUpdateTimer?.cancel();
     super.dispose();
   }
 
@@ -240,7 +267,10 @@ class GameProvider with ChangeNotifier {
           (_enemyTemplatesList.isEmpty ||
               _artifactTemplatesList.isEmpty ||
               _runeTemplatesList.isEmpty ||
-              _gameLocationsList.isEmpty)) {
+              _gameLocationsList.isEmpty ||
+              _dinosaurSpeciesList.isEmpty || // Check for park content
+              _buildingTemplatesList.isEmpty
+              )) {
         print("[GameProvider] Initial content generation needed.");
         // Don't await here if it blocks UI too much, let it run in background
         _aiGenerationActions
@@ -307,6 +337,13 @@ class GameProvider with ChangeNotifier {
           _activeTimers.map((key, value) => MapEntry(key, value.toJson())),
       'lastSuccessfulSaveTimestamp':
           _lastSuccessfulSaveTimestamp?.toIso8601String(),
+      // Park Management Data
+      'dinosaurSpeciesList': _dinosaurSpeciesList.map((ds) => ds.toJson()).toList(),
+      'buildingTemplatesList': _buildingTemplatesList.map((bt) => bt.toJson()).toList(),
+      'ownedBuildings': _ownedBuildings.map((ob) => ob.toJson()).toList(),
+      'ownedDinosaurs': _ownedDinosaurs.map((od) => od.toJson()).toList(),
+      'fossilRecords': _fossilRecords.map((fr) => fr.toJson()).toList(),
+      'parkManager': _parkManager.toJson(),
     };
   }
 
@@ -447,8 +484,37 @@ class GameProvider with ChangeNotifier {
     _lastSuccessfulSaveTimestamp =
         timestampString != null ? DateTime.tryParse(timestampString) : null;
 
+    // Park Management Data Loading
+    _dinosaurSpeciesList = (data['dinosaurSpeciesList'] as List<dynamic>?)
+        ?.map((dsJson) => DinosaurSpecies.fromJson(dsJson as Map<String, dynamic>))
+        .toList() ?? initialDinosaurSpecies;
+    _buildingTemplatesList = (data['buildingTemplatesList'] as List<dynamic>?)
+        ?.map((btJson) => BuildingTemplate.fromJson(btJson as Map<String, dynamic>))
+        .toList() ?? initialBuildingTemplates;
+    _ownedBuildings = (data['ownedBuildings'] as List<dynamic>?)
+        ?.map((obJson) => OwnedBuilding.fromJson(obJson as Map<String, dynamic>))
+        .toList() ?? [];
+    _ownedDinosaurs = (data['ownedDinosaurs'] as List<dynamic>?)
+        ?.map((odJson) => OwnedDinosaur.fromJson(odJson as Map<String, dynamic>))
+        .toList() ?? [];
+    _fossilRecords = (data['fossilRecords'] as List<dynamic>?)
+        ?.map((frJson) => FossilRecord.fromJson(frJson as Map<String, dynamic>))
+        .toList() ?? [];
+    // Ensure fossil records list matches species list
+    if (_fossilRecords.length != _dinosaurSpeciesList.length) {
+      _fossilRecords = _dinosaurSpeciesList
+        .map((species) => _fossilRecords.firstWhere((fr) => fr.speciesId == species.id, orElse: () => FossilRecord(speciesId: species.id)))
+        .toList();
+    }
+
+    _parkManager = data['parkManager'] != null
+        ? ParkManager.fromJson(data['parkManager'] as Map<String, dynamic>)
+        : ParkManager();
+
+
     _recalculatePlayerLevel();
     _updatePlayerStatsFromItemsAndRunes();
+    _parkActions.recalculateParkStats(); // Recalculate park stats after loading
     print(
         "[GameProvider] State loaded. Current XP: $_xp, Level: $_playerLevel");
   }
@@ -499,6 +565,15 @@ class GameProvider with ChangeNotifier {
     _activeTimers = {};
     _isUsernameMissing = false;
     _lastSuccessfulSaveTimestamp = null;
+    
+    // Park Management Reset
+    _dinosaurSpeciesList = List.from(initialDinosaurSpecies);
+    _buildingTemplatesList = List.from(initialBuildingTemplates);
+    _ownedBuildings = [];
+    _ownedDinosaurs = [];
+    _fossilRecords = _dinosaurSpeciesList.map((species) => FossilRecord(speciesId: species.id)).toList();
+    _parkManager = ParkManager(parkDollars: 50000, parkEnergy: _playerEnergy, maxParkEnergy: calculatedMaxEnergy); // Start with some dollars and link park energy to player energy
+
     _hasUnsavedChanges = true;
 
     final rustySword = _artifactTemplatesList
@@ -520,6 +595,7 @@ class GameProvider with ChangeNotifier {
       _equippedItems['armor'] = "owned_${leatherJerkin.id}_init";
     }
     _updatePlayerStatsFromItemsAndRunes();
+    _parkActions.recalculateParkStats(); // Recalculate park stats after reset
     print("[GameProvider] Initial state reset complete.");
   }
 
@@ -584,7 +660,10 @@ class GameProvider with ChangeNotifier {
             (_enemyTemplatesList.isEmpty ||
                 _artifactTemplatesList.isEmpty ||
                 _runeTemplatesList.isEmpty ||
-                _gameLocationsList.isEmpty)) {
+                _gameLocationsList.isEmpty ||
+                _dinosaurSpeciesList.isEmpty || // Check for park content
+                _buildingTemplatesList.isEmpty 
+                )) {
           // Don't await this if it blocks UI too much
           _aiGenerationActions
               .generateGameContent(_playerLevel,
@@ -646,7 +725,9 @@ class GameProvider with ChangeNotifier {
             (_enemyTemplatesList.isEmpty ||
                 _artifactTemplatesList.isEmpty ||
                 _runeTemplatesList.isEmpty ||
-                _gameLocationsList.isEmpty)) {
+                _gameLocationsList.isEmpty ||
+                _dinosaurSpeciesList.isEmpty || // Check for park content
+                _buildingTemplatesList.isEmpty)) {
           // Don't await this if it blocks UI too much
           _aiGenerationActions
               .generateGameContent(_playerLevel,
@@ -744,7 +825,7 @@ class GameProvider with ChangeNotifier {
         "[GameProvider] Settings updated. DescriptionsVisible: ${newSettings.descriptionsVisible}, AutoGenerate: ${newSettings.autoGenerateContent}");
   }
 
-  String romanize(int num) => helper.romanize(num);
+  String romanize(int num) => num.toString(); // Changed to common numbering
 
   MainTask? getSelectedTask() {
     if (_selectedTaskId == null) {
@@ -1160,6 +1241,7 @@ class GameProvider with ChangeNotifier {
         ));
   }
 
+
   // Delegated methods
   Future<void> generateGameContent(int level,
           {bool isManual = false,
@@ -1263,6 +1345,18 @@ class GameProvider with ChangeNotifier {
       _timerActions.startTimer(id, type, mainTaskId);
   void pauseTimer(String id) => _timerActions.pauseTimer(id);
   void logTimerAndReset(String id) => _timerActions.logTimerAndReset(id);
+  
+  // Park Actions Delegation
+  bool canAffordBuilding(BuildingTemplate buildingTemplate) => _parkActions.canAffordBuilding(buildingTemplate);
+  void buyAndPlaceBuilding(String buildingTemplateId) => _parkActions.buyAndPlaceBuilding(buildingTemplateId);
+  void sellBuilding(String ownedBuildingUniqueId) => _parkActions.sellBuilding(ownedBuildingUniqueId);
+  void excavateFossil(String speciesId) => _parkActions.excavateFossil(speciesId);
+  void incubateDinosaur(String speciesId) => _parkActions.incubateDinosaur(speciesId);
+  void addDinosaurToEnclosure(String dinosaurUniqueId, String enclosureUniqueId) => _parkActions.addDinosaurToEnclosure(dinosaurUniqueId, enclosureUniqueId);
+  void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) => _parkActions.feedDinosaursInEnclosure(enclosureUniqueId, amount);
+  void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) => _parkActions.toggleBuildingOperationalStatus(ownedBuildingUniqueId);
+  void skipOneMinute() => _parkActions.skipOneMinute(); // New skip minute method
+
 
   void setProviderState({
     String? lastLoginDate,
@@ -1286,6 +1380,13 @@ class GameProvider with ChangeNotifier {
     Map<String, ActiveTimerInfo>? activeTimers,
     DateTime? lastSuccessfulSaveTimestamp,
     bool? isUsernameMissing,
+    // Park Management
+    List<DinosaurSpecies>? dinosaurSpeciesList,
+    List<BuildingTemplate>? buildingTemplatesList,
+    List<OwnedBuilding>? ownedBuildings,
+    List<OwnedDinosaur>? ownedDinosaurs,
+    List<FossilRecord>? fossilRecords,
+    ParkManager? parkManager,
     bool doNotify = true,
     bool doPersist = true,
   }) {
@@ -1418,6 +1519,38 @@ class GameProvider with ChangeNotifier {
       _isUsernameMissing = isUsernameMissing;
       changed = true;
     }
+
+    // Park Management State Updates
+    if (dinosaurSpeciesList != null && !listEquals(_dinosaurSpeciesList, dinosaurSpeciesList)) {
+      _dinosaurSpeciesList = List.from(dinosaurSpeciesList);
+      changed = true;
+    }
+    if (buildingTemplatesList != null && !listEquals(_buildingTemplatesList, buildingTemplatesList)) {
+      _buildingTemplatesList = List.from(buildingTemplatesList);
+      changed = true;
+    }
+    if (ownedBuildings != null && !listEquals(_ownedBuildings, ownedBuildings)) {
+      _ownedBuildings = List.from(ownedBuildings);
+      changed = true;
+    }
+    if (ownedDinosaurs != null && !listEquals(_ownedDinosaurs, ownedDinosaurs)) {
+      _ownedDinosaurs = List.from(ownedDinosaurs);
+      changed = true;
+    }
+    if (fossilRecords != null && !listEquals(_fossilRecords, fossilRecords)) {
+      _fossilRecords = List.from(fossilRecords);
+      changed = true;
+    }
+    if (parkManager != null && _parkManager != parkManager) { // Simple comparison, might need deep compare if ParkManager becomes complex
+      _parkManager = parkManager;
+      // When ParkManager state is updated, ensure player energy is consistent if used for park ops
+      if (_parkManager.parkEnergy != _playerEnergy || _parkManager.maxParkEnergy != calculatedMaxEnergy) {
+          _parkManager.parkEnergy = _playerEnergy;
+          _parkManager.maxParkEnergy = calculatedMaxEnergy;
+      }
+      changed = true;
+    }
+
 
     if (changed) {
       if (kDebugMode && doNotify) {

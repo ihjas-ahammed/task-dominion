@@ -9,6 +9,7 @@ import 'package:arcane/src/widgets/views/artifact_shop_view.dart';
 import 'package:arcane/src/widgets/views/blacksmith_view.dart';
 import 'package:arcane/src/widgets/views/game_view.dart';
 import 'package:arcane/src/widgets/views/task_details_view.dart';
+import 'package:arcane/src/widgets/views/park_view.dart'; // New Park View
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
@@ -40,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen>
     },
     {'label': 'FORGE', 'value': 'blacksmith', 'icon': MdiIcons.hammerWrench},
     {'label': 'ARENA', 'value': 'game', 'icon': MdiIcons.swordCross},
+    {'label': 'PARK', 'value': 'park', 'icon': MdiIcons.tree}, // Changed Park Icon
   ];
 
   @override
@@ -215,6 +217,7 @@ class _HomeScreenState extends State<HomeScreen>
       _selectedIndex = index;
     });
     _gameProvider.setCurrentView(_views[index]['value'] as String);
+     _tabController.animateTo(index); // Sync TabController on BottomNav tap for smaller screens
   }
 
   @override
@@ -362,6 +365,8 @@ class _HomeScreenState extends State<HomeScreen>
         return const BlacksmithView();
       case 'game':
         return const GameView();
+      case 'park': // New Park View
+        return const ParkView(); 
       default:
         if (_views.isNotEmpty) {
           return _getViewWidget(_views[0]['value'] as String);
