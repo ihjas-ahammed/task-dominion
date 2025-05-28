@@ -163,10 +163,12 @@ class _HomeScreenState extends State<HomeScreen>
               decoration:
                   const InputDecoration(hintText: "Enter callsign (username)"),
               validator: (value) {
-                if (value == null || value.trim().isEmpty)
+                if (value == null || value.trim().isEmpty) {
                   return 'Callsign cannot be empty.';
-                if (value.trim().length < 3)
+                }
+                if (value.trim().length < 3) {
                   return 'Must be at least 3 characters.';
+                }
                 return null;
               },
             ),
@@ -361,8 +363,9 @@ class _HomeScreenState extends State<HomeScreen>
       case 'game':
         return const GameView();
       default:
-        if (_views.isNotEmpty)
+        if (_views.isNotEmpty) {
           return _getViewWidget(_views[0]['value'] as String);
+        }
         return const Center(child: Text('Unknown View'));
     }
   }

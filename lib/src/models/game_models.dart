@@ -670,6 +670,7 @@ class GameLocation {
   final String? associatedTheme;
   final String?
       bossEnemyIdToUnlockNextLocation; // ID of an enemy in this location
+  bool isCleared; // Added field for tracking if location is cleared
 
   GameLocation({
     required this.id,
@@ -679,6 +680,7 @@ class GameLocation {
     required this.iconEmoji,
     this.associatedTheme,
     this.bossEnemyIdToUnlockNextLocation,
+    this.isCleared = false, // Default to not cleared
   });
 
   factory GameLocation.fromJson(Map<String, dynamic> json) {
@@ -692,6 +694,7 @@ class GameLocation {
       associatedTheme: json['associatedTheme'] as String?,
       bossEnemyIdToUnlockNextLocation:
           json['bossEnemyIdToUnlockNextLocation'] as String?,
+      isCleared: json['isCleared'] as bool? ?? false, // Load isCleared status
     );
   }
 
@@ -704,6 +707,7 @@ class GameLocation {
       'iconEmoji': iconEmoji,
       'associatedTheme': associatedTheme,
       'bossEnemyIdToUnlockNextLocation': bossEnemyIdToUnlockNextLocation,
+      'isCleared': isCleared, // Save isCleared status
     };
   }
 }

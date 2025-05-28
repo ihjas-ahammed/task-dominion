@@ -12,7 +12,12 @@ class SettingsScreen extends StatelessWidget {
         title: const Text('System Configuration'),
         backgroundColor: AppTheme.fhBgMedium, // Match header style
       ),
-      body: const SettingsView(),
+      body: Center( // Center the content
+        child: ConstrainedBox( // Limit width for larger screens
+          constraints: const BoxConstraints(maxWidth: 800), 
+          child: const SettingsView(),
+        ),
+      ),
     );
   }
 }

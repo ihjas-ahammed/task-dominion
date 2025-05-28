@@ -59,7 +59,7 @@ class GameProvider with ChangeNotifier {
   void _ensureBonusXpModStat() {
     if (!_playerGameStats.containsKey('bonusXPMod')) {
       _playerGameStats['bonusXPMod'] = PlayerStat(
-          name: 'XP CALC MOD',
+          name: 'XP CALC MOD', // Display name for the UI
           value: 0,
           base: 0,
           description: 'Internal XP modifier from gear.',
@@ -78,6 +78,9 @@ class GameProvider with ChangeNotifier {
   };
 
   List<String> _defeatedEnemyIds = [];
+  List<String> _clearedLocationIds = []; // To track cleared locations
+  List<String> get clearedLocationIds => _clearedLocationIds;
+
   CurrentGame _currentGame = CurrentGame(
       playerCurrentHp: basePlayerGameStats['vitality']!.value,
       currentPlaceKey: initialGameLocations.isNotEmpty
@@ -103,6 +106,11 @@ class GameProvider with ChangeNotifier {
   bool get isGeneratingContent => _isGeneratingGlobalContent;
   bool _isGeneratingSubquestsForTask = false;
   bool get isGeneratingSubquests => _isGeneratingSubquestsForTask;
+
+  double _aiGenerationProgress = 0.0;
+  double get aiGenerationProgress => _aiGenerationProgress;
+  String _aiGenerationStatusMessage = "";
+  String get aiGenerationStatusMessage => _aiGenerationStatusMessage;
 
   String? get lastLoginDate => _lastLoginDate;
   double get coins => _coins;
@@ -149,14 +157,19 @@ class GameProvider with ChangeNotifier {
   late final TimerActions _timerActions;
 
   GameProvider() {
-    print("[GameProvider] Constructor called. Initializing...");
-    _ensureBonusXpModStat();
-    _initialize();
+    print("[GameProvider] Constructor called. Initializing actions first...");
+    // Initialize actions first to prevent LateInitializationError from async callbacks
     _taskActions = TaskActions(this);
     _itemActions = ItemActions(this);
     _combatActions = CombatActions(this);
     _aiGenerationActions = AIGenerationActions(this);
     _timerActions = TimerActions(this);
+
+    print("[GameProvider] Actions initialized. Ensuring bonusXPModStat...");
+    _ensureBonusXpModStat();
+
+    print("[GameProvider] Initializing core systems and listeners...");
+    _initialize(); // Now call initialize, which sets up listeners
 
     _periodicUiTimer?.cancel();
     _periodicUiTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -188,18 +201,6 @@ class GameProvider with ChangeNotifier {
         _performActualSave();
       }
     });
-
-    // Asynchronously load initial data that doesn't depend on user auth
-    // to potentially speed up the perceived load time if applicable.
-    // For example, if artifactTemplatesList, enemyTemplatesList, gameLocationsList
-    // could be loaded from a local cache or bundled asset first.
-    // For now, they are initialized from constants, which is fast.
-    // If these were from a slow source, this is where you'd async it.
-    // Example:
-    // _artifactTemplatesList = await _loadInitialArtifactTemplatesFromAsset();
-    // _enemyTemplatesList = await _loadInitialEnemyTemplatesFromAsset();
-    // _gameLocationsList = await _loadInitialGameLocationsFromAsset();
-    // notifyListeners(); // If UI can show something with this partial data
   }
 
   Future<void> _onAuthStateChanged(User? user) async {
@@ -242,10 +243,11 @@ class GameProvider with ChangeNotifier {
               _gameLocationsList.isEmpty)) {
         print("[GameProvider] Initial content generation needed.");
         // Don't await here if it blocks UI too much, let it run in background
-        generateGameContent(_playerLevel, isManual: false, isInitial: true)
+        _aiGenerationActions
+            .generateGameContent(_playerLevel,
+                isManual: false, isInitial: true, contentType: "all")
             .catchError((e) {
           print("Error during initial content generation: $e");
-          // Optionally log to game log
         });
       }
 
@@ -295,6 +297,7 @@ class GameProvider with ChangeNotifier {
       'equippedItems': _equippedItems,
       'equippedRunes': _equippedRunes,
       'defeatedEnemyIds': _defeatedEnemyIds,
+      'clearedLocationIds': _clearedLocationIds, // Save cleared locations
       'currentGame': _currentGame.toJson(),
       'settings': settings.toJson(),
       'currentView': _currentView,
@@ -402,6 +405,10 @@ class GameProvider with ChangeNotifier {
             ?.map((id) => id as String)
             .toList() ??
         [];
+    _clearedLocationIds = (data['clearedLocationIds'] as List<dynamic>?)
+            ?.map((id) => id as String)
+            .toList() ??
+        []; // Load cleared locations
 
     _currentGame = data['currentGame'] != null
         ? CurrentGame.fromJson(
@@ -480,6 +487,7 @@ class GameProvider with ChangeNotifier {
     _equippedItems = {'weapon': null, 'armor': null, 'talisman': null};
     _equippedRunes = {'rune_slot_1': null, 'rune_slot_2': null};
     _defeatedEnemyIds = [];
+    _clearedLocationIds = []; // Reset cleared locations
     _currentGame = CurrentGame(
         playerCurrentHp: _playerGameStats['vitality']!.value,
         currentPlaceKey:
@@ -578,7 +586,9 @@ class GameProvider with ChangeNotifier {
                 _runeTemplatesList.isEmpty ||
                 _gameLocationsList.isEmpty)) {
           // Don't await this if it blocks UI too much
-          generateGameContent(_playerLevel, isManual: false, isInitial: true)
+          _aiGenerationActions
+              .generateGameContent(_playerLevel,
+                  isManual: false, isInitial: true, contentType: "all")
               .catchError((e) {
             print("Error during manual load content gen: $e");
           });
@@ -638,7 +648,9 @@ class GameProvider with ChangeNotifier {
                 _runeTemplatesList.isEmpty ||
                 _gameLocationsList.isEmpty)) {
           // Don't await this if it blocks UI too much
-          generateGameContent(_playerLevel, isManual: false, isInitial: true)
+          _aiGenerationActions
+              .generateGameContent(_playerLevel,
+                  isManual: false, isInitial: true, contentType: "all")
               .catchError((e) {
             print("Error during signup content gen: $e");
           });
@@ -795,7 +807,9 @@ class GameProvider with ChangeNotifier {
     if (settings.autoGenerateContent) {
       print(
           "[GameProvider] Auto-generating content for new level $_playerLevel.");
-      generateGameContent(_playerLevel, isManual: false, isInitial: false)
+      _aiGenerationActions
+          .generateGameContent(_playerLevel,
+              isManual: false, isInitial: false, contentType: "all")
           .catchError((e) {
         print("Error during level up content gen: $e");
       });
@@ -843,7 +857,8 @@ class GameProvider with ChangeNotifier {
       }).toList();
 
       _playerEnergy = calculatedMaxEnergy;
-      _defeatedEnemyIds = [];
+      _defeatedEnemyIds = []; // Reset defeated enemies for the day
+      _clearedLocationIds = []; // Reset cleared locations for the day
       _lastLoginDate = today;
       _hasUnsavedChanges = true;
       notifyListeners();
@@ -973,7 +988,8 @@ class GameProvider with ChangeNotifier {
 
     if (settings.autoGenerateContent) {
       print("[GameProvider] Generating initial content after data purge.");
-      await generateGameContent(1, isManual: true, isInitial: true);
+      await _aiGenerationActions.generateGameContent(1,
+          isManual: true, isInitial: true, contentType: "all");
     }
     notifyListeners();
     print("[GameProvider] All game data cleared and reset.");
@@ -1001,7 +1017,8 @@ class GameProvider with ChangeNotifier {
     _defeatedEnemyIds = [];
     if (settings.autoGenerateContent) {
       print("[GameProvider] Generating content for reset level 1.");
-      await generateGameContent(1, isManual: false, isInitial: false);
+      await _aiGenerationActions.generateGameContent(1,
+          isManual: false, isInitial: false, contentType: "all");
     }
     _currentGame.log = [
       ..._currentGame.log,
@@ -1014,34 +1031,24 @@ class GameProvider with ChangeNotifier {
 
   void clearAllOwnedArtifacts() {
     if (_currentUser == null) return;
-    print("[GameProvider] Clearing discoverable artifacts.");
-    final List<String> ownedArtTemplateIds = _artifacts
-        .where((owned) {
-          final template = _artifactTemplatesList
-              .firstWhereOrNull((t) => t.id == owned.templateId);
-          return template != null;
-        })
-        .map((owned) => owned.templateId)
-        .toSet()
-        .toList();
-
-    final List<ArtifactTemplate> newArtifactTemplates =
-        _artifactTemplatesList.where((template) {
-      return ownedArtTemplateIds.contains(template.id);
-    }).toList();
     print("[GameProvider] Clearing all owned artifacts.");
     setProviderState(
-        // Unequip all
-        artifactTemplatesList: newArtifactTemplates,
-        currentGame: CurrentGame(
-          enemy: _currentGame.enemy,
-          playerCurrentHp: _currentGame.playerCurrentHp,
-          log: [
-            ..._currentGame.log,
-            "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">All artifacts cleared from inventory.</span>"
-          ],
-          currentPlaceKey: _currentGame.currentPlaceKey,
-        ));
+      artifacts: [], // Clear owned artifacts
+      equippedItems: {
+        'weapon': null,
+        'armor': null,
+        'talisman': null
+      }, // Unequip all
+      currentGame: CurrentGame(
+        enemy: _currentGame.enemy,
+        playerCurrentHp: _currentGame.playerCurrentHp,
+        log: [
+          ..._currentGame.log,
+          "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">All artifacts cleared from inventory.</span>"
+        ],
+        currentPlaceKey: _currentGame.currentPlaceKey,
+      ),
+    );
   }
 
   Future<void> clearDiscoverablePowerUps() async {
@@ -1091,6 +1098,77 @@ class GameProvider with ChangeNotifier {
           currentPlaceKey: _currentGame.currentPlaceKey,
         ));
   }
+
+  void deleteGameLocation(String locationId) {
+    final newLocations =
+        _gameLocationsList.where((loc) => loc.id != locationId).toList();
+    final newClearedIds =
+        _clearedLocationIds.where((id) => id != locationId).toList();
+    String? newCurrentPlaceKey = _currentGame.currentPlaceKey;
+    if (newCurrentPlaceKey == locationId) {
+      newCurrentPlaceKey =
+          newLocations.isNotEmpty ? newLocations.first.id : null;
+    }
+
+    setProviderState(
+        gameLocationsList: newLocations,
+        clearedLocationIds: newClearedIds,
+        currentGame: CurrentGame(
+          enemy: _currentGame.currentPlaceKey == locationId
+              ? null
+              : _currentGame.enemy, // Clear enemy if it was in deleted location
+          playerCurrentHp: _currentGame.playerCurrentHp,
+          log: [
+            ..._currentGame.log,
+            "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Realm '${_gameLocationsList.firstWhereOrNull((l) => l.id == locationId)?.name ?? locationId}' has been destabilized and removed.</span>"
+          ],
+          currentPlaceKey: newCurrentPlaceKey,
+        ));
+  }
+
+  void markLocationAsCleared(String locationId) {
+    final newLocations = _gameLocationsList.map((loc) {
+      if (loc.id == locationId) {
+        return GameLocation(
+          id: loc.id,
+          name: loc.name,
+          description: loc.description,
+          minPlayerLevelToUnlock: loc.minPlayerLevelToUnlock,
+          iconEmoji: loc.iconEmoji,
+          associatedTheme: loc.associatedTheme,
+          bossEnemyIdToUnlockNextLocation: loc.bossEnemyIdToUnlockNextLocation,
+          isCleared: true, // Mark as cleared
+        );
+      }
+      return loc;
+    }).toList();
+
+    final newClearedLocationIds =
+        List<String>.from(_clearedLocationIds)..add(locationId);
+
+    setProviderState(
+        gameLocationsList: newLocations,
+        clearedLocationIds: newClearedLocationIds,
+        currentGame: CurrentGame(
+          enemy: _currentGame.enemy, // Keep current enemy if any
+          playerCurrentHp: _currentGame.playerCurrentHp,
+          log: [
+            ..._currentGame.log,
+            "<span style=\"color:${AppTheme.fhAccentGreen.value.toRadixString(16).substring(2)};\">Zone '${_gameLocationsList.firstWhereOrNull((loc) => loc.id == locationId)?.name ?? locationId}' has been pacified!</span>"
+          ],
+          currentPlaceKey: _currentGame.currentPlaceKey,
+        ));
+  }
+
+  // Delegated methods
+  Future<void> generateGameContent(int level,
+          {bool isManual = false,
+          bool isInitial = false,
+          String contentType = "all"}) =>
+      _aiGenerationActions.generateGameContent(level,
+          isManual: isManual,
+          isInitial: isInitial,
+          contentType: contentType);
 
   void addMainTask(
           {required String name,
@@ -1173,11 +1251,9 @@ class GameProvider with ChangeNotifier {
   void handleFight() => _combatActions.handleFight();
   void usePowerUp(String uniqueId) => _combatActions.usePowerUp(uniqueId);
   void forfeitMatch() => _combatActions.forfeitMatch();
+  void checkAndClearLocationIfAllEnemiesDefeated(String locationId) =>
+      _combatActions.checkAndClearLocationIfAllEnemiesDefeated(locationId);
 
-  Future<void> generateGameContent(int level,
-          {bool isManual = false, bool isInitial = false}) =>
-      _aiGenerationActions.generateGameContent(level,
-          isManual: isManual, isInitial: isInitial);
   Future<void> triggerAISubquestGeneration(MainTask mainTask,
           String generationMode, String userInput, int numSubquests) =>
       _aiGenerationActions.triggerAISubquestGeneration(
@@ -1205,6 +1281,7 @@ class GameProvider with ChangeNotifier {
     Map<String, String?>? equippedItems,
     Map<String, String?>? equippedRunes,
     List<String>? defeatedEnemyIds,
+    List<String>? clearedLocationIds, // Add for setProviderState
     CurrentGame? currentGame,
     Map<String, ActiveTimerInfo>? activeTimers,
     DateTime? lastSuccessfulSaveTimestamp,
@@ -1265,6 +1342,11 @@ class GameProvider with ChangeNotifier {
     if (gameLocationsList != null &&
         !listEquals(_gameLocationsList, gameLocationsList)) {
       _gameLocationsList = List.from(gameLocationsList);
+      changed = true;
+    }
+    if (clearedLocationIds != null &&
+        !listEquals(_clearedLocationIds, clearedLocationIds)) {
+      _clearedLocationIds = List.from(clearedLocationIds);
       changed = true;
     }
     if (runeTemplatesList != null &&
@@ -1347,10 +1429,24 @@ class GameProvider with ChangeNotifier {
     }
   }
 
-  void setProviderAIGlobalLoading(bool isLoading) {
+  void setProviderAIGlobalLoading(bool isLoading,
+      {double progress = 0.0, String statusMessage = ""}) {
+    bool changed = false;
     if (_isGeneratingGlobalContent != isLoading) {
       _isGeneratingGlobalContent = isLoading;
-      print("[GameProvider] AI Global Loading set to: $isLoading");
+      changed = true;
+    }
+    if (_aiGenerationProgress != progress) {
+      _aiGenerationProgress = progress;
+      changed = true;
+    }
+    if (_aiGenerationStatusMessage != statusMessage) {
+      _aiGenerationStatusMessage = statusMessage;
+      changed = true;
+    }
+    if (changed) {
+      print(
+          "[GameProvider] AI Global Loading set to: $isLoading, Progress: $progress, Message: $statusMessage");
       notifyListeners();
     }
   }

@@ -24,7 +24,7 @@ class ItemActions {
   ArtifactTemplate getArtifactEffectiveStats(OwnedArtifact ownedArtifact) {
     final template = _provider.artifactTemplatesList
         .firstWhereOrNull((t) => t.id == ownedArtifact.templateId);
-    if (template == null)
+    if (template == null) {
       return ArtifactTemplate(
           id: '',
           name: 'Unknown Artifact',
@@ -32,6 +32,7 @@ class ItemActions {
           description: '',
           cost: 0,
           icon: '❓');
+    }
 
     final level = ownedArtifact.currentLevel;
 
@@ -132,7 +133,9 @@ class ItemActions {
     if (template == null ||
         ownedArtifact == null ||
         template.type == 'powerup' ||
-        ownedArtifact.currentLevel >= (template.maxLevel ?? 1)) return false;
+        ownedArtifact.currentLevel >= (template.maxLevel ?? 1)) {
+      return false;
+    }
 
     final upgradeCost = (template.cost *
             blacksmithUpgradeCostMultiplier *
@@ -208,8 +211,9 @@ class ItemActions {
         ? _provider.artifactTemplatesList
             .firstWhereOrNull((t) => t.id == ownedArtifact.templateId)
         : null;
-    if (template == null || ownedArtifact == null || template.type == 'powerup')
+    if (template == null || ownedArtifact == null || template.type == 'powerup') {
       return;
+    }
 
     final newEquippedItems = Map<String, String?>.from(_provider.equippedItems);
     newEquippedItems[template.type] = uniqueId;

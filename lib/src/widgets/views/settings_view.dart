@@ -188,18 +188,20 @@ class _SettingsViewState extends State<SettingsView> {
                       : () async {
                           try {
                             await gameProvider.manuallySaveToCloud();
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                       content: Text('Data saved to cloud.'),
                                       backgroundColor: AppTheme.fhAccentGreen));
+                            }
                           } catch (e) {
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                       content: Text(
                                           'Cloud save failed: ${e.toString()}'),
                                       backgroundColor: AppTheme.fhAccentRed));
+                            }
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -253,20 +255,22 @@ class _SettingsViewState extends State<SettingsView> {
                           if (confirm == true) {
                             try {
                               await gameProvider.manuallyLoadFromCloud();
-                              if (mounted)
+                              if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                         content:
                                             Text('Data loaded from cloud.'),
                                         backgroundColor:
                                             AppTheme.fhAccentGreen));
+                              }
                             } catch (e) {
-                              if (mounted)
+                              if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                         content: Text(
                                             'Cloud load failed: ${e.toString()}'),
                                         backgroundColor: AppTheme.fhAccentRed));
+                              }
                             }
                           }
                         },
@@ -305,10 +309,12 @@ class _SettingsViewState extends State<SettingsView> {
                       labelText: 'Display Name',
                       prefixIcon: Icon(MdiIcons.accountBadgeOutline, size: 20)),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty)
+                    if (value == null || value.trim().isEmpty) {
                       return 'Display name cannot be empty.';
-                    if (value.trim().length < 3)
+                    }
+                    if (value.trim().length < 3) {
                       return 'Must be at least 3 characters.';
+                    }
                     return null;
                   },
                 ),
@@ -362,44 +368,178 @@ class _SettingsViewState extends State<SettingsView> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Manually initiate content generation protocol for current operational level (${gameProvider.playerLevel}). This may consume significant resources.',
+                'Manually initiate content generation protocols for current operational level (${gameProvider.playerLevel}). This may consume significant resources.',
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: AppTheme.fhTextSecondary),
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
-                icon: gameProvider.isGeneratingContent
+                icon: gameProvider.isGeneratingContent &&
+                        gameProvider.aiGenerationStatusMessage
+                            .contains("Adversaries")
                     ? const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                             strokeWidth: 2.5, color: AppTheme.fhTextPrimary))
-                    : Icon(MdiIcons.creationOutline, size: 18),
-                label: Text(gameProvider.isGeneratingContent
-                    ? 'PROTOCOL ACTIVE...'
-                    : 'INITIATE GENERATION'),
+                    : Icon(MdiIcons.skullCrossbonesOutline, size: 18),
+                label: Text(gameProvider.isGeneratingContent &&
+                        gameProvider.aiGenerationStatusMessage
+                            .contains("Adversaries")
+                    ? 'GENERATING ADVERSARIES...'
+                    : 'GENERATE NEW ADVERSARIES'),
                 onPressed: gameProvider.isGeneratingContent
                     ? null
                     : () => gameProvider.generateGameContent(
                         gameProvider.playerLevel,
-                        isManual: true),
+                        isManual: true,
+                        isInitial: false,
+                        contentType: "enemies"),
+                style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 44)),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: gameProvider.isGeneratingContent &&
+                        gameProvider.aiGenerationStatusMessage
+                            .contains("Artifacts")
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: AppTheme.fhTextPrimary))
+                    : Icon(MdiIcons.swordCross, size: 18),
+                label: Text(gameProvider.isGeneratingContent &&
+                        gameProvider.aiGenerationStatusMessage
+                            .contains("Artifacts")
+                    ? 'FORGING ARTIFACTS...'
+                    : 'FORGE NEW ARTIFACTS'),
+                onPressed: gameProvider.isGeneratingContent
+                    ? null
+                    : () => gameProvider.generateGameContent(
+                        gameProvider.playerLevel,
+                        isManual: true,
+                        isInitial: false,
+                        contentType: "artifacts"),
+                style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 44)),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: gameProvider.isGeneratingContent &&
+                        gameProvider.aiGenerationStatusMessage.contains("Realms")
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: AppTheme.fhTextPrimary))
+                    : Icon(MdiIcons.mapSearchOutline, size: 18),
+                label: Text(gameProvider.isGeneratingContent &&
+                        gameProvider.aiGenerationStatusMessage.contains("Realms")
+                    ? 'DISCOVERING REALMS...'
+                    : 'DISCOVER NEW REALMS'),
+                onPressed: gameProvider.isGeneratingContent
+                    ? null
+                    : () => gameProvider.generateGameContent(
+                        gameProvider.playerLevel,
+                        isManual: true,
+                        isInitial: false,
+                        contentType: "locations"),
                 style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 44)),
               ),
               if (gameProvider.isGeneratingContent)
                 Padding(
                   padding: const EdgeInsets.only(top: 10.0),
-                  child: Text(
-                    'Cognitive matrix recalculating... please standby.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        fontStyle: FontStyle.italic,
-                        color: (gameProvider.getSelectedTask()?.taskColor ??
-                                AppTheme.fhAccentTealFixed)
-                            .withOpacity(0.8)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LinearProgressIndicator(
+                        value: gameProvider.aiGenerationProgress,
+                        backgroundColor:
+                            AppTheme.fhBorderColor.withOpacity(0.2),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            (gameProvider.getSelectedTask()?.taskColor ??
+                                    AppTheme.fhAccentTealFixed)
+                                .withOpacity(0.7)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        gameProvider.aiGenerationStatusMessage.isNotEmpty
+                            ? gameProvider.aiGenerationStatusMessage
+                            : 'Cognitive matrix recalculating... please standby.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            fontStyle: FontStyle.italic,
+                            color: (gameProvider.getSelectedTask()?.taskColor ??
+                                    AppTheme.fhAccentTealFixed)
+                                .withOpacity(0.8)),
+                      ),
+                    ],
                   ),
                 ),
             ],
           ),
+          _buildSettingsSection(gameProvider, theme,
+              icon: MdiIcons.mapLegend,
+              title: "Manage Realms (Combat Zones)",
+              children: [
+                if (gameProvider.gameLocationsList.isEmpty)
+                  const Text("No combat zones discovered yet.",
+                      style: TextStyle(fontStyle: FontStyle.italic)),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: gameProvider.gameLocationsList.length,
+                  itemBuilder: (context, index) {
+                    final location = gameProvider.gameLocationsList[index];
+                    return ListTile(
+                      leading: Text(location.iconEmoji,
+                          style: const TextStyle(fontSize: 20)),
+                      title: Text(location.name),
+                      subtitle: Text(
+                          "Lvl ${location.minPlayerLevelToUnlock}+. ${location.description}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      trailing: IconButton(
+                        icon: Icon(MdiIcons.mapMarkerRemoveVariant,
+                            color: AppTheme.fhAccentRed),
+                        tooltip: "Delete Realm",
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Row(children: [
+                                Icon(MdiIcons.alertOutline,
+                                    color: AppTheme.fhAccentRed),
+                                const SizedBox(width: 10),
+                                const Text('Confirm Deletion')
+                              ]),
+                              content: Text(
+                                  'Are you sure you want to delete the realm "${location.name}"? This cannot be undone.'),
+                              actionsAlignment: MainAxisAlignment.spaceBetween,
+                              actions: [
+                                TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(false),
+                                    child: const Text('CANCEL')),
+                                ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(true),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.fhAccentRed),
+                                    child: const Text('DELETE REALM')),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            gameProvider.deleteGameLocation(location.id);
+                          }
+                        },
+                      ),
+                    );
+                  },
+                )
+              ]),
           _buildSettingsSection(gameProvider, theme,
               icon: MdiIcons.layersTripleOutline,
               title: 'Content Matrix Control',
@@ -441,11 +581,12 @@ class _SettingsViewState extends State<SettingsView> {
                     );
                     if (confirm == true) {
                       gameProvider.clearAllOwnedArtifacts();
-                      if (mounted)
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                             content: Text(
                                 'All owned artifacts cleared from inventory.'),
                             backgroundColor: AppTheme.fhAccentGreen));
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -486,12 +627,13 @@ class _SettingsViewState extends State<SettingsView> {
                     );
                     if (confirm == true) {
                       gameProvider.removeAllEnemyTemplates();
-                      if (mounted)
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                                 content: Text(
                                     'All enemy signatures decommissioned.'),
                                 backgroundColor: AppTheme.fhAccentGreen));
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -628,12 +770,13 @@ class _SettingsViewState extends State<SettingsView> {
                     );
                     if (confirm == true) {
                       gameProvider.resetPlayerLevelAndProgress();
-                      if (mounted)
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                                 content:
                                     Text('Player level and progress reset.'),
                                 backgroundColor: AppTheme.fhAccentGreen));
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -680,11 +823,12 @@ class _SettingsViewState extends State<SettingsView> {
                     );
                     if (confirm == true) {
                       gameProvider.clearAllGameData();
-                      if (mounted)
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                                 content: Text('All game data has been purged.'),
                                 backgroundColor: AppTheme.fhAccentGreen));
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(

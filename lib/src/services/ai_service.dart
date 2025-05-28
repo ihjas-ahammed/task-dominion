@@ -4,6 +4,19 @@ import 'package:arcane/src/config/api_keys.dart'; // Your API keys file
 import 'package:flutter/foundation.dart'; // For kDebugMode
 
 class AIService {
+  Future<Map<String, dynamic>> makeAICall({
+    required String prompt,
+    required int currentApiKeyIndex,
+    required Function(int) onNewApiKeyIndex,
+    required Function(String) onLog,
+  }) async {
+    return await _makeAICall(
+        prompt: prompt,
+        currentApiKeyIndex: currentApiKeyIndex,
+        onNewApiKeyIndex: onNewApiKeyIndex,
+        onLog: onLog);
+  }
+
   Future<Map<String, dynamic>> _makeAICall({
     required String prompt,
     required int currentApiKeyIndex,
@@ -14,14 +27,14 @@ class AIService {
         geminiApiKeys.every((key) => key.startsWith('YOUR_GEMINI_API_KEY'))) {
       const errorMsg =
           "No valid Gemini API keys found. Cannot generate content.";
-      onLog(
+      onLog(// Ensure string is passed
           "<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (No API Key or invalid key).</span>");
       throw Exception(errorMsg);
     }
     if (geminiModelName.isEmpty) {
       const errorMsg =
           "GEMINI_MODEL_NAME not configured. Cannot generate content.";
-      onLog(
+      onLog(// Ensure string is passed
           "<span style=\"color:var(--fh-accent-red);\">Error: AI content generation failed (GEMINI_MODEL_NAME not configured).</span>");
       throw Exception(errorMsg);
     }
@@ -37,13 +50,13 @@ class AIService {
       final String apiKey = geminiApiKeys[keyAttemptIndex];
 
       if (apiKey.startsWith('YOUR_GEMINI_API_KEY')) {
-        onLog(
+        onLog(// Ensure string is passed
             "<span style=\"color:var(--fh-accent-orange);\">Skipping invalid API key at index $keyAttemptIndex.</span>");
         continue;
       }
 
       try {
-        onLog(
+        onLog(// Ensure string is passed
             "Trying API key index $keyAttemptIndex for model $geminiModelName...");
         final model =
             genai.GenerativeModel(model: geminiModelName, apiKey: apiKey);
@@ -60,7 +73,8 @@ class AIService {
           print(
               "[AIService] Raw AI Response (Key Index $keyAttemptIndex):\n$rawResponseText");
         }
-        onLog("Raw AI Response received. Attempting to parse JSON...");
+        onLog(
+            "Raw AI Response received. Attempting to parse JSON..."); // Ensure string is passed
 
         // More robust JSON extraction
         String jsonString = rawResponseText.trim();
@@ -70,7 +84,7 @@ class AIService {
         if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
           jsonString = jsonString.substring(jsonStart, jsonEnd + 1);
         } else {
-          onLog(
+          onLog(// Ensure string is passed
               "<span style=\"color:var(--fh-accent-red);\">Error: Could not find valid JSON object delimiters {{ ... }} in AI response.</span>");
           if (kDebugMode) {
             print(
@@ -89,7 +103,7 @@ class AIService {
 
         final Map<String, dynamic> generatedData = jsonDecode(jsonString);
         onNewApiKeyIndex(keyAttemptIndex);
-        onLog(
+        onLog(// Ensure string is passed
             "<span style=\"color:var(--fh-accent-green);\">Successfully processed AI response with API key index $keyAttemptIndex.</span>");
         return generatedData;
       } catch (e) {
@@ -110,7 +124,7 @@ class AIService {
           errorDetail =
               "AI response blocked due to safety settings. Try a different prompt or adjust safety settings if possible.";
         }
-        onLog(
+        onLog(// Ensure string is passed
             "<span style=\"color:var(--fh-accent-red);\">Error with API key index $keyAttemptIndex: $errorDetail</span>");
         if (i == geminiApiKeys.length - 1) {
           throw Exception("All API keys failed. Last error: $errorDetail");
@@ -118,63 +132,42 @@ class AIService {
       }
     }
     const finalErrorMsg = "All API keys failed or were invalid.";
-    onLog("<span style=\"color:var(--fh-accent-red);\">$finalErrorMsg</span>");
+    onLog(
+        "<span style=\"color:var(--fh-accent-red);\">$finalErrorMsg</span>"); // Ensure string is passed
     throw Exception(finalErrorMsg);
   }
 
-  Future<Map<String, List<Map<String, dynamic>>>> generateGameContent({
+  Future<Map<String, List<Map<String, dynamic>>>> generateSpecificGameContent({
     required int levelForContent,
-    required bool isManual,
-    required bool isInitial,
     required int currentApiKeyIndex,
     required Function(int) onNewApiKeyIndex,
-    required String existingEnemyIdsString,
-    required String existingArtifactIdsString,
-    required String existingLocationIdsString, // New
-    required List<String> themes,
+    required List<String?>
+        themes, // Themes for this specific batch, can include null for general
     required Function(String) onLog,
+    String? playerStatsString, // New parameter
+    String? existingEnemyIdsString,
+    String? existingArtifactIdsString,
+    String? existingLocationIdsString,
+    int numEnemiesToGenerate = 0,
+    int numArtifactsPerTheme = 0,
+    int numPowerupsPerTheme = 0,
+    int numLocationsToGenerate = 0,
+    String? specificLocationKeyForEnemies,
   }) async {
-    onLog(
-        "Attempting to generate themed game content (enemies/artifacts/locations)...");
+    onLog(// Ensure string is passed
+        "Attempting to generate specific game content for themes: ${themes.map((t) => t ?? 'General').join(', ')}...");
 
-    final int numEnemiesToGeneratePerTheme = isInitial ? 3 : 3;
-    final int totalEnemiesToGenerate =
-        themes.length * numEnemiesToGeneratePerTheme + (isInitial ? 2 : 1);
-    final int numLocationsToGenerate = isInitial
-        ? 2
-        : 1; // Generate a couple of locations initially, then one by one
-
-    String artifactInstructions = "";
-    for (String themeName in themes) {
-      artifactInstructions += """
-  - For the theme "$themeName":
-    - One 'weapon' artifact with theme: "$themeName".
-    - One 'armor' artifact with theme: "$themeName".
-    - One 'talisman' artifact with theme: "$themeName".
-    - One 'powerup' artifact with theme: "$themeName".
-""";
-    }
-
-    final String prompt = """
-Generate new game content suitable for a player at level $levelForContent in a fantasy RPG.
-The player is currently progressing and needs new challenges, rewards, and places to explore.
-Provide the output as a single, valid JSON object with three top-level keys: "newEnemies", "newArtifacts", and "newGameLocations".
-Ensure there are NO trailing commas in lists or objects. All strings must be properly escaped (e.g. newlines as \\n, quotes as \\").
-
-IMPORTANT:
-- Do NOT generate enemies with IDs from this list: [$existingEnemyIdsString].
-- Do NOT generate artifacts with IDs from this list: [$existingArtifactIdsString].
-- Do NOT generate locations with IDs from this list: [$existingLocationIdsString].
-- All generated IDs and names MUST be new and unique.
-
-"newEnemies" should be an array of $totalEnemiesToGenerate enemy objects.
-- For each theme in [${themes.map((t) => "'$t'").join(', ')}], generate $numEnemiesToGeneratePerTheme enemy specifically for that theme and a relevant locationKey (see newGameLocations).
-- The remaining enemies can be general (theme: null) or pick from the themes.
+    String enemyInstructions = "";
+    if (numEnemiesToGenerate > 0) {
+      enemyInstructions = """
+"newEnemies" should be an array of $numEnemiesToGenerate enemy objects.
+- Consider these player stats for balancing: ${playerStatsString ?? "Player stats not provided, use general balancing for level $levelForContent."}. Enemies should be challenging but fair.
+- Distribute these enemies among the themes [${themes.map((t) => t == null ? "null (general)" : "'$t'").join(', ')}] or focus on "$specificLocationKeyForEnemies" if provided.
 Each enemy object must have:
 - id: string, unique (e.g., "gen_enemy_lvl${levelForContent}_a2f5")
 - name: string (e.g., "Shadow Lurker", "Arcane Golem")
-- theme: string or null (one of [${themes.map((t) => "'$t'").join(', ')}, null])
-- locationKey: string (MUST match one of the 'id's from "newGameLocations" generated in this response, or an existing one if appropriate for theme)
+- theme: string or null (one of [${themes.map((t) => t == null ? "null" : "'$t'").join(', ')}])
+- locationKey: string (MUST match one of the 'id's from "newGameLocations" if generated, or "$specificLocationKeyForEnemies" if provided, or an existing one if appropriate for theme)
 - minPlayerLevel: number (should be $levelForContent or slightly higher, e.g., up to ${levelForContent + 2})
 - health: number (range: ${50 + levelForContent * 12} to ${80 + levelForContent * 18})
 - attack: number (range: ${8 + (levelForContent * 1.8).floor()} to ${12 + (levelForContent * 2.2).floor()})
@@ -182,14 +175,32 @@ Each enemy object must have:
 - coinReward: number (range: ${20 + levelForContent * 5} to ${50 + levelForContent * 10})
 - xpReward: number (range: ${30 + levelForContent * 8} to ${70 + levelForContent * 15})
 - description: string (max 100 chars)
+""";
+    }
 
-"newArtifacts" should be an array of artifact objects.
-$artifactInstructions
+    String artifactInstructions = "";
+    if (numArtifactsPerTheme > 0 || numPowerupsPerTheme > 0) {
+      artifactInstructions =
+          "\"newArtifacts\" should be an array of artifact objects.\n";
+      for (String? themeName in themes) {
+        String currentThemeNameForPrompt = themeName ?? "general (null theme)";
+        if (numArtifactsPerTheme > 0) {
+          artifactInstructions += """
+  - For the theme "$currentThemeNameForPrompt", generate $numArtifactsPerTheme of 'weapon', $numArtifactsPerTheme of 'armor', and $numArtifactsPerTheme of 'talisman' artifacts.
+""";
+        }
+        if (numPowerupsPerTheme > 0) {
+          artifactInstructions += """
+  - For the theme "$currentThemeNameForPrompt", generate $numPowerupsPerTheme 'powerup' artifacts.
+""";
+        }
+      }
+      artifactInstructions += """
 Each artifact object must have:
 - id: string, unique (e.g., "gen_art_lvl${levelForContent}_tech_wpn_b3c8")
 - name: string
 - type: string ['weapon', 'armor', 'talisman', 'powerup']
-- theme: string (MUST be the theme it was generated for)
+- theme: string or null (MUST be the theme it was generated for, use null for general items)
 - description: string (max 100 chars)
 - cost: number (range: ${50 + levelForContent * 10} to ${300 + levelForContent * 25})
 - icon: string (a single, relevant emoji)
@@ -208,18 +219,43 @@ Each artifact object must have:
     - effectValue: number
     - uses: number (typically 1)
     (omit baseStats, upgradeBonus, maxLevel for powerups or set to 0/null)
+""";
+    }
 
+    String locationInstructions = "";
+    if (numLocationsToGenerate > 0) {
+      locationInstructions = """
 "newGameLocations" should be an array of $numLocationsToGenerate game location objects.
 Each location object must have:
 - id: string, unique (e.g., "loc_dark_forest", "loc_crystal_caves_$levelForContent")
 - name: string (e.g., "Whispering Woods", "Sunken Temple of Eldoria")
 - description: string (short, evocative description, max 150 chars)
-- minPlayerLevelToUnlock: number (Based on current level. First one could be $levelForContent, next one ${levelForContent + 3}, etc. Make a progression.)
+- minPlayerLevelToUnlock: number (Based on current level. E.g., $levelForContent, ${levelForContent + 2}, etc.)
 - iconEmoji: string (a single emoji representing the location, e.g., "🌲", "🏛️", "💎")
-- associatedTheme: string or null (e.g., "knowledge", "tech", or null for general, matching one of [${themes.map((t) => "'$t'").join(', ')}, null])
+- associatedTheme: string or null (e.g., "knowledge", "tech", or null for general, matching one of [${themes.map((t) => t == null ? "null" : "'$t'").join(', ')}])
 - bossEnemyIdToUnlockNextLocation: string or null (ID of an enemy generated in "newEnemies" that, when defeated, could unlock another location. Can be null.)
+""";
+    }
 
-Ensure all IDs are unique. Balance stats. Return ONLY the JSON object.
+    final String prompt = """
+Generate new game content suitable for a player at level $levelForContent in a fantasy RPG.
+Focus on generating content ONLY for the following themes (if applicable, or general content if a theme is null/not provided in the list): [${themes.map((t) => t == null ? "null (general)" : "'$t'").join(', ')}].
+Provide the output as a single, valid JSON object.
+The top-level keys should ONLY be those for which content is requested (e.g., "newEnemies", "newArtifacts", "newGameLocations").
+If no enemies are requested for this batch/theme, do not include the "newEnemies" key, and so on.
+Ensure there are NO trailing commas in lists or objects. All strings must be properly escaped.
+
+IMPORTANT:
+${existingEnemyIdsString != null && existingEnemyIdsString.isNotEmpty ? "- Do NOT generate enemies with IDs from this list: [$existingEnemyIdsString]." : ""}
+${existingArtifactIdsString != null && existingArtifactIdsString.isNotEmpty ? "- Do NOT generate artifacts with IDs from this list: [$existingArtifactIdsString]." : ""}
+${existingLocationIdsString != null && existingLocationIdsString.isNotEmpty ? "- Do NOT generate locations with IDs from this list: [$existingLocationIdsString]." : ""}
+- All generated IDs and names MUST be new and unique.
+
+$locationInstructions
+$enemyInstructions
+$artifactInstructions
+
+Return ONLY the JSON object.
 """;
     try {
       final Map<String, dynamic> rawData = await _makeAICall(
@@ -245,8 +281,8 @@ Ensure all IDs are unique. Balance stats. Return ONLY the JSON object.
                   .toList() ??
               [];
 
-      onLog(
-          "AI content generation successful. Parsed ${newEnemies.length} enemies, ${newArtifacts.length} artifacts, ${newGameLocations.length} locations.");
+      onLog(// Ensure string is passed
+          "AI content generation successful for this batch. Parsed ${newEnemies.length} enemies, ${newArtifacts.length} artifacts, ${newGameLocations.length} locations.");
 
       return {
         'newEnemies': newEnemies,
@@ -254,10 +290,10 @@ Ensure all IDs are unique. Balance stats. Return ONLY the JSON object.
         'newGameLocations': newGameLocations
       };
     } catch (e) {
-      onLog(
-          "<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateGameContent: ${e.toString()}</span>");
+      onLog(// Ensure string is passed
+          "<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateSpecificGameContent: ${e.toString()}</span>");
       if (kDebugMode) {
-        print("[AIService] generateGameContent caught error: $e");
+        print("[AIService] generateSpecificGameContent caught error: $e");
       }
       rethrow;
     }
@@ -274,7 +310,7 @@ Ensure all IDs are unique. Balance stats. Return ONLY the JSON object.
     required Function(int) onNewApiKeyIndex,
     required Function(String) onLog,
   }) async {
-    onLog(
+    onLog(// Ensure string is passed
         "Attempting to generate sub-quests for \"$mainTaskName\"... Mode: $generationMode");
 
     String modeSpecificInstructions = "";
@@ -366,18 +402,18 @@ Return ONLY the JSON object, no markdown or comments. NO TRAILING COMMAS.
               sss['targetCount'] is num));
 
       if (!isValid) {
-        onLog(
+        onLog(// Ensure string is passed
             "<span style=\"color:var(--fh-accent-orange);\">AI subquest response malformed.</span>");
         if (kDebugMode) {
           print("[AIService] Malformed subquest data: $newSubquests");
         }
         throw Exception("AI subquest response malformed.");
       }
-      onLog(
+      onLog(// Ensure string is passed
           "AI subquest generation successful. Parsed ${newSubquests.length} subquests.");
       return newSubquests;
     } catch (e) {
-      onLog(
+      onLog(// Ensure string is passed
           "<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateAISubquests: ${e.toString()}</span>");
       if (kDebugMode) {
         print("[AIService] generateAISubquests caught error: $e");

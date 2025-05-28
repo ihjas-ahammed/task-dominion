@@ -20,17 +20,21 @@ class EnemyInfoCardWidget extends StatelessWidget {
 
   Map<String, dynamic> _getEnemyDifficulty(int enemyMinLevel, int pLevel) {
     final levelDiff = enemyMinLevel - pLevel;
-    if (levelDiff <= -3)
+    if (levelDiff <= -3) {
       return {
         'text': "Trivial",
         'color': AppTheme.fhAccentGreen.withOpacity(0.7)
       };
-    if (levelDiff <= -1)
+    }
+    if (levelDiff <= -1) {
       return {'text': "Easy", 'color': AppTheme.fhAccentGreen};
-    if (levelDiff == 0)
+    }
+    if (levelDiff == 0) {
       return {'text': "Moderate", 'color': AppTheme.fhAccentTeal};
-    if (levelDiff == 1)
+    }
+    if (levelDiff == 1) {
       return {'text': "Challenging", 'color': AppTheme.fhAccentOrange};
+    }
     return {'text': "Deadly", 'color': AppTheme.fhAccentRed, 'isBold': true};
   }
 

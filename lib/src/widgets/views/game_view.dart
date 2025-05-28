@@ -18,6 +18,7 @@ class GameView extends StatefulWidget {
 
 class _GameViewState extends State<GameView> {
   String? _selectedLocationId;
+  bool _zoneClearedDialogShown = false;
 
   @override
   void initState() {
@@ -25,49 +26,182 @@ class _GameViewState extends State<GameView> {
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
     print("[GameView] initState called.");
 
-    final availableLocations = gameProvider.gameLocationsList
-        .where((loc) => gameProvider.isLocationUnlocked(loc.id))
-        .toList();
+    _initializeSelectedLocation(gameProvider);
+    gameProvider.addListener(_handleProviderChange);
     print(
-        "[GameView] Available unlocked locations: ${availableLocations.map((l) => l.name).join(', ')}");
+        "[GameView] Final _selectedLocationId in initState: $_selectedLocationId");
+  }
 
-    _selectedLocationId = gameProvider.currentGame.currentPlaceKey;
+  void _handleProviderChange() {
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
+    if (!mounted) return;
 
-    if (_selectedLocationId == null ||
-        !gameProvider.isLocationUnlocked(_selectedLocationId!)) {
-      if (availableLocations.isNotEmpty) {
-        _selectedLocationId = availableLocations.first.id;
-        print(
-            "[GameView] Defaulting selectedLocationId to first available: $_selectedLocationId");
-      } else if (gameProvider.gameLocationsList.isNotEmpty) {
-        _selectedLocationId = gameProvider.gameLocationsList.first.id;
-        print(
-            "[GameView] No unlocked locations, defaulting selectedLocationId to absolute first: $_selectedLocationId");
-      } else {
-        _selectedLocationId = null;
-        print("[GameView] No locations available at all.");
-      }
+    // Check if current selected location is cleared
+    if (_selectedLocationId != null &&
+        gameProvider.clearedLocationIds.contains(_selectedLocationId!) &&
+        !_zoneClearedDialogShown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showZoneClearedDialog(gameProvider, _selectedLocationId!);
+          _zoneClearedDialogShown =
+              true; // Prevent multiple dialogs for same clear
+          // Attempt to switch to a new location
+          final availableUnclearedLocations = gameProvider.gameLocationsList
+              .where((loc) =>
+                  gameProvider.isLocationUnlocked(loc.id) &&
+                  !gameProvider.clearedLocationIds.contains(loc.id))
+              .toList();
+          setState(() {
+            _selectedLocationId = availableUnclearedLocations.isNotEmpty
+                ? availableUnclearedLocations.first.id
+                : null;
+          });
+          if (_selectedLocationId != null) {
+            gameProvider.setProviderState(
+                currentGame: CurrentGame(
+                  playerCurrentHp: gameProvider.currentGame.playerCurrentHp,
+                  log: gameProvider.currentGame.log,
+                  currentPlaceKey: _selectedLocationId,
+                ),
+                doPersist: false);
+          } else {
+             // If no new location could be selected, ensure currentPlaceKey is also nullified if it was the cleared one
+            if (gameProvider.currentGame.currentPlaceKey != null && gameProvider.clearedLocationIds.contains(gameProvider.currentGame.currentPlaceKey!)) {
+                 gameProvider.setProviderState(
+                    currentGame: CurrentGame(
+                      playerCurrentHp: gameProvider.currentGame.playerCurrentHp,
+                      log: gameProvider.currentGame.log,
+                      currentPlaceKey: null,
+                    ),
+                    doPersist: false);
+            }
+          }
+        }
+      });
+    } else if (_selectedLocationId != null &&
+        !gameProvider.clearedLocationIds.contains(_selectedLocationId!)) {
+      // Reset if location becomes uncleared (e.g. daily reset)
+      _zoneClearedDialogShown = false;
     }
 
+    // Re-evaluate selected location if it becomes invalid (e.g. due to external changes)
+    final availableLocations = gameProvider.gameLocationsList
+        .where((loc) =>
+            gameProvider.isLocationUnlocked(loc.id) &&
+            !gameProvider.clearedLocationIds.contains(loc.id))
+        .toList();
+
     if (_selectedLocationId != null &&
-        gameProvider.currentGame.currentPlaceKey != _selectedLocationId) {
+        !availableLocations.any((loc) => loc.id == _selectedLocationId)) {
+      // Current selection is no longer valid or is cleared
+      _initializeSelectedLocation(gameProvider);
+    } else if (_selectedLocationId == null && availableLocations.isNotEmpty) {
+      // No selection, but locations are available
+      _initializeSelectedLocation(gameProvider);
+    }
+  }
+
+  void _initializeSelectedLocation(GameProvider gameProvider) {
+    final availableLocations = gameProvider.gameLocationsList
+        .where((loc) =>
+            gameProvider.isLocationUnlocked(loc.id) &&
+            !gameProvider.clearedLocationIds.contains(loc.id))
+        .toList();
+    print(
+        "[GameView] _initializeSelectedLocation: Available unlocked & uncleared locations: ${availableLocations.map((l) => l.name).join(', ')}");
+
+    String? newSelectedLocationId;
+    if (gameProvider.currentGame.currentPlaceKey != null &&
+        availableLocations
+            .any((l) => l.id == gameProvider.currentGame.currentPlaceKey)) {
+      newSelectedLocationId = gameProvider.currentGame.currentPlaceKey;
+    } else if (availableLocations.isNotEmpty) {
+      newSelectedLocationId = availableLocations.first.id;
+    }
+    // If no available uncleared locations, newSelectedLocationId will be null
+
+    if (mounted) {
+      setState(() {
+        _selectedLocationId = newSelectedLocationId;
+      });
+    } else {
+      _selectedLocationId = newSelectedLocationId;
+    }
+
+    if (newSelectedLocationId != null && // Use newSelectedLocationId for the check as _selectedLocationId might not be updated yet by setState
+        gameProvider.currentGame.currentPlaceKey != newSelectedLocationId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           print(
-              "[GameView] Updating provider with selectedLocationId: $_selectedLocationId");
+              "[GameView] Updating provider with selectedLocationId in _initializeSelectedLocation: $newSelectedLocationId");
+          gameProvider.setProviderState(
+              currentGame: CurrentGame(
+                enemy: gameProvider.currentGame.enemy, // Preserve enemy if one exists (though unlikely if changing place key)
+                playerCurrentHp: gameProvider.currentGame.playerCurrentHp,
+                log: gameProvider.currentGame.log,
+                currentPlaceKey: newSelectedLocationId,
+              ),
+              doPersist: false);
+        }
+      });
+    } else if (newSelectedLocationId == null && gameProvider.currentGame.currentPlaceKey != null) {
+       // If no location is selected (e.g. all cleared/locked) ensure provider reflects this
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          print(
+              "[GameView] Updating provider, no selected location, clearing currentPlaceKey.");
           gameProvider.setProviderState(
               currentGame: CurrentGame(
                 enemy: gameProvider.currentGame.enemy,
                 playerCurrentHp: gameProvider.currentGame.playerCurrentHp,
                 log: gameProvider.currentGame.log,
-                currentPlaceKey: _selectedLocationId,
+                currentPlaceKey: null,
               ),
               doPersist: false);
         }
       });
     }
-    print(
-        "[GameView] Final _selectedLocationId in initState: $_selectedLocationId");
+  }
+
+  Future<void> _showZoneClearedDialog(
+      GameProvider gameProvider, String clearedLocationId) async {
+    final clearedLocation = gameProvider.gameLocationsList
+        .firstWhereOrNull((loc) => loc.id == clearedLocationId);
+    if (clearedLocation == null) return;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(MdiIcons.partyPopper,
+                  color: AppTheme.fhAccentGold, size: 28),
+              const SizedBox(width: 10),
+              Text('Zone Pacified!',
+                  style: TextStyle(color: AppTheme.fhAccentGold)),
+            ],
+          ),
+          content: Text(
+              'Congratulations! You have pacified all threats in ${clearedLocation.name}. This zone is now safe.'),
+          actions: <Widget>[
+            ElevatedButton(
+              child: const Text('Awesome!'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    Provider.of<GameProvider>(context, listen: false)
+        .removeListener(_handleProviderChange);
+    super.dispose();
   }
 
   Widget _renderCharacterStats(BuildContext context, dynamic character,
@@ -158,8 +292,8 @@ class _GameViewState extends State<GameView> {
                     style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13)),
                 Icon(MdiIcons.shield,
                     size: 14,
-                    color: AppTheme.fhAccentTealFixed
-                        .withOpacity(0.8)), // Use fixed teal for clarity
+                    color: AppTheme.fhAccentTealFixed.withOpacity(
+                        0.8)), // Use fixed teal for clarity
                 Text(' DEF: $defenseStat',
                     style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13)),
               ],
@@ -190,6 +324,99 @@ class _GameViewState extends State<GameView> {
     );
   }
 
+  Widget _buildLocationList(BuildContext context, GameProvider gameProvider) {
+    
+    final availableLocations = gameProvider.gameLocationsList
+        .where((loc) => gameProvider.isLocationUnlocked(loc.id))
+        .toList()
+      ..sort((a, b) =>
+          a.minPlayerLevelToUnlock.compareTo(b.minPlayerLevelToUnlock));
+
+    if (availableLocations.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(24.0),
+        child: Center(
+            child: Text(
+                "No combat zones accessible at your current level or all zones pacified.",
+                textAlign: TextAlign.center)),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics:
+          const NeverScrollableScrollPhysics(), // Parent SingleChildScrollView handles scroll
+      itemCount: availableLocations.length,
+      itemBuilder: (context, index) {
+        final location = availableLocations[index];
+        final isSelected = _selectedLocationId == location.id;
+        final isCleared =
+            gameProvider.clearedLocationIds.contains(location.id);
+        final Color tileColor = isSelected
+            ? (gameProvider.getSelectedTask()?.taskColor ??
+                    AppTheme.fhAccentTealFixed)
+                .withOpacity(0.2)
+            : AppTheme.fhBgLight;
+        final Color borderColor = isSelected
+            ? (gameProvider.getSelectedTask()?.taskColor ??
+                AppTheme.fhAccentTealFixed)
+            : AppTheme.fhBorderColor.withOpacity(0.5);
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          color: tileColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(color: borderColor, width: isSelected ? 1.5 : 1),
+          ),
+          child: ListTile(
+            leading: Text(location.iconEmoji,
+                style: const TextStyle(fontSize: 24)),
+            title: Text(location.name,
+                style:
+                    TextStyle(fontWeight: isSelected ? FontWeight.bold : null)),
+            subtitle: Text(
+              isCleared
+                  ? "Zone Pacified"
+                  : "Lvl ${location.minPlayerLevelToUnlock}+",
+              style: TextStyle(
+                  color: isCleared
+                      ? AppTheme.fhAccentGreen
+                      : AppTheme.fhTextSecondary,
+                  fontSize: 11),
+            ),
+            trailing: isCleared
+                ? Icon(MdiIcons.shieldCheckOutline,
+                    color: AppTheme.fhAccentGreen)
+                : Icon(MdiIcons.chevronRight, color: AppTheme.fhTextSecondary),
+            onTap: isCleared
+                ? null
+                : () {
+                    if (_selectedLocationId != location.id) {
+                      print(
+                          "[GameView] Location selected from list: ${location.name}");
+                      setState(() {
+                        _selectedLocationId = location.id;
+                        _zoneClearedDialogShown = false;
+                      });
+                      gameProvider.setProviderState(
+                          currentGame: CurrentGame(
+                            playerCurrentHp:
+                                gameProvider.currentGame.playerCurrentHp,
+                            log: gameProvider.currentGame.log,
+                            currentPlaceKey: location.id,
+                            enemy:
+                                null // Clear current enemy when changing location
+                            ),
+                          doPersist: false);
+                    }
+                  },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final gameProvider = Provider.of<GameProvider>(context);
@@ -204,51 +431,19 @@ class _GameViewState extends State<GameView> {
     print(
         "[GameView] build called. SelectedLocationId: $_selectedLocationId, currentPlaceKey from provider: ${gameProvider.currentGame.currentPlaceKey}");
 
-    final List<GameLocation> unlockedLocations = gameProvider.gameLocationsList
-        .where((loc) => gameProvider.isLocationUnlocked(loc.id))
-        .toList();
-    print(
-        "[GameView] Unlocked locations for dropdown: ${unlockedLocations.map((l) => l.name).join(', ')}");
-
-    if (_selectedLocationId != null &&
-        !unlockedLocations.any((loc) => loc.id == _selectedLocationId)) {
-      print(
-          "[GameView] _selectedLocationId '$_selectedLocationId' is no longer valid/unlocked.");
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _selectedLocationId = unlockedLocations.isNotEmpty
-                ? unlockedLocations.first.id
-                : (gameProvider.gameLocationsList.isNotEmpty
-                    ? gameProvider.gameLocationsList.first.id
-                    : null);
-            print(
-                "[GameView] Reset _selectedLocationId to '$_selectedLocationId'");
-            if (_selectedLocationId != null) {
-              gameProvider.setProviderState(
-                  currentGame: CurrentGame(
-                    playerCurrentHp: gameProvider.currentGame.playerCurrentHp,
-                    log: gameProvider.currentGame.log,
-                    currentPlaceKey: _selectedLocationId,
-                  ),
-                  doPersist: false);
-            }
-          });
-        }
-      });
-    }
-
-    final availableEnemies = gameProvider.enemyTemplatesList
-        .where((enemyTmpl) =>
-            enemyTmpl.locationKey == _selectedLocationId &&
-            gameProvider.playerLevel >= enemyTmpl.minPlayerLevel &&
-            !gameProvider.defeatedEnemyIds.contains(enemyTmpl.id))
-        .toList()
-      ..sort((a, b) {
-        int lvlCompare = a.minPlayerLevel.compareTo(b.minPlayerLevel);
-        if (lvlCompare != 0) return lvlCompare;
-        return a.name.compareTo(b.name);
-      });
+    final List<EnemyTemplate> availableEnemies = _selectedLocationId != null
+        ? (gameProvider.enemyTemplatesList
+            .where((enemyTmpl) =>
+                enemyTmpl.locationKey == _selectedLocationId &&
+                gameProvider.playerLevel >= enemyTmpl.minPlayerLevel &&
+                !gameProvider.defeatedEnemyIds.contains(enemyTmpl.id))
+            .toList()
+          ..sort((a, b) {
+            int lvlCompare = a.minPlayerLevel.compareTo(b.minPlayerLevel);
+            if (lvlCompare != 0) return lvlCompare;
+            return a.name.compareTo(b.name);
+          }))
+        : [];
 
     final ownedPowerUps = gameProvider.artifacts
         .map((ownedArt) {
@@ -264,17 +459,30 @@ class _GameViewState extends State<GameView> {
         .cast<Map<String, dynamic>>()
         .toList();
 
-    GameLocation? displayedLocation = _selectedLocationId != null
-        ? gameProvider.gameLocationsList
-            .firstWhereOrNull((loc) => loc.id == _selectedLocationId)
-        : null;
-    if (displayedLocation == null &&
-        gameProvider.gameLocationsList.isNotEmpty) {
-      displayedLocation = gameProvider.gameLocationsList.first;
-      _selectedLocationId = displayedLocation.id;
-      print(
-          "[GameView] Fallback: displayedLocation set to ${displayedLocation.name}");
+    GameLocation? displayedLocation;
+    if (_selectedLocationId != null) {
+      displayedLocation = gameProvider.gameLocationsList
+          .firstWhereOrNull((loc) => loc.id == _selectedLocationId);
     }
+
+    // Fallback for displayedLocation title if _selectedLocationId is null but there are discoverable locations.
+    // This doesn't change _selectedLocationId, just what's shown in the title if nothing is strictly selected.
+    if (displayedLocation == null) {
+        final anyUnlocked = gameProvider.gameLocationsList
+            .firstWhereOrNull((loc) => gameProvider.isLocationUnlocked(loc.id) && !gameProvider.clearedLocationIds.contains(loc.id));
+        if (anyUnlocked != null) {
+            // Do not set displayedLocation here if _selectedLocationId is meant to be the source of truth for "current selection"
+            // The title logic will handle `displayedLocation?.name ?? "No Zone Selected"`
+        } else {
+            final anyLocationAtAll = gameProvider.gameLocationsList.firstOrNull;
+            if(anyLocationAtAll != null && _selectedLocationId == null && gameProvider.gameLocationsList.where((loc) => gameProvider.isLocationUnlocked(loc.id)).isEmpty) {
+                // If no location is selected and no locations are unlocked,
+                // we might show a generic name or the first game location if it makes sense.
+                // For now, "No Zone Selected" is fine.
+            }
+        }
+    }
+
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 16, right: 4, left: 4),
@@ -299,88 +507,49 @@ class _GameViewState extends State<GameView> {
           ),
           if (gameProvider.currentGame.enemy == null)
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: DropdownButtonFormField<String>(
-                decoration:
-                    const InputDecoration(labelText: 'Select Combat Zone'),
-                dropdownColor: AppTheme.fhBgMedium,
-                value: _selectedLocationId,
-                items: gameProvider.gameLocationsList.map((location) {
-                  final bool isUnlocked =
-                      gameProvider.isLocationUnlocked(location.id);
-                  return DropdownMenuItem<String>(
-                    value: location.id,
-                    enabled: isUnlocked,
-                    child: Row(
-                      children: [
-                        Text(location.iconEmoji,
-                            style: const TextStyle(fontSize: 16)),
-                        const SizedBox(width: 8),
-                        Text(
-                          location.name,
-                          style: TextStyle(
-                              color: isUnlocked
-                                  ? AppTheme.fhTextPrimary
-                                  : AppTheme.fhTextDisabled),
-                        ),
-                        if (!isUnlocked) ...[
-                          const SizedBox(width: 8),
-                          Icon(MdiIcons.lockOutline,
-                              size: 14,
-                              color: AppTheme.fhTextDisabled.withOpacity(0.7)),
-                          Text(" (Lvl ${location.minPlayerLevelToUnlock})",
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  color:
-                                      AppTheme.fhTextDisabled.withOpacity(0.7)))
-                        ]
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  if (newValue != null &&
-                      gameProvider.isLocationUnlocked(newValue)) {
-                    print("[GameView] Location changed to: $newValue");
-                    setState(() {
-                      _selectedLocationId = newValue;
-                    });
-                    gameProvider.setProviderState(
-                        currentGame: CurrentGame(
-                          playerCurrentHp:
-                              gameProvider.currentGame.playerCurrentHp,
-                          log: gameProvider.currentGame.log,
-                          currentPlaceKey: newValue,
-                        ),
-                        doPersist: false);
-                  } else if (newValue != null) {
-                    print(
-                        "[GameView] Attempted to select locked location: $newValue");
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(
-                              "Location ${gameProvider.gameLocationsList.firstWhereOrNull((l) => l.id == newValue)?.name ?? ''} is locked!"),
-                          backgroundColor: AppTheme.fhAccentOrange),
-                    );
-                  }
-                },
-              ),
-            ),
-          if (gameProvider.currentGame.enemy == null) ...[
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 8.0),
+                child: _buildLocationList(context, gameProvider)),
+          
+          if (gameProvider.currentGame.enemy == null &&
+              _selectedLocationId != null) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16.0),
               child: Text('Choose Your Opponent:',
                   style: theme.textTheme.headlineSmall
                       ?.copyWith(color: AppTheme.fhTextPrimary, fontSize: 20)),
             ),
-            if (availableEnemies.isEmpty)
+            if (gameProvider.clearedLocationIds.contains(_selectedLocationId!))
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  children: [
+                    Icon(MdiIcons.shieldCheckOutline,
+                        color: AppTheme.fhAccentGreen, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      "${displayedLocation?.name ?? 'This zone'} has been pacified!",
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(color: AppTheme.fhAccentGreen),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "No threats remain here. Explore other zones.",
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: AppTheme.fhTextSecondary),
+                    ),
+                  ],
+                ),
+              )
+            else if (availableEnemies.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Text(
-                  _selectedLocationId == null
-                      ? "Please select a combat zone."
-                      : "No suitable opponents found in ${displayedLocation?.name ?? 'this zone'} for your current level (${gameProvider.playerLevel}). Try another zone or await new threats.",
+                  // _selectedLocationId is guaranteed non-null here by the outer if condition.
+                  // So, the "Please select a combat zone." part of a ternary is not needed.
+                  "No suitable opponents found in ${displayedLocation?.name ?? 'this zone'} for your current level (${gameProvider.playerLevel}). Try another zone or await new threats.",
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium
                       ?.copyWith(color: AppTheme.fhTextSecondary),
@@ -419,7 +588,24 @@ class _GameViewState extends State<GameView> {
                   },
                 );
               })
-          ] else ...[
+          ] else if (gameProvider.currentGame.enemy == null && _selectedLocationId == null) ...[
+            // This block explicitly handles the case where no enemy is selected AND no location is selected.
+            // _buildLocationList already shows "No combat zones accessible..." if availableLocations is empty.
+            // If a user *could* select a location but hasn't, this space could prompt them.
+            // For now, if _buildLocationList handles empty states, this might not need much more,
+            // unless a specific message for "please select a zone from above" is desired.
+            if (gameProvider.gameLocationsList.where((loc) => gameProvider.isLocationUnlocked(loc.id)).isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
+                child: Text(
+                  "Select a combat zone from the list above to see available opponents.",
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fhTextSecondary),
+                ),
+              )
+            // If no locations are unlocked/available at all, _buildLocationList covers this.
+
+          ] else if (gameProvider.currentGame.enemy != null) ...[ // Enemy is present
             Padding(
               padding:
                   const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),

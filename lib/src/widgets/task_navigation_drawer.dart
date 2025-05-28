@@ -18,14 +18,37 @@ class TaskNavigationDrawer extends StatefulWidget {
 class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
   final _newTaskNameController = TextEditingController();
   final _newTaskDescController = TextEditingController();
-  String _newTaskTheme = 'tech'; // Default theme
-  String _newTaskColorHex = "FF64FFDA"; // Default color (AppTheme.fhAccentTeal)
 
   // For editing
   final _editTaskNameController = TextEditingController();
   final _editTaskDescController = TextEditingController();
-  String _editTaskTheme = 'tech';
-  String _editTaskColorHex = "FF64FFDA";
+
+  // Theme and Color selection state for dialogs
+  // These will be initialized when the dialog is shown.
+  String _dialogSelectedTheme = 'tech';
+  String _dialogSelectedColorHex =
+      AppTheme.fhAccentTealFixed.value.toRadixString(16).toUpperCase();
+
+  final List<Map<String, dynamic>> _availableThemes = [
+    {'name': 'tech', 'icon': MdiIcons.memory, 'color': AppTheme.fhAccentTealFixed},
+    {'name': 'knowledge', 'icon': MdiIcons.bookOpenPageVariantOutline, 'color': AppTheme.fhAccentPurple},
+    {'name': 'learning', 'icon': MdiIcons.schoolOutline, 'color': AppTheme.fhAccentOrange},
+    {'name': 'discipline', 'icon': MdiIcons.karate, 'color': AppTheme.fhAccentRed},
+    {'name': 'order', 'icon': MdiIcons.playlistCheck, 'color': AppTheme.fhAccentGreen},
+    {'name': 'health', 'icon': MdiIcons.heartPulse, 'color': Color(0xFF58D68D)},
+    {'name': 'finance', 'icon': MdiIcons.cashMultiple, 'color': Color(0xFFF1C40F)},
+    {'name': 'creative', 'icon': MdiIcons.paletteOutline, 'color': Color(0xFFEC7063)},
+    {'name': 'exploration', 'icon': MdiIcons.mapSearchOutline, 'color': Color(0xFF5DADE2)},
+    {'name': 'social', 'icon': MdiIcons.accountGroupOutline, 'color': Color(0xFFE59866)},
+    {'name': 'nature', 'icon': MdiIcons.treeOutline, 'color': Color(0xFF2ECC71)},
+    {'name': 'general', 'icon': MdiIcons.targetAccount, 'color': AppTheme.fhTextSecondary},
+  ];
+
+  Color _getColorForTheme(String themeName) {
+    return _availableThemes.firstWhere((t) => t['name'] == themeName,
+            orElse: () => {'color': AppTheme.fhAccentTealFixed})['color']
+        as Color;
+  }
 
   @override
   void dispose() {
@@ -36,33 +59,24 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
     super.dispose();
   }
 
-  IconData _getThemeIcon(String? theme) {
-    switch (theme) {
-      case 'tech':
-        return MdiIcons.memory;
-      case 'knowledge':
-        return MdiIcons.bookOpenPageVariantOutline;
-      case 'learning':
-        return MdiIcons.schoolOutline;
-      case 'discipline':
-        return MdiIcons.karate;
-      case 'order':
-        return MdiIcons.playlistCheck;
-      default:
-        return MdiIcons.targetAccount;
-    }
+  IconData _getThemeIcon(String? themeName) {
+    return _availableThemes.firstWhere((t) => t['name'] == themeName,
+            orElse: () => _availableThemes.last)['icon']
+        as IconData;
   }
 
   void _showAddTaskDialog(BuildContext context, GameProvider gameProvider) {
     _newTaskNameController.clear();
     _newTaskDescController.clear();
-    _newTaskTheme = 'tech'; // Reset to default
-    _newTaskColorHex = "FF64FFDA"; // Reset to default
+    _dialogSelectedTheme = 'tech'; // Reset to default
+    _dialogSelectedColorHex = _getColorForTheme(_dialogSelectedTheme)
+        .value
+        .toRadixString(16)
+        .toUpperCase(); // Reset to default theme's color
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        // Use a StatefulWidget for the dialog content to manage local state for color picker
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setStateDialog) {
           return AlertDialog(
@@ -85,21 +99,30 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                   DropdownButtonFormField<String>(
                     decoration: InputDecoration(labelText: 'Theme'),
                     dropdownColor: AppTheme.fhBgLight,
-                    value: _newTaskTheme,
-                    items: [
-                      'tech',
-                      'knowledge',
-                      'learning',
-                      'discipline',
-                      'order',
-                      'general'
-                    ]
-                        .map((String value) => DropdownMenuItem<String>(
-                            value: value, child: Text(value)))
+                    value: _dialogSelectedTheme,
+                    items: _availableThemes
+                        .map((themeMap) => DropdownMenuItem<String>(
+                            value: themeMap['name'] as String,
+                            child: Row(
+                              children: [
+                                Icon(
+                                    _getThemeIcon(themeMap['name'] as String),
+                                    size: 18,
+                                    color: themeMap['color'] as Color),
+                                SizedBox(width: 8),
+                                Text(themeMap['name'] as String),
+                              ],
+                            )))
                         .toList(),
                     onChanged: (String? newValue) {
                       if (newValue != null) {
-                        setStateDialog(() => _newTaskTheme = newValue);
+                        setStateDialog(() {
+                          _dialogSelectedTheme = newValue;
+                          _dialogSelectedColorHex = _getColorForTheme(newValue)
+                              .value
+                              .toRadixString(16)
+                              .toUpperCase();
+                        });
                       }
                     },
                   ),
@@ -107,42 +130,43 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                   Text("Select Theme Color:",
                       style: Theme.of(context).textTheme.labelMedium),
                   const SizedBox(height: 8),
-                  // Simplified Color Picker (Grid of predefined colors)
                   Wrap(
                     spacing: 8.0,
                     runSpacing: 8.0,
-                    children: [
-                      AppTheme.fhAccentRed, AppTheme.fhAccentTeal,
-                      AppTheme.fhAccentGold,
-                      AppTheme.fhAccentPurple, AppTheme.fhAccentGreen,
-                      AppTheme.fhAccentOrange,
-                      Color(0xFF0077B6),
-                      Color(0xFFFCA311) // Blue, Another Orange
-                    ].map((color) {
+                    children: _availableThemes.map((themeMap) {
+                      Color color = themeMap['color'] as Color;
                       String colorHex =
                           color.value.toRadixString(16).toUpperCase();
+                      bool isSelectedColor = _dialogSelectedColorHex == colorHex;
+
                       return GestureDetector(
-                        onTap: () =>
-                            setStateDialog(() => _newTaskColorHex = colorHex),
+                        onTap: () => setStateDialog(
+                            () => _dialogSelectedColorHex = colorHex),
                         child: Container(
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
                             color: color,
                             borderRadius: BorderRadius.circular(4),
-                            border: _newTaskColorHex == colorHex
+                            border: isSelectedColor
                                 ? Border.all(color: Colors.white, width: 2)
-                                : null,
+                                : Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1),
                           ),
+                          child: isSelectedColor
+                              ? Icon(MdiIcons.check,
+                                  color: ThemeData.estimateBrightnessForColor(
+                                              color) ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black,
+                                  size: 18)
+                              : null,
                         ),
                       );
                     }).toList(),
                   ),
-                  // For a full color picker, you would use:
-                  // ColorPicker(
-                  //   pickerColor: Color(int.parse("0x$_newTaskColorHex")),
-                  //   onColorChanged: (color) => setStateDialog(() => _newTaskColorHex = color.value.toRadixString(16).toUpperCase()),
-                  // ),
                 ],
               ),
             ),
@@ -157,8 +181,8 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                     gameProvider.addMainTask(
                       name: _newTaskNameController.text,
                       description: _newTaskDescController.text,
-                      theme: _newTaskTheme,
-                      colorHex: _newTaskColorHex,
+                      theme: _dialogSelectedTheme,
+                      colorHex: _dialogSelectedColorHex,
                     );
                     Navigator.of(dialogContext).pop();
                   }
@@ -175,14 +199,13 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
       BuildContext context, GameProvider gameProvider, MainTask taskToEdit) {
     _editTaskNameController.text = taskToEdit.name;
     _editTaskDescController.text = taskToEdit.description;
-    _editTaskTheme = taskToEdit.theme;
-    _editTaskColorHex = taskToEdit.colorHex;
+    _dialogSelectedTheme = taskToEdit.theme;
+    _dialogSelectedColorHex = taskToEdit.colorHex;
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
-            // For managing dialog's local state (color picker)
             builder: (BuildContext context, StateSetter setStateDialog) {
           return AlertDialog(
             backgroundColor: AppTheme.fhBgMedium,
@@ -204,21 +227,32 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                   DropdownButtonFormField<String>(
                       decoration: InputDecoration(labelText: 'Theme'),
                       dropdownColor: AppTheme.fhBgLight,
-                      value: _editTaskTheme,
-                      items: [
-                        'tech',
-                        'knowledge',
-                        'learning',
-                        'discipline',
-                        'order',
-                        'general'
-                      ]
-                          .map((String value) => DropdownMenuItem<String>(
-                              value: value, child: Text(value)))
+                      value: _dialogSelectedTheme,
+                      items: _availableThemes
+                          .map((themeMap) => DropdownMenuItem<String>(
+                              value: themeMap['name'] as String,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                      _getThemeIcon(
+                                          themeMap['name'] as String),
+                                      size: 18,
+                                      color: themeMap['color'] as Color),
+                                  SizedBox(width: 8),
+                                  Text(themeMap['name'] as String),
+                                ],
+                              )))
                           .toList(),
                       onChanged: (String? newValue) {
                         if (newValue != null) {
-                          setStateDialog(() => _editTaskTheme = newValue);
+                          setStateDialog(() {
+                            _dialogSelectedTheme = newValue;
+                            _dialogSelectedColorHex =
+                                _getColorForTheme(newValue)
+                                    .value
+                                    .toRadixString(16)
+                                    .toUpperCase();
+                          });
                         }
                       }),
                   const SizedBox(height: 16),
@@ -226,33 +260,38 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                       style: Theme.of(context).textTheme.labelMedium),
                   const SizedBox(height: 8),
                   Wrap(
-                    // Simplified Color Picker
-                    spacing: 8.0, runSpacing: 8.0,
-                    children: [
-                      AppTheme.fhAccentRed,
-                      AppTheme.fhAccentTeal,
-                      AppTheme.fhAccentGold,
-                      AppTheme.fhAccentPurple,
-                      AppTheme.fhAccentGreen,
-                      AppTheme.fhAccentOrange,
-                      Color(0xFF0077B6),
-                      Color(0xFFFCA311)
-                    ].map((color) {
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: _availableThemes.map((themeMap) {
+                      Color color = themeMap['color'] as Color;
                       String colorHex =
                           color.value.toRadixString(16).toUpperCase();
+                      bool isSelectedColor = _dialogSelectedColorHex == colorHex;
+
                       return GestureDetector(
-                        onTap: () =>
-                            setStateDialog(() => _editTaskColorHex = colorHex),
+                        onTap: () => setStateDialog(
+                            () => _dialogSelectedColorHex = colorHex),
                         child: Container(
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
                             color: color,
                             borderRadius: BorderRadius.circular(4),
-                            border: _editTaskColorHex == colorHex
+                            border: isSelectedColor
                                 ? Border.all(color: Colors.white, width: 2)
-                                : null,
+                                : Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1),
                           ),
+                          child: isSelectedColor
+                              ? Icon(MdiIcons.check,
+                                  color: ThemeData.estimateBrightnessForColor(
+                                              color) ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black,
+                                  size: 18)
+                              : null,
                         ),
                       );
                     }).toList(),
@@ -272,8 +311,8 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                       taskToEdit.id,
                       name: _editTaskNameController.text,
                       description: _editTaskDescController.text,
-                      theme: _editTaskTheme,
-                      colorHex: _editTaskColorHex,
+                      theme: _dialogSelectedTheme,
+                      colorHex: _dialogSelectedColorHex,
                     );
                     Navigator.of(dialogContext).pop();
                   }
@@ -292,12 +331,10 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
     final theme = Theme.of(context);
 
     return Drawer(
-      // Or Container if used as a fixed panel
-      backgroundColor: AppTheme.fhBgDark, // Match Valorant panel style
+      backgroundColor: AppTheme.fhBgDark,
       child: Column(
         children: [
           AppBar(
-            // Styled header for the panel
             title: Text('MISSIONS',
                 style: theme.textTheme.headlineSmall?.copyWith(
                     color: AppTheme.fhTextPrimary, letterSpacing: 1)),
@@ -336,7 +373,6 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                       final taskColor = Color(int.parse("0x${task.colorHex}"));
 
                       return Material(
-                        // For InkWell splash
                         color: isSelected
                             ? taskColor.withOpacity(0.25)
                             : Colors.transparent,
@@ -356,12 +392,12 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                                   : AppTheme.fhTextPrimary,
                               fontWeight: isSelected
                                   ? FontWeight.bold
-                                  : FontWeight.w500, // Bolder selection
+                                  : FontWeight.w500,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                           trailing: Wrap(
-                              spacing: 0, // No space between edit and streak
+                              spacing: 0,
                               children: [
                                 if (task.streak > 0)
                                   Chip(
@@ -373,8 +409,8 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                                             color: AppTheme.fhAccentOrange,
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold)),
-                                    backgroundColor: Color.fromARGB(
-                                        55, 0, 0, 0), // Darker chip
+                                    backgroundColor:
+                                        Color.fromARGB(55, 0, 0, 0),
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 6, vertical: 0),
                                     visualDensity: VisualDensity.compact,
@@ -398,17 +434,13 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                             if (gameProvider.currentView != 'task-details') {
                               gameProvider.setCurrentView('task-details');
                             }
-                            // Close drawer on small screens
                             if (MediaQuery.of(context).size.width < 900) {
-                              // Match HomeScreen breakpoint
                               Navigator.pop(context);
                             }
                           },
-                          selectedTileColor: taskColor.withOpacity(
-                              0.15), // Use task color for selection
+                          selectedTileColor: taskColor.withOpacity(0.15),
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8), // Increased vertical padding
+                              horizontal: 16, vertical: 8),
                         ),
                       );
                     },

@@ -12,7 +12,12 @@ class LogbookScreen extends StatelessWidget {
         title: const Text('Mission Logbook'),
         backgroundColor: AppTheme.fhBgMedium, // Match header style
       ),
-      body: const DailySummaryView(),
+       body: Center( // Center the content
+        child: ConstrainedBox( // Limit width for larger screens
+          constraints: const BoxConstraints(maxWidth: 900), 
+          child: const DailySummaryView(),
+        ),
+      ),
     );
   }
 }

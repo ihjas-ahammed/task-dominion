@@ -60,7 +60,9 @@ class RightPanelWidget extends StatelessWidget {
           ),
           if (progressPercent != null &&
               name.toUpperCase() != 'VITALITY' &&
-              name.toUpperCase() != 'XP BONUS')
+              name.toUpperCase() != 'XP CALC MOD' && // Updated condition
+              name.toUpperCase() !=
+                  'XP BONUS') // Check if this is the display name for bonusXPMod
             Padding(
               padding: const EdgeInsets.only(top: 4.0, left: 30),
               child: SizedBox(
@@ -345,32 +347,47 @@ class RightPanelWidget extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               children: gameProvider.playerGameStats.entries.map((entry) {
                 final stat = entry.value;
+                // Hide internal bonusXPMod, show XP CALC MOD instead if it's the one used for display
+                if (stat.name == 'bonusXPMod') return const SizedBox.shrink();
+
                 final buffValue = stat.value - stat.base;
-                String statValDisplay =
-                    stat.value.toStringAsFixed(stat.name == 'XP Bonus' ? 2 : 0);
+                String statValDisplay = stat.value
+                    .toStringAsFixed(0); // Default to 0 decimal places
+
                 if (stat.name == 'LUCK' ||
                     stat.name == 'COOLDOWN' ||
-                    stat.name == 'XP Bonus') {
+                    stat.name ==
+                        'XP CALC MOD') { // Updated condition for display
                   statValDisplay =
-                      '${(stat.value * (stat.name == 'XP Bonus' ? 100 : 1)).toStringAsFixed(0)}%';
+                      '${(stat.value * (stat.name == 'XP CALC MOD' ? 100 : 1)).toStringAsFixed(0)}%';
                 }
 
                 String? buffDisplay;
                 Color? buffColorVal;
-                if (buffValue != 0 && stat.name != 'XP Bonus') {
-                  buffDisplay =
-                      '${buffValue > 0 ? '+' : ''}${(stat.name == 'LUCK' || stat.name == 'COOLDOWN') ? '${buffValue.toStringAsFixed(0)}%' : buffValue.toStringAsFixed(0)}';
+                if (buffValue != 0) {
+                  String buffValueStr = (stat.name == 'LUCK' ||
+                          stat.name == 'COOLDOWN' ||
+                          stat.name == 'XP CALC MOD')
+                      ? '${(buffValue * (stat.name == 'XP CALC MOD' ? 100 : 1)).toStringAsFixed(0)}%'
+                      : buffValue.toStringAsFixed(0);
+                  buffDisplay = '${buffValue > 0 ? '+' : ''}$buffValueStr';
                   buffColorVal = buffValue > 0
                       ? AppTheme.fhAccentGreen
                       : AppTheme.fhAccentRed;
                 }
 
                 double progress = 0.0;
-                if (stat.name != 'VITALITY' && stat.name != 'XP Bonus') {
-                  double typicalMax = 50;
-                  if (stat.name == 'LUCK' || stat.name == 'COOLDOWN')
-                    typicalMax = 50;
-                  progress = (stat.value / typicalMax);
+                if (stat.name != 'VITALITY' && stat.name != 'XP CALC MOD') {
+                  double typicalMax =
+                      100 + (gameProvider.playerLevel - 1) * 2.0;
+                  if (stat.name == 'STRENGTH' ||
+                      stat.name == 'RUNIC' ||
+                      stat.name == 'DEFENSE') {
+                    typicalMax = 50 + (gameProvider.playerLevel * 2.0);
+                  } else if (stat.name == 'LUCK' || stat.name == 'COOLDOWN') {
+                    typicalMax = 100.0;
+                  }
+                  progress = (stat.value.abs() / typicalMax).clamp(0.0, 1.0);
                 }
 
                 return _buildStatDisplay(
@@ -382,7 +399,7 @@ class RightPanelWidget extends StatelessWidget {
                   buffColor: buffColorVal,
                   description: stat.description,
                   progressPercent:
-                      (stat.name != 'VITALITY' && stat.name != 'XP Bonus')
+                      (stat.name != 'VITALITY' && stat.name != 'XP CALC MOD')
                           ? progress
                           : null,
                 );

@@ -22,6 +22,7 @@ class CombatActions {
           id: enemyTemplate.id,
           name: enemyTemplate.name,
           theme: enemyTemplate.theme,
+          locationKey: enemyTemplate.locationKey,
           minPlayerLevel: enemyTemplate.minPlayerLevel,
           health: enemyTemplate.health,
           attack: enemyTemplate.attack,
@@ -35,6 +36,7 @@ class CombatActions {
       log: [
         "<span style=\"font-weight:bold;\">You encounter ${enemyTemplate.name}!</span> ${enemyTemplate.description}"
       ],
+      currentPlaceKey: _provider.currentGame.currentPlaceKey,
     );
 
     _provider.setProviderState(currentGame: newGame);
@@ -53,6 +55,7 @@ class CombatActions {
             ..._provider.currentGame.log,
             "<span style=\"color:${AppTheme.fhAccentRed.value.toRadixString(16).substring(2)};\">Not enough energy!</span>"
           ],
+          currentPlaceKey: _provider.currentGame.currentPlaceKey,
         ));
       }
       return;
@@ -80,6 +83,7 @@ class CombatActions {
     };
 
     EnemyTemplate? nextEnemyState = currentEnemy;
+    String? originalLocationKey = currentEnemy.locationKey;
 
     if (currentEnemy.hp <= 0) {
       currentLog.add("${currentEnemy.name} defeated!");
@@ -115,6 +119,7 @@ class CombatActions {
       playerCurrentHp: updatesToPersist['playerCurrentHp'] as double? ??
           _provider.currentGame.playerCurrentHp,
       log: currentLog,
+      currentPlaceKey: _provider.currentGame.currentPlaceKey,
     );
     if (!updatesToPersist.containsKey('playerCurrentHp')) {
       (updatesToPersist['currentGame'] as CurrentGame).playerCurrentHp =
@@ -128,6 +133,12 @@ class CombatActions {
         defeatedEnemyIds: updatesToPersist['defeatedEnemyIds'] as List<String>?,
         currentGame: updatesToPersist['currentGame'] as CurrentGame,
         doPersist: false);
+
+    if (nextEnemyState == null &&
+        currentEnemy.hp <= 0 &&
+        originalLocationKey != null) {
+      checkAndClearLocationIfAllEnemiesDefeated(originalLocationKey);
+    }
   }
 
   void usePowerUp(String uniqueId) {
@@ -153,6 +164,7 @@ class CombatActions {
             ..._provider.currentGame.log,
             "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)};\">Can only use power-ups in combat!</span>"
           ],
+          currentPlaceKey: _provider.currentGame.currentPlaceKey,
         ));
       }
       return;
@@ -166,6 +178,7 @@ class CombatActions {
 
     double playerHpAfterPowerUp = _provider.currentGame.playerCurrentHp;
     EnemyTemplate? nextEnemyState = currentEnemy;
+    String? originalLocationKey = currentEnemy.locationKey;
 
     if (template.effectType == 'direct_damage') {
       final int damage = max(
@@ -218,6 +231,7 @@ class CombatActions {
       playerCurrentHp: updatesToPersist['playerCurrentHp'] as double? ??
           _provider.currentGame.playerCurrentHp,
       log: currentLog,
+      currentPlaceKey: _provider.currentGame.currentPlaceKey,
     );
     if (!updatesToPersist.containsKey('playerCurrentHp')) {
       (updatesToPersist['currentGame'] as CurrentGame).playerCurrentHp =
@@ -231,6 +245,12 @@ class CombatActions {
         defeatedEnemyIds: updatesToPersist['defeatedEnemyIds'] as List<String>?,
         currentGame: updatesToPersist['currentGame'] as CurrentGame,
         doPersist: false);
+
+    if (nextEnemyState == null &&
+        currentEnemy.hp <= 0 &&
+        originalLocationKey != null) {
+      checkAndClearLocationIfAllEnemiesDefeated(originalLocationKey);
+    }
   }
 
   void forfeitMatch() {
@@ -248,6 +268,36 @@ class CombatActions {
             ..._provider.currentGame.log,
             "<span style=\"color:${AppTheme.fhAccentRed.value.toRadixString(16).substring(2)};\">You forfeited the match!</span> Lost $coinsLost Ø and all energy."
           ],
+          currentPlaceKey: _provider.currentGame.currentPlaceKey,
         ));
+  }
+
+  void checkAndClearLocationIfAllEnemiesDefeated(String locationId) {
+    final location = _provider.gameLocationsList
+        .firstWhereOrNull((loc) => loc.id == locationId);
+    if (location == null ||
+        _provider.clearedLocationIds.contains(locationId)) {
+      return; // Location not found or already cleared
+    }
+
+    // Find all enemies that *belong* to this location
+    final enemiesInLocation = _provider.enemyTemplatesList
+        .where((enemy) => enemy.locationKey == locationId)
+        .toList();
+
+    if (enemiesInLocation.isEmpty) {
+      // No enemies defined for this location, cannot be "cleared" by defeating enemies
+      // Or, if it's a non-combat zone, this logic might not apply.
+      // For now, if no enemies are tied to it, we don't auto-clear it this way.
+      return;
+    }
+
+    // Check if all enemies *belonging to this location* are in the defeated list
+    final allDefeated = enemiesInLocation
+        .every((enemy) => _provider.defeatedEnemyIds.contains(enemy.id));
+
+    if (allDefeated) {
+      _provider.markLocationAsCleared(locationId);
+    }
   }
 }

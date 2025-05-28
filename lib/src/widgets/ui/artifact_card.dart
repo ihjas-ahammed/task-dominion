@@ -94,35 +94,42 @@ class ArtifactCardWidget extends StatelessWidget {
       }
     } else {
       // Use dynamicAccent for primary stats if applicable, or specific colors for others
-      if (effectiveTemplate.baseAtt != null && effectiveTemplate.baseAtt! > 0)
+      if (effectiveTemplate.baseAtt != null && effectiveTemplate.baseAtt! > 0) {
         statWidgets.add(statChip(_statIcons['att']!,
             '+${effectiveTemplate.baseAtt}', AppTheme.fhAccentOrange));
-      if (effectiveTemplate.baseDef != null && effectiveTemplate.baseDef! > 0)
+      }
+      if (effectiveTemplate.baseDef != null && effectiveTemplate.baseDef! > 0) {
         statWidgets.add(statChip(_statIcons['def']!,
             '+${effectiveTemplate.baseDef}', dynamicAccent));
+      }
       if (effectiveTemplate.baseHealth != null &&
-          effectiveTemplate.baseHealth! > 0)
+          effectiveTemplate.baseHealth! > 0) {
         statWidgets.add(statChip(_statIcons['health']!,
             '+${effectiveTemplate.baseHealth}', AppTheme.fhAccentGreen));
+      }
       if (effectiveTemplate.baseRunic != null &&
-          effectiveTemplate.baseRunic! > 0)
+          effectiveTemplate.baseRunic! > 0) {
         statWidgets.add(statChip(_statIcons['runic']!,
             '+${effectiveTemplate.baseRunic}', AppTheme.fhAccentPurple));
-      if (effectiveTemplate.baseLuck != null && effectiveTemplate.baseLuck! > 0)
+      }
+      if (effectiveTemplate.baseLuck != null && effectiveTemplate.baseLuck! > 0) {
         statWidgets.add(statChip(_statIcons['luck']!,
             '+${effectiveTemplate.baseLuck}%', dynamicAccent));
+      }
       if (effectiveTemplate.baseCooldown != null &&
-          effectiveTemplate.baseCooldown! > 0)
+          effectiveTemplate.baseCooldown! > 0) {
         statWidgets.add(statChip(
             _statIcons['cooldown']!,
             '-${effectiveTemplate.baseCooldown}% CD',
             AppTheme.fhTextSecondary));
+      }
       if (effectiveTemplate.bonusXPMod != null &&
-          effectiveTemplate.bonusXPMod! > 0)
+          effectiveTemplate.bonusXPMod! > 0) {
         statWidgets.add(statChip(
             _statIcons['bonusXPMod']!,
             '+${(effectiveTemplate.bonusXPMod! * 100).toStringAsFixed(0)}% XP',
             AppTheme.fhAccentGreen));
+      }
     }
 
     if (statWidgets.isEmpty) {

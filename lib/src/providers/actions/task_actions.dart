@@ -136,18 +136,22 @@ class TaskActions {
 
     final int oldSubtaskTime = subtaskToUpdate.currentTimeSpent;
 
-    if (updates.containsKey('name'))
+    if (updates.containsKey('name')) {
       subtaskToUpdate.name = updates['name'] as String;
-    if (updates.containsKey('isCountable'))
+    }
+    if (updates.containsKey('isCountable')) {
       subtaskToUpdate.isCountable = updates['isCountable'] as bool;
-    if (updates.containsKey('targetCount'))
+    }
+    if (updates.containsKey('targetCount')) {
       subtaskToUpdate.targetCount = updates['targetCount'] as int;
+    }
     if (updates.containsKey('currentCount')) {
       subtaskToUpdate.currentCount = (updates['currentCount'] as int)
           .clamp(0, subtaskToUpdate.targetCount);
     }
-    if (updates.containsKey('currentTimeSpent'))
+    if (updates.containsKey('currentTimeSpent')) {
       subtaskToUpdate.currentTimeSpent = updates['currentTimeSpent'] as int;
+    }
 
     int timeDifference = 0;
     if (updates.containsKey('currentTimeSpent')) {
