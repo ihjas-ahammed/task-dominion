@@ -251,21 +251,32 @@ class CurrentGame {
 
 class GameSettings {
   bool descriptionsVisible;
-  bool autoGenerateContent;
+  bool dailyAutoGenerateContent; // Renamed from autoGenerateContent
+  int wakeupTimeHour;
+  int wakeupTimeMinute;
 
-  GameSettings(
-      {this.descriptionsVisible = true, this.autoGenerateContent = true});
+
+  GameSettings({
+    this.descriptionsVisible = true,
+    this.dailyAutoGenerateContent = true, // Renamed
+    this.wakeupTimeHour = 7,
+    this.wakeupTimeMinute = 0,
+  });
 
   factory GameSettings.fromJson(Map<String, dynamic> json) {
     return GameSettings(
       descriptionsVisible: json['descriptionsVisible'] as bool? ?? true,
-      autoGenerateContent: json['autoGenerateContent'] as bool? ?? true,
+      dailyAutoGenerateContent: json['dailyAutoGenerateContent'] as bool? ?? json['autoGenerateContent'] as bool? ?? true, // Handle legacy name
+      wakeupTimeHour: json['wakeupTimeHour'] as int? ?? 7,
+      wakeupTimeMinute: json['wakeupTimeMinute'] as int? ?? 0,
     );
   }
   Map<String, dynamic> toJson() {
     return {
       'descriptionsVisible': descriptionsVisible,
-      'autoGenerateContent': autoGenerateContent,
+      'dailyAutoGenerateContent': dailyAutoGenerateContent, // Renamed
+      'wakeupTimeHour': wakeupTimeHour,
+      'wakeupTimeMinute': wakeupTimeMinute,
     };
   }
 }
@@ -1005,6 +1016,27 @@ class ParkManager {
       'operationalCostPerMinuteDollars': operationalCostPerMinuteDollars,
       'currentPowerGenerated': currentPowerGenerated,
       'currentPowerConsumed': currentPowerConsumed,
+    };
+  }
+}
+
+class EmotionLog {
+  final DateTime timestamp;
+  final int rating; // 1-5
+
+  EmotionLog({required this.timestamp, required this.rating});
+
+  factory EmotionLog.fromJson(Map<String, dynamic> json) {
+    return EmotionLog(
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      rating: json['rating'] as int,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'timestamp': timestamp.toIso8601String(),
+      'rating': rating,
     };
   }
 }

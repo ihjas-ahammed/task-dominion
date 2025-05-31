@@ -110,7 +110,7 @@ class ParkActions {
       doPersist: true,
       doNotify: true,
     );
-    _logToPark("Demolished ${template.name}. Recovered \$${sellPrice}.");
+    _logToPark("Demolished ${template.name}. Recovered \$$sellPrice.");
     _recalculateParkStats();
   }
 
@@ -517,8 +517,9 @@ class ParkActions {
         }
 
         // Food impact on comfort
-        if (updatedDino.currentFood < 20) comfortImpact -= 10;
-        else if (updatedDino.currentFood < 50) comfortImpact -= 5;
+        if (updatedDino.currentFood < 20) {
+          comfortImpact -= 10;
+        } else if (updatedDino.currentFood < 50) comfortImpact -= 5;
         else if (updatedDino.currentFood > 80) comfortImpact += 3;
 
         updatedDino.currentComfort = (updatedDino.currentComfort + comfortImpact).clamp(0.0, 100.0);
@@ -633,7 +634,46 @@ class ParkActions {
     // Final recalculate and log after all changes for the skipped minute are applied.
     // This ensures ParkManager's generated/consumed power is also accurate.
     _recalculateParkStats(); 
-    _logToPark("Fast forwarded 1 minute. Income: \$${incomeThisSkippedMinute}, Costs: \$${costsThisSkippedMinute}. Bonus: \$${SKIP_MINUTE_PARK_DOLLAR_BONUS}. Energy Cost: ${SKIP_MINUTE_ENERGY_COST}⚡");
+    _logToPark("Fast forwarded 1 minute. Income: \$$incomeThisSkippedMinute, Costs: \$$costsThisSkippedMinute. Bonus: \$$SKIP_MINUTE_PARK_DOLLAR_BONUS. Energy Cost: $SKIP_MINUTE_ENERGY_COST⚡");
+  }
+
+  // New method to process park time based on main task timer
+  void processParkTime(int minutes) {
+    if (minutes <= 0) return;
+
+    double totalNetIncomeFromTimedActivity = 0;
+
+    for (int i = 0; i < minutes; i++) {
+      // Simulate dinosaur status updates for each minute
+      updateAllDinosaursStatus(); 
+
+      // Recalculate park stats to get current income/cost rates for this specific minute
+      // This is crucial if dino status affects operational status of buildings,
+      // or if income/cost can change dynamically minute by minute.
+      // _recalculateParkStats internally calls _updateBuildingOperationalStatusBasedOnPower
+      // and then updates _provider.parkManager with fresh income/cost rates.
+      _recalculateParkStats(); 
+
+      int incomeThisMinute = _provider.parkManager.incomePerMinuteDollars;
+      int costsThisMinute = _provider.parkManager.operationalCostPerMinuteDollars;
+      totalNetIncomeFromTimedActivity += (incomeThisMinute - costsThisMinute);
+    }
+
+    final double newParkDollars = _provider.parkManager.parkDollars + totalNetIncomeFromTimedActivity;
+
+    // Persist the final state of park dollars
+    // Note: ownedDinosaurs, ownedBuildings, and other parkManager stats (like rating, power)
+    // were already updated and persisted by the calls to updateAllDinosaursStatus and _recalculateParkStats within the loop.
+    // We only need to ensure the final dollar amount is set.
+    _provider.setProviderState(
+        parkManager: _provider.parkManager..parkDollars = newParkDollars.isNegative ? 0 : newParkDollars,
+        doPersist: true,
+        doNotify: true
+    );
+
+    if (totalNetIncomeFromTimedActivity != 0) {
+         _logToPark("Task activity resulted in park income change of \$${totalNetIncomeFromTimedActivity.toStringAsFixed(0)} over $minutes minute(s).");
+    }
   }
 
 }

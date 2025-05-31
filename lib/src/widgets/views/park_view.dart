@@ -250,7 +250,7 @@ class _ParkViewState extends State<ParkView> {
             const SizedBox(height: 12),
             ElevatedButton.icon(
                 icon: Icon(MdiIcons.runFast, size: 18),
-                label: Text("Fast Forward 1 Min (${SKIP_MINUTE_ENERGY_COST}⚡)"),
+                label: Text("Fast Forward 1 Min ($SKIP_MINUTE_ENERGY_COST⚡)"),
                 onPressed: gameProvider.playerEnergy >= SKIP_MINUTE_ENERGY_COST 
                     ? () => gameProvider.skipOneMinute()
                     : null,
@@ -543,7 +543,7 @@ class _ParkViewState extends State<ParkView> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -612,7 +612,7 @@ class _ParkViewState extends State<ParkView> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: dynamicAccent, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), textStyle: const TextStyle(fontSize: 10)),
                       onPressed: canAffordIncubation ? () => gameProvider.incubateDinosaur(species.id) : null,
-                      child: Text(canAffordIncubation ? "INCUBATE (\$${species.incubationCostDollars}, ${incubationEnergyCost}⚡)" : "CAN'T AFFORD"), 
+                      child: Text(canAffordIncubation ? "INCUBATE (\$${species.incubationCostDollars}, $incubationEnergyCost⚡)" : "CAN'T AFFORD"), 
                     ),
                   ],
                 ),
@@ -707,7 +707,7 @@ class _ParkViewState extends State<ParkView> {
                                 Text(template.name, style: theme.textTheme.headlineSmall?.copyWith(color: dynamicAccent)),
                                 Text("Capacity: ${dinosaursInEnclosure.length} / ${template.capacity ?? 'N/A'}", style: theme.textTheme.bodySmall),
                                 if (foodStation != null)
-                                    Text("Food Level: ${foodStation.currentFoodLevel ?? 0} / ${enclosureBaseFoodCapacity}", style: theme.textTheme.bodySmall),
+                                    Text("Food Level: ${foodStation.currentFoodLevel ?? 0} / $enclosureBaseFoodCapacity", style: theme.textTheme.bodySmall),
                                 const SizedBox(height: 10),
                                 Wrap(
                                     spacing: 8,
@@ -715,7 +715,7 @@ class _ParkViewState extends State<ParkView> {
                                         if (foodStation != null)
                                             ElevatedButton.icon(
                                                 icon: Icon(MdiIcons.foodAppleOutline, size: 16),
-                                                label: Text("Add Food (${feedDinoEnergyCost}⚡)", style: const TextStyle(fontSize: 10)), // Use player energy symbol
+                                                label: Text("Add Food ($feedDinoEnergyCost⚡)", style: const TextStyle(fontSize: 10)), // Use player energy symbol
                                                 onPressed: gameProvider.playerEnergy >= feedDinoEnergyCost // Check player energy
                                                   ? () => gameProvider.feedDinosaursInEnclosure(enclosure.uniqueId, 50) // Example amount
                                                   : null,

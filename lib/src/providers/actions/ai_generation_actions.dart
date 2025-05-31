@@ -25,20 +25,13 @@ class AIGenerationActions {
 
   // --- Programmatic Stat Generation ---
   Map<String, dynamic> _generateEnemyStats(
-      String id, String name, String? theme, String description, int level) {
-    String assignedLocationKey = _provider.gameLocationsList.isNotEmpty
-        ? (_provider.gameLocationsList
-                .firstWhereOrNull(
-                    (loc) => loc.associatedTheme == theme || theme == null)
-                ?.id ??
-            _provider.gameLocationsList.first.id)
-        : 'default_zone'; // Fallback location
-
+      String id, String name, String? theme, String description, int level, String specificLocationKey) {
+    
     return {
       'id': id,
       'name': name,
       'theme': theme,
-      'locationKey': assignedLocationKey,
+      'locationKey': specificLocationKey, // Use the provided specific location key
       'minPlayerLevel': level,
       'health': (40 + level * 10) + _random.nextInt(20 + level * 5),
       'attack': (7 + level * 1.5).toInt() + _random.nextInt(3 + level ~/ 2),
@@ -85,9 +78,9 @@ class AIGenerationActions {
       }
     }
     // Ensure all numeric stat fields are present, defaulting to 0 or null
-    ['baseAtt', 'baseRunic', 'baseDef', 'baseHealth', 'baseLuck', 'baseCooldown'].forEach((key) {
+    for (var key in ['baseAtt', 'baseRunic', 'baseDef', 'baseHealth', 'baseLuck', 'baseCooldown']) {
         stats.putIfAbsent(key, () => 0);
-    });
+    }
     stats.putIfAbsent('bonusXPMod', () => 0.0);
 
 
@@ -121,17 +114,15 @@ class AIGenerationActions {
       String id, String name, String description, String iconEmoji, String? theme, int level) {
     String? bossId;
     // If there are enemies, try to pick one as a boss. Prioritize by level and theme if possible.
-    if (_provider.enemyTemplatesList.isNotEmpty) {
-        final potentialBosses = _provider.enemyTemplatesList
+    // This now needs to consider that enemies might not be generated *yet* if this location is generated first.
+    // So, bossId might often be null initially and set later, or chosen from existing enemies if appropriate.
+    final potentialBosses = _provider.enemyTemplatesList
             .where((e) => (e.theme == theme || theme == null) && e.minPlayerLevel >= level && e.minPlayerLevel <= level + 2)
             .toList();
-        if (potentialBosses.isNotEmpty) {
-            bossId = potentialBosses[_random.nextInt(potentialBosses.length)].id;
-        } else {
-           // Fallback: pick any enemy if no theme/level match
-           bossId = _provider.enemyTemplatesList[_random.nextInt(_provider.enemyTemplatesList.length)].id;
-        }
+    if (potentialBosses.isNotEmpty) {
+        bossId = potentialBosses[_random.nextInt(potentialBosses.length)].id;
     }
+    // If no suitable existing boss, it will remain null. GameProvider can later assign a newly generated enemy as boss.
 
     return {
       'id': id,
@@ -148,7 +139,11 @@ class AIGenerationActions {
   Future<void> generateGameContent(int levelForContent,
       {bool isManual = false,
       bool isInitial = false,
-      String contentType = "all"}) async {
+      String contentType = "all",
+      int numLocationsToGenerate = 0,
+      int numEnemiesToGenerate = 0,
+      String? specificLocationKeyForEnemies,
+      }) async {
     try {
       if (_provider.isGeneratingContent && !isManual && !isInitial) {
         print("[AIActions] generateGameContent skipped, already in progress for $contentType.");
@@ -163,21 +158,29 @@ class AIGenerationActions {
 
       // Build request for AI
       List<Map<String, dynamic>> aiRequestedItems = [];
-      int numLocations = (contentType == "all" || contentType == "locations") ? (isInitial ? 2 : 1) : 0;
-      int numEnemiesPerTheme = (contentType == "all" || contentType == "enemies") ? (isInitial ? 1 : 1) : 0; // Per theme
-      int numArtifactsPerSubtypePerTheme = (contentType == "all" || contentType == "artifacts") ? (isInitial ? 1 : 1) : 0; // Per weapon/armor/talisman per theme
-      int numPowerupsPerTheme = (contentType == "all" || contentType == "artifacts") ? (isInitial ? 1 : 0) : 0; // Per theme
+      int actualNumLocations = numLocationsToGenerate > 0 ? numLocationsToGenerate : ((contentType == "all" || contentType == "locations") ? (isInitial ? 2 : 1) : 0);
+      int actualNumEnemies = numEnemiesToGenerate > 0 ? numEnemiesToGenerate : ((contentType == "all" || contentType == "enemies") ? (isInitial ? 2 : 1) : 0); // Total enemies, not per theme for simplicity here
+      int numArtifactsPerSubtypePerTheme = (contentType == "all" || contentType == "artifacts") ? (isInitial ? 1 : 1) : 0;
+      int numPowerupsPerTheme = (contentType == "all" || contentType == "artifacts") ? (isInitial ? 1 : 0) : 0;
 
-      if (numLocations > 0) {
-         for (int i = 0; i < numLocations; i++) {
+
+      if (actualNumLocations > 0) {
+         for (int i = 0; i < actualNumLocations; i++) {
             aiRequestedItems.add({"itemCategory": "location", "themeHint": activeThemes[_random.nextInt(activeThemes.length)]});
          }
       }
-      if (numEnemiesPerTheme > 0) {
-        for (var theme in activeThemes) {
-          for (int i = 0; i < numEnemiesPerTheme; i++) {
-            aiRequestedItems.add({"itemCategory": "enemy", "themeHint": theme});
+      if (actualNumEnemies > 0) {
+        for (int i = 0; i < actualNumEnemies; i++) {
+          // If specificLocationKeyForEnemies is provided, we need its theme.
+          // Otherwise, pick a random theme from activeThemes.
+          String? themeForEnemy;
+          if (specificLocationKeyForEnemies != null) {
+            final loc = _provider.gameLocationsList.firstWhereOrNull((l) => l.id == specificLocationKeyForEnemies);
+            themeForEnemy = loc?.associatedTheme; // Could be null if loc theme is null
+          } else {
+            themeForEnemy = activeThemes[_random.nextInt(activeThemes.length)];
           }
+          aiRequestedItems.add({"itemCategory": "enemy", "themeHint": themeForEnemy});
         }
       }
       if (numArtifactsPerSubtypePerTheme > 0) {
@@ -198,7 +201,7 @@ class AIGenerationActions {
       }
       
       if (aiRequestedItems.isEmpty) {
-         _provider.setProviderAIGlobalLoading(false, progress: 1.0, statusMessage: "No items requested for AI generation.");
+         _provider.setProviderAIGlobalLoading(false, progress: 1.0, statusMessage: "No items requested for AI generation for $contentType.");
          return;
       }
 
@@ -233,7 +236,7 @@ Artifacts: ${_provider.artifactTemplatesList.map((e) => e.name).join(', ')}
 Request:
 ${({"requestedItems": aiRequestedItems})}
 """;
-      _provider.setProviderAIGlobalLoading(true, progress: 0.2, statusMessage: "Contacting AI for names & icons...");
+      _provider.setProviderAIGlobalLoading(true, progress: 0.2, statusMessage: "Contacting AI for names & icons ($contentType)...");
       
 
       final Map<String, dynamic> aiResponse = await _aiService.makeAICall(
@@ -241,11 +244,11 @@ ${({"requestedItems": aiRequestedItems})}
         currentApiKeyIndex: _provider.apiKeyIndex,
         onNewApiKeyIndex: _provider.setProviderApiKeyIndex,
         onLog: (log) {
-          print("[AI Service Log - Names/Icons]: $log");
+          print("[AI Service Log - Content Type: $contentType]: $log");
           _logToGame(log);
         },
       );
-       _provider.setProviderAIGlobalLoading(true, progress: 0.5, statusMessage: "AI response received. Processing items...");
+       _provider.setProviderAIGlobalLoading(true, progress: 0.5, statusMessage: "AI response received. Processing $contentType items...");
 
       final List<Map<String, dynamic>> generatedAiItems =
           (aiResponse['generatedItems'] as List?)?.map((item) => item as Map<String, dynamic>).toList() ?? [];
@@ -272,7 +275,11 @@ ${({"requestedItems": aiRequestedItems})}
           newLocations.add(GameLocation.fromJson(_generateLocationStats(id, itemName, itemDescription, itemIcon, itemTheme, levelForContent)));
         } else if (itemCategory == 'enemy') {
           final id = _generateUniqueId('enemy', itemName, itemTheme, levelForContent);
-          newEnemies.add(EnemyTemplate.fromJson(_generateEnemyStats(id, itemName, itemTheme, itemDescription, levelForContent)));
+          final String locKeyForEnemy = specificLocationKeyForEnemies ?? 
+                                        _provider.gameLocationsList.firstWhereOrNull((l) => l.associatedTheme == itemTheme)?.id ?? 
+                                        _provider.gameLocationsList.firstOrNull?.id ?? 
+                                        "default_zone_error";
+          newEnemies.add(EnemyTemplate.fromJson(_generateEnemyStats(id, itemName, itemTheme, itemDescription, levelForContent, locKeyForEnemy)));
         } else if (itemCategory.startsWith('artifact_')) {
           final type = itemCategory.split('_')[1]; // weapon, armor, talisman
           final id = _generateUniqueId('art', itemName, itemTheme, levelForContent);
@@ -282,7 +289,7 @@ ${({"requestedItems": aiRequestedItems})}
           newArtifacts.add(ArtifactTemplate.fromJson(_generatePowerupStats(id, itemName, itemTheme, itemDescription, itemIcon, levelForContent)));
         }
       }
-      _provider.setProviderAIGlobalLoading(true, progress: 0.8, statusMessage: "Finalizing generated content...");
+      _provider.setProviderAIGlobalLoading(true, progress: 0.8, statusMessage: "Finalizing generated $contentType content...");
 
       if (newLocations.isNotEmpty) {
         _provider.setProviderState(gameLocationsList: [..._provider.gameLocationsList, ...newLocations], doPersist: false);
@@ -295,7 +302,7 @@ ${({"requestedItems": aiRequestedItems})}
       }
       
       if (newLocations.isNotEmpty || newEnemies.isNotEmpty || newArtifacts.isNotEmpty) {
-         _logToGame("<span style=\"color:${AppTheme.fhAccentGreen.value.toRadixString(16).substring(2)};\">AI has infused the world with new elements for level $levelForContent ($contentType).</span>");
+         _logToGame("<span style=\"color:${AppTheme.fhAccentGreen.value.toRadixString(16).substring(2)};\">AI has infused the world with new $contentType elements for level $levelForContent.</span>");
          _provider.setProviderState(doPersist: true, doNotify: true); // Trigger a single save and notify
       } else {
          _logToGame("<span style=\"color:var(--fh-accent-orange);\">AI generation for $contentType (L$levelForContent) did not yield new unique content.</span>");
@@ -375,7 +382,7 @@ ${({"requestedItems": aiRequestedItems})}
       final List<SubTask> newSubTasksForParent = [];
       for (var subquestData in generatedSubquestsRaw) {
         if (kDebugMode) print("[AIActions] Processing raw subquest data: $subquestData");
-        if (subquestData == null || subquestData is! Map<String, dynamic>) {
+        if (subquestData is! Map<String, dynamic>) {
           print("[AIActions] Skipping invalid raw subquest data (null or not a Map): $subquestData");
           continue;
         }
@@ -427,7 +434,7 @@ ${({"requestedItems": aiRequestedItems})}
 
       if (newSubTasksForParent.isEmpty && generatedSubquestsRaw.isNotEmpty) {
         print("[AIActions] Warning: Raw subquests were received, but no valid SubTasks could be parsed for task '${mainTaskForSubquests.name}'.");
-        _logToGame("<span style=\"color:var(--fh-accent-orange);\">AI returned sub-quest data for '${mainTaskForSubquests.name}', but it could not be processed.</span>");
+        _logToGame("<span style=\"color:var(--fh-accent-orange);\">AI returned sub-quest data for '${mainTaskForSubquests.name}', but it could not be fully processed.</span>");
       }
 
       final newMainTasks = _provider.mainTasks.map((task) {

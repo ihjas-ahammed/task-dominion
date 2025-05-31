@@ -104,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: AppTheme.fhAccentTealFixed), // Themed Icon
                       const SizedBox(height: 16),
                       Text(
-                        'TASK DOMINION',
+                        'ARCANE',
                         style: theme.textTheme.displaySmall?.copyWith(
                           // Use displaySmall for prominent title
                           color: AppTheme.fhAccentTealFixed,

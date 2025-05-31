@@ -152,23 +152,7 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(MdiIcons.cogOutline,
-                    color: (gameProvider.getSelectedTask()?.taskColor ??
-                        AppTheme.fhAccentTealFixed),
-                    size: 36),
-                const SizedBox(width: 12),
-                Text("System Configuration",
-                    style: theme.textTheme.displaySmall?.copyWith(
-                        color: (gameProvider.getSelectedTask()?.taskColor ??
-                            AppTheme.fhAccentTealFixed))),
-              ],
-            ),
-          ),
+         
           _buildSettingsSection(gameProvider, theme,
               icon: MdiIcons.cloudSyncOutline,
               title: 'Cloud Synchronization',
@@ -356,12 +340,12 @@ class _SettingsViewState extends State<SettingsView> {
             title: 'Cognitive Matrix (AI)',
             children: [
               SwitchListTile.adaptive(
-                title: const Text('Dynamic Content Adaptation (Level Up)'),
+                title: const Text('Daily Auto-Generate Content'),
                 subtitle: const Text(
-                    'Automatically generate new challenges and items upon leveling up.'),
-                value: gameProvider.settings.autoGenerateContent,
+                    'Each day, automatically generate new challenges (enemies, and a new realm if current one is pacified).'),
+                value: gameProvider.settings.dailyAutoGenerateContent,
                 onChanged: (value) => gameProvider.setSettings(
-                    gameProvider.settings..autoGenerateContent = value),
+                    gameProvider.settings..dailyAutoGenerateContent = value),
                 activeColor: (gameProvider.getSelectedTask()?.taskColor ??
                     AppTheme.fhAccentTealFixed),
                 contentPadding: EdgeInsets.zero,
@@ -503,7 +487,7 @@ class _SettingsViewState extends State<SettingsView> {
                       trailing: IconButton(
                         icon: Icon(MdiIcons.mapMarkerRemoveVariant,
                             color: AppTheme.fhAccentRed),
-                        tooltip: "Delete Realm",
+                        tooltip: "Decommission Realm",
                         onPressed: () async {
                           final confirm = await showDialog<bool>(
                             context: context,
@@ -512,10 +496,10 @@ class _SettingsViewState extends State<SettingsView> {
                                 Icon(MdiIcons.alertOutline,
                                     color: AppTheme.fhAccentRed),
                                 const SizedBox(width: 10),
-                                const Text('Confirm Deletion')
+                                const Text('Confirm Decommission')
                               ]),
                               content: Text(
-                                  'Are you sure you want to delete the realm "${location.name}"? This cannot be undone.'),
+                                  'Are you sure you want to decommission the realm "${location.name}"? This cannot be undone.'),
                               actionsAlignment: MainAxisAlignment.spaceBetween,
                               actions: [
                                 TextButton(
@@ -527,7 +511,7 @@ class _SettingsViewState extends State<SettingsView> {
                                         Navigator.of(ctx).pop(true),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: AppTheme.fhAccentRed),
-                                    child: const Text('DELETE REALM')),
+                                    child: const Text('DECOMMISSION REALM')),
                               ],
                             ),
                           );
@@ -553,7 +537,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ElevatedButton.icon(
                   icon: Icon(MdiIcons.archiveRemoveOutline,
                       size: 18, color: AppTheme.fhTextPrimary),
-                  label: const Text('CLEAR ARTIFACTS'),
+                  label: const Text('CLEAR ARTIFACTS & BLUEPRINTS'),
                   onPressed: () async {
                     final confirm = await showDialog<bool>(
                       context: context,
@@ -562,10 +546,10 @@ class _SettingsViewState extends State<SettingsView> {
                           Icon(MdiIcons.alertOutline,
                               color: AppTheme.fhAccentOrange),
                           const SizedBox(width: 10),
-                          const Text('Confirm Clear Inventory')
+                          const Text('Confirm Artifact Purge')
                         ]),
                         content: const Text(
-                            'This will remove ALL artifacts from your inventory (equipped items will be unequipped). Templates will remain. This action cannot be undone. Are you sure?'),
+                            'This will remove ALL owned artifacts from your inventory (equipped items will be unequipped) AND all artifact blueprints/templates. This action cannot be undone. Are you sure?'),
                         actionsAlignment: MainAxisAlignment.spaceBetween,
                         actions: [
                           TextButton(
@@ -575,16 +559,16 @@ class _SettingsViewState extends State<SettingsView> {
                               onPressed: () => Navigator.of(ctx).pop(true),
                               style: ElevatedButton.styleFrom(
                                   backgroundColor: AppTheme.fhAccentOrange),
-                              child: const Text('CONFIRM CLEAR')),
+                              child: const Text('CONFIRM PURGE')),
                         ],
                       ),
                     );
                     if (confirm == true) {
-                      gameProvider.clearAllOwnedArtifacts();
+                      gameProvider.clearAllArtifactsAndTemplates(); // Updated method name
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                             content: Text(
-                                'All owned artifacts cleared from inventory.'),
+                                'All owned artifacts and blueprints purged.'),
                             backgroundColor: AppTheme.fhAccentGreen));
                       }
                     }
@@ -632,6 +616,53 @@ class _SettingsViewState extends State<SettingsView> {
                             const SnackBar(
                                 content: Text(
                                     'All enemy signatures decommissioned.'),
+                                backgroundColor: AppTheme.fhAccentGreen));
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.fhAccentOrange,
+                      foregroundColor: AppTheme.fhTextPrimary,
+                      minimumSize: const Size(double.infinity, 44)),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon( // New Button
+                  icon: Icon(MdiIcons.earthRemove,
+                      size: 18, color: AppTheme.fhTextPrimary),
+                  label: const Text('DECOMMISSION ALL REALMS'),
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Row(children: [
+                          Icon(MdiIcons.alertOutline,
+                              color: AppTheme.fhAccentOrange),
+                          const SizedBox(width: 10),
+                          const Text('Confirm Realm Decommission')
+                        ]),
+                        content: const Text(
+                            'This removes ALL combat zones (realms). The Arena will be inaccessible until new realms are discovered/generated. This action cannot be undone. Are you sure?'),
+                        actionsAlignment: MainAxisAlignment.spaceBetween,
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('CANCEL')),
+                          ElevatedButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.fhAccentOrange,
+                                  foregroundColor: AppTheme.fhTextPrimary),
+                              child: const Text('CONFIRM DECOMMISSION')),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      gameProvider.removeAllGameLocations();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'All realms decommissioned.'),
                                 backgroundColor: AppTheme.fhAccentGreen));
                       }
                     }

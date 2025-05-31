@@ -18,16 +18,311 @@ class DailySummaryView extends StatefulWidget {
 class _DailySummaryViewState extends State<DailySummaryView> {
   String? _selectedDate;
   int _touchedPieIndex = -1;
+  int _hoveredEmotionRating = 0; // For emotion logging UI
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
     final availableDates = gameProvider.completedByDay.keys.toList();
-    availableDates.sort((a, b) => b.compareTo(a));
+    availableDates.sort((a, b) => b.compareTo(a)); // Sort descending
     if (_selectedDate == null && availableDates.isNotEmpty) {
       _selectedDate = availableDates.first;
+    } else if (_selectedDate != null &&
+        !availableDates.contains(_selectedDate)) {
+      // If current selection is no longer valid (e.g. data cleared)
+      _selectedDate = availableDates.isNotEmpty ? availableDates.first : null;
     }
+  }
+
+  Widget _buildEmotionLoggingRow(
+      GameProvider gameProvider, String date, ThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(5, (index) {
+        final rating = index + 1;
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hoveredEmotionRating = rating),
+          onExit: (_) => setState(() => _hoveredEmotionRating = 0),
+          child: GestureDetector(
+            onTap: () {
+              gameProvider.logEmotion(date, rating);
+              setState(() => _hoveredEmotionRating = 0);
+            },
+            child: AnimatedScale(
+              scale: _hoveredEmotionRating == rating ? 1.2 : 1.0,
+              duration: const Duration(milliseconds: 150),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _getEmotionIcon(rating),
+                    size: 32,
+                    color: _hoveredEmotionRating >= rating
+                        ? _getEmotionColor(rating, theme)
+                        : AppTheme.fhTextDisabled,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_getEmotionLabel(rating),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          color: _hoveredEmotionRating >= rating
+                              ? _getEmotionColor(rating, theme)
+                              : AppTheme.fhTextDisabled,
+                          fontWeight: _hoveredEmotionRating == rating
+                              ? FontWeight.bold
+                              : FontWeight.normal))
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  IconData _getEmotionIcon(int rating) {
+    switch (rating) {
+      case 1:
+        return MdiIcons.emoticonSadOutline;
+      case 2:
+        return MdiIcons.emoticonConfusedOutline;
+      case 3:
+        return MdiIcons.emoticonNeutralOutline;
+      case 4:
+        return MdiIcons.emoticonHappyOutline;
+      case 5:
+        return MdiIcons.emoticonExcitedOutline;
+      default:
+        return MdiIcons.emoticonOutline;
+    }
+  }
+
+  String _getEmotionLabel(int rating) {
+    switch (rating) {
+      case 1:
+        return "Awful";
+      case 2:
+        return "Bad";
+      case 3:
+        return "Okay";
+      case 4:
+        return "Good";
+      case 5:
+        return "Great";
+      default:
+        return "";
+    }
+  }
+
+  Color _getEmotionColor(int rating, ThemeData theme) {
+    // Use theme accents for consistency where appropriate
+    switch (rating) {
+      case 1:
+        return AppTheme.fhAccentRed;
+      case 2:
+        return AppTheme.fhAccentOrange;
+      case 3:
+        return AppTheme.fhAccentGold;
+      case 4:
+        return AppTheme.fhAccentGreen;
+      case 5:
+        return theme
+            .colorScheme.primary; // Use dynamic primary accent for best rating
+      default:
+        return AppTheme.fhTextDisabled;
+    }
+  }
+
+  Widget _buildEmotionCurveChart(
+      List<EmotionLog> logs, ThemeData theme, Color dynamicAccent) {
+    if (logs.length < 2) {
+      return SizedBox(
+        height: 200,
+        child: Center(
+            child: Text(
+          "Not enough emotion data for a trend line yet (need at least 2 logs for the day).",
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppTheme.fhTextSecondary, fontStyle: FontStyle.italic),
+        )),
+      );
+    }
+
+    // Calculate FlSpot data. X-value is hours from midnight of the log's day.
+    List<FlSpot> spots = logs.map((log) {
+      final DateTime logDayMidnight =
+          DateTime(log.timestamp.year, log.timestamp.month, log.timestamp.day);
+      final Duration timeSinceMidnight =
+          log.timestamp.difference(logDayMidnight);
+      double xValue =
+          timeSinceMidnight.inMinutes / 60.0; // e.g., 10.5 for 10:30 AM
+      return FlSpot(xValue, log.rating.toDouble());
+    }).toList();
+
+    double minX, maxX;
+
+    // Determine the actual min/max X values from the data points.
+    // Note: logs.length is guaranteed to be >= 2 here, so spots will not be empty.
+    double dataMinX = spots.map((s) => s.x).reduce((a, b) => a < b ? a : b);
+    double dataMaxX = spots.map((s) => s.x).reduce((a, b) => a > b ? a : b);
+
+    if (dataMaxX == dataMinX) {
+      // If all points have the same x-coordinate, create a default window (e.g., +/- 1 hour).
+      minX = dataMinX - 1.0;
+      maxX = dataMaxX + 1.0;
+    } else {
+      // Add padding (e.g., 5% of the data range) to each side.
+      double range = dataMaxX - dataMinX;
+      minX = dataMinX - range * 0.05;
+      maxX = dataMaxX + range * 0.05;
+    }
+
+    // Clamp the calculated min/max X to the valid 24-hour range [0.0, 23.99].
+    // Ensure minX doesn't go too high, allowing some space for maxX.
+    minX = minX.clamp(0.0,
+        23.49); // Max value for minX, allowing at least ~30min for maxX (0.5h).
+    // Ensure maxX is greater than minX and within the upper boundary.
+    maxX = maxX.clamp(
+        minX + 0.1, 23.99); // Ensure at least a 6-minute (0.1 hour) range.
+
+    // Fallback for very small or invalid ranges after clamping.
+    if (maxX - minX < 0.2) {
+      // If range is less than 12 minutes (0.2 hours).
+      // Try to center a 1-hour window around the original data midpoint.
+      double midDataX = (dataMinX + dataMaxX) / 2.0;
+      minX = (midDataX - 0.5).clamp(0.0,
+          23.0); // Clamp minX to allow a 1-hour window up to 23.99 for maxX.
+      maxX = (midDataX + 0.5).clamp(minX + 0.1, 23.99); // Ensure minX < maxX.
+
+      // If still problematic (e.g., data was at extreme edges or 1-hour window failed),
+      // use the full day as a last resort.
+      if (maxX <= minX) {
+        minX = 0.0;
+        maxX = 23.99;
+      }
+    }
+
+    // --- The rest of the method uses the calculated minX and maxX ---
+
+    return SizedBox(
+      height: 200,
+      child: LineChart(
+        LineChartData(
+          minX: minX,
+          maxX: maxX,
+          minY: 0.5,
+          maxY: 5.5,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: true,
+            horizontalInterval: 1,
+            // Dynamic vertical grid based on the calculated time range
+            verticalInterval: ((maxX - minX) / 5)
+                .clamp(0.2, 6.0), // Allow smaller intervals for zoomed views
+            getDrawingHorizontalLine: (value) => FlLine(
+                color: AppTheme.fhBorderColor.withOpacity(0.1),
+                strokeWidth: 0.8),
+            getDrawingVerticalLine: (value) => FlLine(
+                color: AppTheme.fhBorderColor.withOpacity(0.1),
+                strokeWidth: 0.8),
+          ),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: 1,
+                reservedSize: 30,
+                getTitlesWidget: (value, meta) {
+                  if (value >= 1 && value <= 5)
+                    return Text(value.toInt().toString(),
+                        style: TextStyle(
+                            color: AppTheme.fhTextSecondary, fontSize: 10));
+                  return const Text('');
+                },
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 30,
+                // Dynamic bottom titles based on the calculated time range
+                interval: ((maxX - minX) / 4)
+                    .ceilToDouble()
+                    .clamp(0.5, 6.0), // Allow smaller intervals
+                getTitlesWidget: (value, meta) {
+                  final hour = value.truncate().clamp(0, 23);
+                  final minute = ((value - hour) * 60).round().clamp(0, 59);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                        DateFormat('HH:mm')
+                            .format(DateTime(2000, 1, 1, hour, minute)),
+                        style: TextStyle(
+                            color: AppTheme.fhTextSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                  );
+                },
+              ),
+            ),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+          borderData: FlBorderData(
+              show: true,
+              border:
+                  Border.all(color: AppTheme.fhBorderColor.withOpacity(0.2))),
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              color: dynamicAccent,
+              barWidth: 3,
+              isStrokeCapRound: true,
+              dotData: FlDotData(
+                show: true,
+                getDotPainter: (spot, percent, barData, index) =>
+                    FlDotCirclePainter(
+                        radius: 4,
+                        color: dynamicAccent.withOpacity(0.8),
+                        strokeWidth: 1.5,
+                        strokeColor: AppTheme.fhBgMedium),
+              ),
+              belowBarData: BarAreaData(
+                  show: true, color: dynamicAccent.withOpacity(0.1)),
+            ),
+          ],
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipColor: (touchedSpot) => AppTheme.fhBgMedium,
+              getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                return touchedSpots
+                    .map((LineBarSpot touchedSpot) {
+                      final spotIndex = touchedSpot.spotIndex;
+                      if (spotIndex < 0 || spotIndex >= logs.length)
+                        return null; // Safety check
+                      final logEntry = logs[spotIndex];
+                      final DateTime time = logEntry.timestamp;
+
+                      return LineTooltipItem(
+                        '${_getEmotionLabel(touchedSpot.y.toInt())} (${touchedSpot.y.toInt()}/5) at ${DateFormat('HH:mm').format(time)}',
+                        TextStyle(
+                            color: dynamicAccent,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: AppTheme.fontDisplay),
+                      );
+                    })
+                    .where((item) => item != null)
+                    .map((item) => item!)
+                    .toList();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -63,13 +358,16 @@ class _DailySummaryViewState extends State<DailySummaryView> {
     final checkpointsCompleted =
         summaryData?['checkpointsCompleted'] as List<dynamic>? ?? [];
 
+    final List<EmotionLog> emotionLogsForSelectedDate = _selectedDate != null
+        ? gameProvider.getEmotionLogsForDate(_selectedDate!)
+        : [];
+
     final double totalMinutesToday = taskTimes.values
         .fold(0.0, (sum, time) => sum + (time as num).toDouble());
 
     final List<PieChartSectionData> pieChartSections = [];
     final List<Widget> legendItems = [];
     if (taskTimes.isNotEmpty) {
-      // int colorIndex = 0; // Removed unused variable
       taskTimes.forEach((taskId, time) {
         final task = gameProvider.mainTasks.firstWhere((t) => t.id == taskId,
             orElse: () => MainTask(
@@ -80,18 +378,18 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                 colorHex: AppTheme.fhTextDisabled.value
                     .toRadixString(16)
                     .substring(2)));
-        final taskColor = task.taskColor; // Uses getter from MainTask model
+        final taskColor = task.taskColor;
 
         if (task.id != '') {
           final isTouched = pieChartSections.length == _touchedPieIndex;
           final fontSize = isTouched ? 13.0 : 11.0;
-          final radius = isTouched ? 65.0 : 55.0; // Slightly larger pie
+          final radius = isTouched ? 65.0 : 55.0;
           final titlePercentage = totalMinutesToday > 0
               ? ((time as num).toDouble() / totalMinutesToday * 100)
               : 0.0;
 
           pieChartSections.add(PieChartSectionData(
-            color: taskColor, // Use task's theme color
+            color: taskColor,
             value: (time).toDouble(),
             title: '${titlePercentage.toStringAsFixed(0)}%',
             radius: radius,
@@ -125,7 +423,6 @@ class _DailySummaryViewState extends State<DailySummaryView> {
               ],
             ),
           ));
-          // colorIndex++; // Removed unused increment
         }
       });
     }
@@ -156,7 +453,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
       });
 
       Color barColor = (gameProvider.getSelectedTask()?.taskColor ??
-          AppTheme.fhAccentTealFixed); // Default bar color
+          AppTheme.fhAccentTealFixed);
       if (dominantTaskId != null) {
         final dominantTask = gameProvider.mainTasks.firstWhere(
             (t) => t.id == dominantTaskId,
@@ -179,7 +476,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
           BarChartRodData(
               toY: dailyTotalMins,
               color: barColor.withOpacity(0.85),
-              width: 18, // Wider bars
+              width: 18,
               borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(3), topRight: Radius.circular(3)))
         ],
@@ -192,21 +489,6 @@ class _DailySummaryViewState extends State<DailySummaryView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(MdiIcons.bookOpenVariant,
-                    color: AppTheme.fhAccentRed,
-                    size: 36), // Use primary accent
-                const SizedBox(width: 12),
-                Text("Mission Logbook",
-                    style: theme.textTheme.displaySmall
-                        ?.copyWith(color: AppTheme.fhTextPrimary)),
-              ],
-            ),
-          ),
           if (availableDates.isEmpty)
             Center(
                 child: Padding(
@@ -220,7 +502,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
             DropdownButtonFormField<String>(
               value: _selectedDate,
               decoration: const InputDecoration(labelText: 'Select Date'),
-              dropdownColor: AppTheme.fhBgMedium, // Darker dropdown
+              dropdownColor: AppTheme.fhBgMedium,
               items: availableDates.map((date) {
                 return DropdownMenuItem(
                   value: date,
@@ -231,7 +513,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
               onChanged: (value) => setState(() => _selectedDate = value),
             ),
             const SizedBox(height: 24),
-            if (_selectedDate != null)
+            if (_selectedDate != null) ...[
               Card(
                 color: AppTheme.fhBgMedium,
                 child: Padding(
@@ -244,7 +526,41 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                   ),
                 ),
               ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 12),
+              Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text("How are you feeling?",
+                      style: theme.textTheme.headlineSmall)),
+              const SizedBox(height: 10),
+              _buildEmotionLoggingRow(gameProvider, _selectedDate!, theme),
+              const SizedBox(height: 8),
+              if (emotionLogsForSelectedDate.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    icon: Icon(MdiIcons.deleteSweepOutline,
+                        size: 16, color: AppTheme.fhAccentRed.withOpacity(0.7)),
+                    label: Text("Delete Latest",
+                        style: TextStyle(
+                            color: AppTheme.fhAccentRed.withOpacity(0.7),
+                            fontSize: 12)),
+                    onPressed: () {
+                      gameProvider.deleteLatestEmotionLog(_selectedDate!);
+                    },
+                  ),
+                ),
+              const SizedBox(height: 16),
+              if (emotionLogsForSelectedDate.isNotEmpty) ...[
+                Text("Emotion Trend:", style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 16),
+                _buildEmotionCurveChart(
+                    emotionLogsForSelectedDate,
+                    theme,
+                    gameProvider.getSelectedTask()?.taskColor ??
+                        AppTheme.fhAccentTealFixed),
+                const SizedBox(height: 30),
+              ],
+            ],
             if (pieChartSections.isNotEmpty) ...[
               Text("Time Distribution by Mission:",
                   style: theme.textTheme.headlineSmall),
@@ -253,9 +569,9 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    flex: 3, // Give more space to pie chart
+                    flex: 3,
                     child: SizedBox(
-                      height: 220, // Larger pie chart
+                      height: 220,
                       child: PieChart(
                         PieChartData(
                           pieTouchData: PieTouchData(
@@ -274,8 +590,8 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                             },
                           ),
                           borderData: FlBorderData(show: false),
-                          sectionsSpace: 2, // Space between sections
-                          centerSpaceRadius: 50, // Larger center space
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 50,
                           sections: pieChartSections,
                         ),
                       ),
@@ -283,7 +599,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                   ),
                   if (legendItems.isNotEmpty)
                     Expanded(
-                        flex: 2, // More space for legend
+                        flex: 2,
                         child: Padding(
                           padding: const EdgeInsets.only(left: 20.0),
                           child: Column(
@@ -300,7 +616,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                 style: theme.textTheme.headlineSmall),
             const SizedBox(height: 20),
             SizedBox(
-              height: 280, // Taller bar chart
+              height: 280,
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
@@ -349,7 +665,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                         getTitlesWidget: (double value, TitleMeta meta) {
                           return SideTitleWidget(
                             meta: meta,
-                            space: 10.0, // More space for titles
+                            space: 10.0,
                             child: Text(
                                 last7DaysFormatted[value.toInt()]
                                     .substring(0, 3)
@@ -361,13 +677,13 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                                     fontFamily: AppTheme.fontDisplay)),
                           );
                         },
-                        reservedSize: 38, // Increased reserved size
+                        reservedSize: 38,
                       ),
                     ),
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                           showTitles: true,
-                          reservedSize: 45, // Increased reserved size
+                          reservedSize: 45,
                           getTitlesWidget: (double value, TitleMeta meta) {
                             if (value == meta.max ||
                                 (value == 0 && meta.max > 20)) {
@@ -392,13 +708,13 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                   barGroups: weeklyBarGroups,
                   gridData: FlGridData(
                     show: true,
-                    drawVerticalLine: true, // Show vertical grid lines
+                    drawVerticalLine: true,
                     verticalInterval: 1,
                     horizontalInterval: (weeklyBarGroups
                                 .map((g) => g.barRods.first.toY)
                                 .reduce((a, b) => a > b ? a : b) /
                             5)
-                        .clamp(10, 1000), // Dynamic horizontal interval
+                        .clamp(10, 1000),
                     getDrawingHorizontalLine: (value) => FlLine(
                         color: AppTheme.fhBorderColor.withOpacity(0.1),
                         strokeWidth: 0.8),
@@ -424,12 +740,29 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                     children: [
                       if (taskTimes.isEmpty &&
                           subtasksCompleted.isEmpty &&
-                          checkpointsCompleted.isEmpty)
+                          checkpointsCompleted.isEmpty &&
+                          emotionLogsForSelectedDate
+                              .isEmpty) // Check emotion logs too
                         Text("No specific activity recorded for this day.",
                             style: theme.textTheme.bodyMedium?.copyWith(
                                 color: AppTheme.fhTextSecondary,
                                 fontStyle: FontStyle.italic))
                       else ...[
+                        if (emotionLogsForSelectedDate.isNotEmpty) ...[
+                          Text('Emotion Logs:',
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                          ...emotionLogsForSelectedDate.map((log) => Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 16.0, top: 3.0),
+                                child: Text(
+                                    '- Rated ${_getEmotionLabel(log.rating)} (${log.rating}/5) at ${DateFormat('HH:mm').format(log.timestamp.toLocal())}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color: _getEmotionColor(
+                                            log.rating, theme))),
+                              )),
+                          const SizedBox(height: 10),
+                        ],
                         ...taskTimes.entries.map((entry) {
                           final task = gameProvider.mainTasks.firstWhere(
                               (t) => t.id == entry.key,

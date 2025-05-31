@@ -4,30 +4,6 @@ import 'package:arcane/src/models/game_models.dart'; // For PlayerStat, MainTask
 // Initial Main Task Templates (Moved from game_models.dart)
 List<MainTaskTemplate> initialMainTaskTemplates = [
   MainTaskTemplate(
-      id: "proj_ui_ai",
-      name: "Summer Project",
-      description: "Develop UI, integrate AI, and gamify applications.",
-      theme: "tech",
-      colorHex: "FF00F8F8"), // Cyan
-  MainTaskTemplate(
-      id: "research_pinn",
-      name: "Research on PINNs",
-      description: "Deep dive into Physics Informed Neural Networks.",
-      theme: "knowledge",
-      colorHex: "FF8A2BE2"), // Purple
-  MainTaskTemplate(
-      id: "study_next_sem",
-      name: "Internship and Sem Prep",
-      description: "Prepare materials for upcoming academic semester.",
-      theme: "learning",
-      colorHex: "FFFF7043"), // Orange
-  MainTaskTemplate(
-      id: "learn_kungfu",
-      name: "Lifestyle: Kung Fu",
-      description: "Practice Kung Fu forms and techniques.",
-      theme: "discipline",
-      colorHex: "FFFD4556"), // Red
-  MainTaskTemplate(
       id: "build_routine",
       name: "Routine & Reflection",
       description: "Establish routines, track progress, reflect.",

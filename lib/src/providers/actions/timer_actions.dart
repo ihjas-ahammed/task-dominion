@@ -91,6 +91,8 @@ class TimerActions {
             }
           }
         }
+        // Process park time for the logged minutes
+        _provider.parkActions.processParkTime(minutesToLog);
       }
 
       final newActiveTimers =

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:arcane/src/theme/app_theme.dart';
 import 'package:collection/collection.dart';
 import 'dart:async';
+import 'package:flutter/material.dart'; // For TimeOfDay
 
 import 'package:arcane/src/models/game_models.dart';
 
@@ -16,7 +17,7 @@ import 'actions/item_actions.dart';
 import 'actions/combat_actions.dart';
 import 'actions/ai_generation_actions.dart';
 import 'actions/timer_actions.dart';
-import 'actions/park_actions.dart'; 
+import 'actions/park_actions.dart';
 
 class GameProvider with ChangeNotifier {
   final StorageService _storageService = StorageService();
@@ -121,14 +122,14 @@ class GameProvider with ChangeNotifier {
   List<OwnedDinosaur> _ownedDinosaurs = [];
   List<FossilRecord> _fossilRecords = [];
   ParkManager _parkManager = ParkManager();
-  
+
   List<DinosaurSpecies> get dinosaurSpeciesList => _dinosaurSpeciesList;
   List<BuildingTemplate> get buildingTemplatesList => _buildingTemplatesList;
   List<OwnedBuilding> get ownedBuildings => _ownedBuildings;
   List<OwnedDinosaur> get ownedDinosaurs => _ownedDinosaurs;
   List<FossilRecord> get fossilRecords => _fossilRecords;
   ParkManager get parkManager => _parkManager;
-
+  ParkActions get parkActions => _parkActions;
 
   String? get lastLoginDate => _lastLoginDate;
   double get coins => _coins;
@@ -168,12 +169,15 @@ class GameProvider with ChangeNotifier {
       ? (currentLevelXPProgress / xpNeededForNextLevel).clamp(0.0, 1.0) * 100
       : 0;
 
+  TimeOfDay get wakeupTime => TimeOfDay(hour: _settings.wakeupTimeHour, minute: _settings.wakeupTimeMinute);
+
+
   late final TaskActions _taskActions;
   late final ItemActions _itemActions;
   late final CombatActions _combatActions;
   late final AIGenerationActions _aiGenerationActions;
   late final TimerActions _timerActions;
-  late final ParkActions _parkActions; 
+  late final ParkActions _parkActions;
 
   GameProvider() {
     print("[GameProvider] Constructor called. Initializing actions first...");
@@ -183,7 +187,7 @@ class GameProvider with ChangeNotifier {
     _combatActions = CombatActions(this);
     _aiGenerationActions = AIGenerationActions(this);
     _timerActions = TimerActions(this);
-    _parkActions = ParkActions(this); 
+    _parkActions = ParkActions(this);
 
     print("[GameProvider] Actions initialized. Ensuring bonusXPModStat...");
     _ensureBonusXpModStat();
@@ -200,8 +204,10 @@ class GameProvider with ChangeNotifier {
 
     _parkUpdateTimer?.cancel();
     _parkUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      _parkActions.updateAllDinosaursStatus(); // Periodically update dinosaur needs
-      _parkActions.recalculateParkStats(); // This also calls _updateBuildingOperationalStatusBasedOnPower and updates income/costs
+      _parkActions
+          .updateAllDinosaursStatus(); // Periodically update dinosaur needs
+      _parkActions
+          .recalculateParkStats(); // This also calls _updateBuildingOperationalStatusBasedOnPower and updates income/costs
     });
     print("[GameProvider] Initialization complete.");
   }
@@ -253,32 +259,25 @@ class GameProvider with ChangeNotifier {
       if (data != null) {
         print("[GameProvider] User data found, loading state.");
         _loadStateFromMap(data);
-        _hasUnsavedChanges = false;
+        _hasUnsavedChanges = false; // Data is in sync with cloud after load
+        _handleDailyReset(); // Handle daily reset logic which includes potential content generation
       } else {
         print("[GameProvider] No user data found, resetting to initial state.");
         await _resetToInitialState(); // Make reset async if it involves async ops
-        _lastLoginDate = helper.getTodayDateString();
+        _lastLoginDate = helper.getTodayDateString(); // Set login date for new user
         _hasUnsavedChanges = true; // Mark as changed to trigger initial save
-        await _performActualSave();
-      }
-
-      _handleDailyReset();
-      if (settings.autoGenerateContent &&
-          (_enemyTemplatesList.isEmpty ||
-              _artifactTemplatesList.isEmpty ||
-              _runeTemplatesList.isEmpty ||
-              _gameLocationsList.isEmpty ||
-              _dinosaurSpeciesList.isEmpty || // Check for park content
-              _buildingTemplatesList.isEmpty
-              )) {
-        print("[GameProvider] Initial content generation needed.");
-        // Don't await here if it blocks UI too much, let it run in background
-        _aiGenerationActions
-            .generateGameContent(_playerLevel,
-                isManual: false, isInitial: true, contentType: "all")
-            .catchError((e) {
-          print("Error during initial content generation: $e");
-        });
+        if (settings.dailyAutoGenerateContent) { // Use new setting name
+          print("[GameProvider] Initial content generation for new user.");
+          // Don't await this if it blocks UI too much, let it run in background
+          _aiGenerationActions
+              .generateGameContent(_playerLevel, isManual: false, isInitial: true, contentType: "all")
+              .catchError((e) {
+            print("Error during initial content generation: $e");
+          }).whenComplete(() => _performActualSave()); // Save after initial content is generated
+        } else {
+          await _performActualSave(); // Save immediately if no initial content generation
+        }
+        _handleDailyReset(); // Call daily reset even for new user to set up daily state
       }
 
       if (_currentUser?.displayName == null ||
@@ -338,8 +337,10 @@ class GameProvider with ChangeNotifier {
       'lastSuccessfulSaveTimestamp':
           _lastSuccessfulSaveTimestamp?.toIso8601String(),
       // Park Management Data
-      'dinosaurSpeciesList': _dinosaurSpeciesList.map((ds) => ds.toJson()).toList(),
-      'buildingTemplatesList': _buildingTemplatesList.map((bt) => bt.toJson()).toList(),
+      'dinosaurSpeciesList':
+          _dinosaurSpeciesList.map((ds) => ds.toJson()).toList(),
+      'buildingTemplatesList':
+          _buildingTemplatesList.map((bt) => bt.toJson()).toList(),
       'ownedBuildings': _ownedBuildings.map((ob) => ob.toJson()).toList(),
       'ownedDinosaurs': _ownedDinosaurs.map((od) => od.toJson()).toList(),
       'fossilRecords': _fossilRecords.map((fr) => fr.toJson()).toList(),
@@ -369,6 +370,7 @@ class GameProvider with ChangeNotifier {
             'subtasksCompleted', () => <Map<String, dynamic>>[]);
         dayDataMap.putIfAbsent(
             'checkpointsCompleted', () => <Map<String, dynamic>>[]);
+        dayDataMap.putIfAbsent('emotionLogs', () => <Map<String, dynamic>>[]); // Initialize emotionLogs
       }
     });
 
@@ -486,31 +488,42 @@ class GameProvider with ChangeNotifier {
 
     // Park Management Data Loading
     _dinosaurSpeciesList = (data['dinosaurSpeciesList'] as List<dynamic>?)
-        ?.map((dsJson) => DinosaurSpecies.fromJson(dsJson as Map<String, dynamic>))
-        .toList() ?? initialDinosaurSpecies;
+            ?.map((dsJson) =>
+                DinosaurSpecies.fromJson(dsJson as Map<String, dynamic>))
+            .toList() ??
+        initialDinosaurSpecies;
     _buildingTemplatesList = (data['buildingTemplatesList'] as List<dynamic>?)
-        ?.map((btJson) => BuildingTemplate.fromJson(btJson as Map<String, dynamic>))
-        .toList() ?? initialBuildingTemplates;
+            ?.map((btJson) =>
+                BuildingTemplate.fromJson(btJson as Map<String, dynamic>))
+            .toList() ??
+        initialBuildingTemplates;
     _ownedBuildings = (data['ownedBuildings'] as List<dynamic>?)
-        ?.map((obJson) => OwnedBuilding.fromJson(obJson as Map<String, dynamic>))
-        .toList() ?? [];
+            ?.map((obJson) =>
+                OwnedBuilding.fromJson(obJson as Map<String, dynamic>))
+            .toList() ??
+        [];
     _ownedDinosaurs = (data['ownedDinosaurs'] as List<dynamic>?)
-        ?.map((odJson) => OwnedDinosaur.fromJson(odJson as Map<String, dynamic>))
-        .toList() ?? [];
+            ?.map((odJson) =>
+                OwnedDinosaur.fromJson(odJson as Map<String, dynamic>))
+            .toList() ??
+        [];
     _fossilRecords = (data['fossilRecords'] as List<dynamic>?)
-        ?.map((frJson) => FossilRecord.fromJson(frJson as Map<String, dynamic>))
-        .toList() ?? [];
+            ?.map((frJson) =>
+                FossilRecord.fromJson(frJson as Map<String, dynamic>))
+            .toList() ??
+        [];
     // Ensure fossil records list matches species list
     if (_fossilRecords.length != _dinosaurSpeciesList.length) {
       _fossilRecords = _dinosaurSpeciesList
-        .map((species) => _fossilRecords.firstWhere((fr) => fr.speciesId == species.id, orElse: () => FossilRecord(speciesId: species.id)))
-        .toList();
+          .map((species) => _fossilRecords.firstWhere(
+              (fr) => fr.speciesId == species.id,
+              orElse: () => FossilRecord(speciesId: species.id)))
+          .toList();
     }
 
     _parkManager = data['parkManager'] != null
         ? ParkManager.fromJson(data['parkManager'] as Map<String, dynamic>)
         : ParkManager();
-
 
     _recalculatePlayerLevel();
     _updatePlayerStatsFromItemsAndRunes();
@@ -565,14 +578,20 @@ class GameProvider with ChangeNotifier {
     _activeTimers = {};
     _isUsernameMissing = false;
     _lastSuccessfulSaveTimestamp = null;
-    
+
     // Park Management Reset
     _dinosaurSpeciesList = List.from(initialDinosaurSpecies);
     _buildingTemplatesList = List.from(initialBuildingTemplates);
     _ownedBuildings = [];
     _ownedDinosaurs = [];
-    _fossilRecords = _dinosaurSpeciesList.map((species) => FossilRecord(speciesId: species.id)).toList();
-    _parkManager = ParkManager(parkDollars: 50000, parkEnergy: _playerEnergy, maxParkEnergy: calculatedMaxEnergy); // Start with some dollars and link park energy to player energy
+    _fossilRecords = _dinosaurSpeciesList
+        .map((species) => FossilRecord(speciesId: species.id))
+        .toList();
+    _parkManager = ParkManager(
+        parkDollars: 50000,
+        parkEnergy: _playerEnergy,
+        maxParkEnergy:
+            calculatedMaxEnergy); // Start with some dollars and link park energy to player energy
 
     _hasUnsavedChanges = true;
 
@@ -655,23 +674,8 @@ class GameProvider with ChangeNotifier {
       final data = await _storageService.getUserData(_currentUser!.uid);
       if (data != null) {
         _loadStateFromMap(data);
-        _handleDailyReset();
-        if (settings.autoGenerateContent &&
-            (_enemyTemplatesList.isEmpty ||
-                _artifactTemplatesList.isEmpty ||
-                _runeTemplatesList.isEmpty ||
-                _gameLocationsList.isEmpty ||
-                _dinosaurSpeciesList.isEmpty || // Check for park content
-                _buildingTemplatesList.isEmpty 
-                )) {
-          // Don't await this if it blocks UI too much
-          _aiGenerationActions
-              .generateGameContent(_playerLevel,
-                  isManual: false, isInitial: true, contentType: "all")
-              .catchError((e) {
-            print("Error during manual load content gen: $e");
-          });
-        }
+        _handleDailyReset(); // Call daily reset after loading data
+        // No specific auto-generation here; daily reset handles it if enabled.
         if (_currentUser?.displayName == null ||
             _currentUser!.displayName!.trim().isEmpty) {
           _isUsernameMissing = true;
@@ -718,24 +722,19 @@ class GameProvider with ChangeNotifier {
         await _resetToInitialState(); // Make reset async
         _lastLoginDate = helper.getTodayDateString();
         _hasUnsavedChanges = true; // Mark for initial save
-        await _performActualSave();
-
-        _handleDailyReset();
-        if (settings.autoGenerateContent &&
-            (_enemyTemplatesList.isEmpty ||
-                _artifactTemplatesList.isEmpty ||
-                _runeTemplatesList.isEmpty ||
-                _gameLocationsList.isEmpty ||
-                _dinosaurSpeciesList.isEmpty || // Check for park content
-                _buildingTemplatesList.isEmpty)) {
-          // Don't await this if it blocks UI too much
-          _aiGenerationActions
-              .generateGameContent(_playerLevel,
-                  isManual: false, isInitial: true, contentType: "all")
+        // Trigger initial content generation if daily auto-generate is on
+        if (settings.dailyAutoGenerateContent) { 
+          print("[GameProvider] Initial content generation for new user after signup.");
+           _aiGenerationActions
+              .generateGameContent(_playerLevel, isManual: false, isInitial: true, contentType: "all")
               .catchError((e) {
-            print("Error during signup content gen: $e");
-          });
+            print("Error during signup initial content generation: $e");
+          }).whenComplete(() => _performActualSave());
+        } else {
+            await _performActualSave();
         }
+        
+        _handleDailyReset();
         _isDataLoadingAfterLogin = false;
         _isUsernameMissing = false;
         print(
@@ -822,7 +821,7 @@ class GameProvider with ChangeNotifier {
     _hasUnsavedChanges = true;
     notifyListeners();
     print(
-        "[GameProvider] Settings updated. DescriptionsVisible: ${newSettings.descriptionsVisible}, AutoGenerate: ${newSettings.autoGenerateContent}");
+        "[GameProvider] Settings updated. DescriptionsVisible: ${newSettings.descriptionsVisible}, DailyAutoGenerate: ${newSettings.dailyAutoGenerateContent}, Wakeup: ${newSettings.wakeupTimeHour}:${newSettings.wakeupTimeMinute}");
   }
 
   String romanize(int num) => num.toString(); // Changed to common numbering
@@ -885,31 +884,23 @@ class GameProvider with ChangeNotifier {
     _playerEnergy = calculatedMaxEnergy;
     _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
 
-    if (settings.autoGenerateContent) {
-      print(
-          "[GameProvider] Auto-generating content for new level $_playerLevel.");
-      _aiGenerationActions
-          .generateGameContent(_playerLevel,
-              isManual: false, isInitial: false, contentType: "all")
-          .catchError((e) {
-        print("Error during level up content gen: $e");
-      });
-    } else {
-      _currentGame.log = [
+    _currentGame.log = [
         ..._currentGame.log,
-        "<span style=\"color:#${(getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed).value.toRadixString(16).substring(2)}\">You feel a surge of power! New opportunities might await (check settings).</span>"
+        "<span style=\"color:#${(getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed).value.toRadixString(16).substring(2)}\">You feel a surge of power! Level up to $_playerLevel.</span>"
       ];
-    }
+    
     _hasUnsavedChanges = true;
     notifyListeners();
   }
 
-  void _handleDailyReset() {
+  Future<void> _handleDailyReset() async {
     if (_currentUser == null) return;
     final today = helper.getTodayDateString();
+    bool hasResetRun = false;
+
     if (_lastLoginDate != today) {
-      print(
-          "[GameProvider] Daily reset triggered. Last login: $_lastLoginDate, Today: $today");
+      print("[GameProvider] Daily reset triggered. Last login: $_lastLoginDate, Today: $today");
+      hasResetRun = true;
       _mainTasks = _mainTasks.map((task) {
         int newStreak = task.streak;
         if (_lastLoginDate != null) {
@@ -920,8 +911,7 @@ class GameProvider with ChangeNotifier {
               task.lastWorkedDate != today &&
               task.lastWorkedDate != yesterdayStr) {
             newStreak = 0;
-            print(
-                "[GameProvider] Task '${task.name}' streak reset due to inactivity.");
+            print("[GameProvider] Task '${task.name}' streak reset due to inactivity.");
           }
         }
         return MainTask(
@@ -941,12 +931,58 @@ class GameProvider with ChangeNotifier {
       _defeatedEnemyIds = []; // Reset defeated enemies for the day
       _clearedLocationIds = []; // Reset cleared locations for the day
       _lastLoginDate = today;
-      _hasUnsavedChanges = true;
-      notifyListeners();
-      print(
-          "[GameProvider] Daily reset complete. Player energy restored. Streaks updated.");
+      _hasUnsavedChanges = true; // Mark changes for saving
+      scheduleEmotionReminders(); // Re-schedule reminders for the new day
+      print("[GameProvider] Daily reset applied. Player energy restored. Streaks updated.");
     }
+
+    if (settings.dailyAutoGenerateContent && hasResetRun) { // Only run auto-gen if a daily reset actually occurred
+      print("[GameProvider] Daily auto-generation triggered.");
+      String? currentLocationId = _currentGame.currentPlaceKey;
+      bool currentRealmPacified = false;
+
+      if (currentLocationId != null) {
+        final enemiesInLocation = _enemyTemplatesList.where((e) => e.locationKey == currentLocationId).toList();
+        if (enemiesInLocation.isNotEmpty && enemiesInLocation.every((e) => _defeatedEnemyIds.contains(e.id))) {
+          currentRealmPacified = true;
+          print("[GameProvider] Current realm '$currentLocationId' is pacified.");
+        }
+      }
+
+      if (currentLocationId == null || currentRealmPacified) {
+        if (currentLocationId != null && currentRealmPacified) {
+          _gameLocationsList.removeWhere((loc) => loc.id == currentLocationId);
+          _clearedLocationIds.removeWhere((id) => id == currentLocationId);
+           _currentGame.log.add("<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Realm '$currentLocationId' pacified and archived.</span>");
+          print("[GameProvider] Pacified realm '$currentLocationId' removed.");
+        }
+        
+        print("[GameProvider] Generating a new realm due to daily reset or pacified current realm.");
+        await _aiGenerationActions.generateGameContent(
+            _playerLevel, isManual: false, isInitial: false, contentType: "locations", numLocationsToGenerate: 1); // generate 1 new location
+        
+        // Select the newly generated or first available realm
+        if (_gameLocationsList.isNotEmpty) {
+            currentLocationId = _gameLocationsList.where((loc) => !_clearedLocationIds.contains(loc.id)).firstOrNull?.id ?? _gameLocationsList.first.id;
+        } else {
+            currentLocationId = null; // No locations available
+        }
+        _currentGame.currentPlaceKey = currentLocationId;
+         _hasUnsavedChanges = true; // Mark changes for saving
+      }
+      
+      if (currentLocationId != null) {
+        print("[GameProvider] Generating new enemies for realm '$currentLocationId'.");
+        await _aiGenerationActions.generateGameContent(
+            _playerLevel, isManual: false, isInitial: false, contentType: "enemies", numEnemiesToGenerate: 3, specificLocationKeyForEnemies: currentLocationId); // generate 3 enemies for current/new location
+      } else {
+        print("[GameProvider] No active realm to populate with new threats after daily reset.");
+         _currentGame.log.add("<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">No active realm available for new threats.</span>");
+      }
+    }
+    if (hasResetRun) notifyListeners(); // Notify at the end if any reset or generation happened
   }
+
 
   void _updatePlayerStatsFromItemsAndRunes() {
     final Map<String, PlayerStat> newStats = {
@@ -1065,13 +1101,12 @@ class GameProvider with ChangeNotifier {
         "[GameProvider] Clearing all game data for user ${_currentUser!.uid}");
     await _storageService.deleteUserData(_currentUser!.uid);
     await _resetToInitialState(); // Make reset async
-    await _performActualSave();
-
-    if (settings.autoGenerateContent) {
+    // After reset, if daily auto-gen is on, an initial populate will happen.
+    if (settings.dailyAutoGenerateContent) {
       print("[GameProvider] Generating initial content after data purge.");
-      await _aiGenerationActions.generateGameContent(1,
-          isManual: true, isInitial: true, contentType: "all");
+      await _aiGenerationActions.generateGameContent(_playerLevel, isManual: false, isInitial: true, contentType: "all");
     }
+    await _performActualSave(); // Save the reset (and potentially newly generated) state.
     notifyListeners();
     print("[GameProvider] All game data cleared and reset.");
   }
@@ -1096,11 +1131,7 @@ class GameProvider with ChangeNotifier {
     _playerEnergy = calculatedMaxEnergy;
     _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
     _defeatedEnemyIds = [];
-    if (settings.autoGenerateContent) {
-      print("[GameProvider] Generating content for reset level 1.");
-      await _aiGenerationActions.generateGameContent(1,
-          isManual: false, isInitial: false, contentType: "all");
-    }
+    // No specific content generation here as daily reset handles it.
     _currentGame.log = [
       ..._currentGame.log,
       "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Player level and progress have been reset.</span>"
@@ -1110,11 +1141,12 @@ class GameProvider with ChangeNotifier {
     print("[GameProvider] Player level and progress reset complete.");
   }
 
-  void clearAllOwnedArtifacts() {
+  void clearAllArtifactsAndTemplates() {
     if (_currentUser == null) return;
-    print("[GameProvider] Clearing all owned artifacts.");
+    print("[GameProvider] Clearing all owned artifacts and templates.");
     setProviderState(
       artifacts: [], // Clear owned artifacts
+      artifactTemplatesList: [], // Clear artifact templates
       equippedItems: {
         'weapon': null,
         'armor': null,
@@ -1125,12 +1157,32 @@ class GameProvider with ChangeNotifier {
         playerCurrentHp: _currentGame.playerCurrentHp,
         log: [
           ..._currentGame.log,
-          "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">All artifacts cleared from inventory.</span>"
+          "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">All artifacts and blueprints purged.</span>"
         ],
         currentPlaceKey: _currentGame.currentPlaceKey,
       ),
     );
   }
+
+  Future<void> removeAllGameLocations() async {
+    if (_currentUser == null) return;
+    print("[GameProvider] Removing all game locations (realms).");
+    setProviderState(
+      gameLocationsList: [],
+      clearedLocationIds: [],
+      defeatedEnemyIds: [], // Also clear defeated enemies as realms are gone
+      currentGame: CurrentGame(
+        enemy: null, // No active enemy if no realms
+        playerCurrentHp: _currentGame.playerCurrentHp,
+        log: [
+          ..._currentGame.log,
+          "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">All combat realms decommissioned. The Arena is now empty.</span>"
+        ],
+        currentPlaceKey: null, // No current place
+      ),
+    );
+  }
+
 
   Future<void> clearDiscoverablePowerUps() async {
     if (_currentUser == null) return;
@@ -1224,8 +1276,8 @@ class GameProvider with ChangeNotifier {
       return loc;
     }).toList();
 
-    final newClearedLocationIds =
-        List<String>.from(_clearedLocationIds)..add(locationId);
+    final newClearedLocationIds = List<String>.from(_clearedLocationIds)
+      ..add(locationId);
 
     setProviderState(
         gameLocationsList: newLocations,
@@ -1241,16 +1293,130 @@ class GameProvider with ChangeNotifier {
         ));
   }
 
+  // Emotion Logging
+  List<EmotionLog> getEmotionLogsForDate(String date) {
+    final dayData = _completedByDay[date] as Map<String, dynamic>?;
+    if (dayData == null || dayData['emotionLogs'] == null) {
+      return [];
+    }
+    return (dayData['emotionLogs'] as List<dynamic>)
+        .map((logJson) => EmotionLog.fromJson(logJson as Map<String, dynamic>))
+        .toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  }
+
+  void logEmotion(String date, int rating, [DateTime? customTimestamp]) {
+    final timestamp = customTimestamp ?? DateTime.now();
+    final emotionLog = EmotionLog(timestamp: timestamp, rating: rating);
+
+    final newCompletedByDay = Map<String, dynamic>.from(_completedByDay);
+    final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ??
+        {
+          'taskTimes': <String, int>{},
+          'subtasksCompleted': <Map<String, dynamic>>[],
+          'checkpointsCompleted': <Map<String, dynamic>>[],
+          'emotionLogs': <Map<String, dynamic>>[]
+        });
+
+    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+    
+    if (emotionLogsList.length >= 10) {
+      // emotionLogsList is already sorted by timestamp in getEmotionLogsForDate, and new logs are added to keep sort
+      emotionLogsList.removeAt(0); // Remove the oldest
+    }
+    emotionLogsList.add(emotionLog.toJson());
+    // Ensure it remains sorted after adding
+    emotionLogsList.sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
+
+    dayData['emotionLogs'] = emotionLogsList;
+    newCompletedByDay[date] = dayData;
+
+    setProviderState(completedByDay: newCompletedByDay);
+    _currentGame.log.add("<span style='color:${AppTheme.fhAccentPurple.value.toRadixString(16).substring(2)};'>Emotion logged: $rating/5 for $date.</span>");
+    notifyListeners(); // Ensure UI updates for new log
+  }
+
+  void deleteLatestEmotionLog(String date) {
+    final currentLogs = getEmotionLogsForDate(date);
+    if (currentLogs.isEmpty) return;
+
+    final newCompletedByDay = Map<String, dynamic>.from(_completedByDay);
+    final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ?? {});
+    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+
+    if (emotionLogsList.isNotEmpty) {
+        emotionLogsList.removeLast(); // Assumes logs are always sorted, last one is latest
+    }
+    
+    dayData['emotionLogs'] = emotionLogsList;
+    newCompletedByDay[date] = dayData;
+
+    setProviderState(completedByDay: newCompletedByDay);
+    _currentGame.log.add("<span style='color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)};'>Latest emotion log for $date deleted.</span>");
+    notifyListeners(); // Ensure UI updates
+  }
+  
+  void setWakeupTime(TimeOfDay newTime) {
+    _settings.wakeupTimeHour = newTime.hour;
+    _settings.wakeupTimeMinute = newTime.minute;
+    setSettings(_settings); // This will notify and mark for save
+    scheduleEmotionReminders(); // Re-schedule on change
+  }
+
+  List<DateTime> calculateNotificationTimes() {
+    final now = DateTime.now();
+    final wakeupDateTime = DateTime(now.year, now.month, now.day, wakeupTime.hour, wakeupTime.minute);
+    const int loggingDurationMinutes = 16 * 60; 
+    const int numberOfLogs = 10;
+    final int intervalMinutes = (loggingDurationMinutes / (numberOfLogs -1 )).floor();
+
+    List<DateTime> times = [];
+    DateTime currentTime = wakeupDateTime;
+
+    for (int i = 0; i < numberOfLogs; i++) {
+        times.add(currentTime);
+        currentTime = currentTime.add(Duration(minutes: intervalMinutes));
+    }
+    // Filter times that are in the past relative to 'now' for today's reminders.
+    // For future days, all 10 times would be valid.
+    if (now.day == wakeupDateTime.day){
+        return times.where((t) => t.isAfter(now)).toList();
+    }
+    return times; // For future days, return all calculated times
+  }
+
+  void scheduleEmotionReminders() {
+    // Placeholder for actual notification scheduling
+    // This would involve using a plugin like flutter_local_notifications
+    // E.g., flutterLocalNotificationsPlugin.cancelAll();
+    // List<DateTime> notificationTimes = calculateNotificationTimes();
+    // for (var time in notificationTimes) {
+    //   if (time.isAfter(DateTime.now())) {
+    //     flutterLocalNotificationsPlugin.zonedSchedule(...);
+    //   }
+    // }
+    if (kDebugMode) {
+      print("[GameProvider] Conceptual: Would schedule notifications for: ${calculateNotificationTimes().map((t) => DateFormat('HH:mm').format(t)).join(', ')}");
+    }
+  }
+
 
   // Delegated methods
   Future<void> generateGameContent(int level,
           {bool isManual = false,
           bool isInitial = false,
-          String contentType = "all"}) =>
+          String contentType = "all",
+          int numLocationsToGenerate = 0, // Added for specific requests
+          int numEnemiesToGenerate = 0, // Added
+          String? specificLocationKeyForEnemies // Added
+          }) =>
       _aiGenerationActions.generateGameContent(level,
-          isManual: isManual,
-          isInitial: isInitial,
-          contentType: contentType);
+          isManual: isManual, 
+          isInitial: isInitial, 
+          contentType: contentType,
+          numLocationsToGenerate: numLocationsToGenerate,
+          numEnemiesToGenerate: numEnemiesToGenerate,
+          specificLocationKeyForEnemies: specificLocationKeyForEnemies
+          );
 
   void addMainTask(
           {required String name,
@@ -1345,18 +1511,27 @@ class GameProvider with ChangeNotifier {
       _timerActions.startTimer(id, type, mainTaskId);
   void pauseTimer(String id) => _timerActions.pauseTimer(id);
   void logTimerAndReset(String id) => _timerActions.logTimerAndReset(id);
-  
-  // Park Actions Delegation
-  bool canAffordBuilding(BuildingTemplate buildingTemplate) => _parkActions.canAffordBuilding(buildingTemplate);
-  void buyAndPlaceBuilding(String buildingTemplateId) => _parkActions.buyAndPlaceBuilding(buildingTemplateId);
-  void sellBuilding(String ownedBuildingUniqueId) => _parkActions.sellBuilding(ownedBuildingUniqueId);
-  void excavateFossil(String speciesId) => _parkActions.excavateFossil(speciesId);
-  void incubateDinosaur(String speciesId) => _parkActions.incubateDinosaur(speciesId);
-  void addDinosaurToEnclosure(String dinosaurUniqueId, String enclosureUniqueId) => _parkActions.addDinosaurToEnclosure(dinosaurUniqueId, enclosureUniqueId);
-  void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) => _parkActions.feedDinosaursInEnclosure(enclosureUniqueId, amount);
-  void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) => _parkActions.toggleBuildingOperationalStatus(ownedBuildingUniqueId);
-  void skipOneMinute() => _parkActions.skipOneMinute(); // New skip minute method
 
+  // Park Actions Delegation
+  bool canAffordBuilding(BuildingTemplate buildingTemplate) =>
+      _parkActions.canAffordBuilding(buildingTemplate);
+  void buyAndPlaceBuilding(String buildingTemplateId) =>
+      _parkActions.buyAndPlaceBuilding(buildingTemplateId);
+  void sellBuilding(String ownedBuildingUniqueId) =>
+      _parkActions.sellBuilding(ownedBuildingUniqueId);
+  void excavateFossil(String speciesId) =>
+      _parkActions.excavateFossil(speciesId);
+  void incubateDinosaur(String speciesId) =>
+      _parkActions.incubateDinosaur(speciesId);
+  void addDinosaurToEnclosure(
+          String dinosaurUniqueId, String enclosureUniqueId) =>
+      _parkActions.addDinosaurToEnclosure(dinosaurUniqueId, enclosureUniqueId);
+  void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) =>
+      _parkActions.feedDinosaursInEnclosure(enclosureUniqueId, amount);
+  void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) =>
+      _parkActions.toggleBuildingOperationalStatus(ownedBuildingUniqueId);
+  void skipOneMinute() =>
+      _parkActions.skipOneMinute(); // New skip minute method
 
   void setProviderState({
     String? lastLoginDate,
@@ -1521,19 +1696,23 @@ class GameProvider with ChangeNotifier {
     }
 
     // Park Management State Updates
-    if (dinosaurSpeciesList != null && !listEquals(_dinosaurSpeciesList, dinosaurSpeciesList)) {
+    if (dinosaurSpeciesList != null &&
+        !listEquals(_dinosaurSpeciesList, dinosaurSpeciesList)) {
       _dinosaurSpeciesList = List.from(dinosaurSpeciesList);
       changed = true;
     }
-    if (buildingTemplatesList != null && !listEquals(_buildingTemplatesList, buildingTemplatesList)) {
+    if (buildingTemplatesList != null &&
+        !listEquals(_buildingTemplatesList, buildingTemplatesList)) {
       _buildingTemplatesList = List.from(buildingTemplatesList);
       changed = true;
     }
-    if (ownedBuildings != null && !listEquals(_ownedBuildings, ownedBuildings)) {
+    if (ownedBuildings != null &&
+        !listEquals(_ownedBuildings, ownedBuildings)) {
       _ownedBuildings = List.from(ownedBuildings);
       changed = true;
     }
-    if (ownedDinosaurs != null && !listEquals(_ownedDinosaurs, ownedDinosaurs)) {
+    if (ownedDinosaurs != null &&
+        !listEquals(_ownedDinosaurs, ownedDinosaurs)) {
       _ownedDinosaurs = List.from(ownedDinosaurs);
       changed = true;
     }
@@ -1541,16 +1720,17 @@ class GameProvider with ChangeNotifier {
       _fossilRecords = List.from(fossilRecords);
       changed = true;
     }
-    if (parkManager != null && _parkManager != parkManager) { // Simple comparison, might need deep compare if ParkManager becomes complex
+    if (parkManager != null && _parkManager != parkManager) {
+      // Simple comparison, might need deep compare if ParkManager becomes complex
       _parkManager = parkManager;
       // When ParkManager state is updated, ensure player energy is consistent if used for park ops
-      if (_parkManager.parkEnergy != _playerEnergy || _parkManager.maxParkEnergy != calculatedMaxEnergy) {
-          _parkManager.parkEnergy = _playerEnergy;
-          _parkManager.maxParkEnergy = calculatedMaxEnergy;
+      if (_parkManager.parkEnergy != _playerEnergy ||
+          _parkManager.maxParkEnergy != calculatedMaxEnergy) {
+        _parkManager.parkEnergy = _playerEnergy;
+        _parkManager.maxParkEnergy = calculatedMaxEnergy;
       }
       changed = true;
     }
-
 
     if (changed) {
       if (kDebugMode && doNotify) {
