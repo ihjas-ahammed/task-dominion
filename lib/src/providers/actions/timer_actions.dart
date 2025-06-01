@@ -91,7 +91,7 @@ class TimerActions {
             }
           }
         }
-        // Process park time for the logged minutes
+        // Process park time for the logged minutes if park features are active
         _provider.parkActions.processParkTime(minutesToLog);
       }
 

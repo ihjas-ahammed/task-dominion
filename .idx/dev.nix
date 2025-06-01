@@ -8,6 +8,7 @@
     pkgs.flutter # Add Flutter SDK
     pkgs.jdk17   # For Android development
     pkgs.unzip   # General utility
+    pkgs.python3
     # For Android SDK command line tools if not managed by Flutter/Android Studio
     # pkgs.android-tools 
   ];
@@ -40,11 +41,11 @@
           manager = "flutter";
         };
         # Android preview might require more setup for emulators within Project IDX
-       android = {
-           command = ["/home/user/flutter/bin/flutter" "run" "--machine" "-d" "android" "-d" "localhost:5555"];
-           manager = "flutter";
-         };
-      };
+      #  android = {
+      #      command = ["/home/user/flutter/bin/flutter" "run" "--machine" "-d" "android" "-d" "localhost:5555"];
+      #      manager = "flutter";
+      #    };
+       };
     };
   };
 }

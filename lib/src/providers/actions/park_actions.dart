@@ -133,6 +133,11 @@ class ParkActions {
       _logToPark("Not enough player energy to excavate. Cost: ${species.fossilExcavationEnergyCost}⚡", isError: true);
       return;
     }
+     if (_provider.playerLevel < species.minPlayerLevelToUnlock) {
+      _logToPark("Player level too low to excavate ${species.name}. Requires level ${species.minPlayerLevelToUnlock}.", isError: true);
+      return;
+    }
+
 
     final recordIndex = _provider.fossilRecords.indexWhere((fr) => fr.speciesId == speciesId);
     if (recordIndex == -1) {
@@ -170,6 +175,10 @@ class ParkActions {
     if (species == null) {
       _logToPark("Species $speciesId not found for incubation.", isError: true);
       return;
+    }
+    if (_provider.playerLevel < species.minPlayerLevelToUnlock) {
+        _logToPark("Player level too low to incubate ${species.name}. Requires level ${species.minPlayerLevelToUnlock}.", isError: true);
+        return;
     }
     final fossilRecord = _provider.fossilRecords.firstWhereOrNull((fr) => fr.speciesId == speciesId);
     if (fossilRecord == null || !fossilRecord.isGenomeComplete) {
@@ -328,16 +337,12 @@ class ParkActions {
     if (newStatus) { // Attempting to turn ON
         if ((template.powerRequired ?? 0) > 0) { // Only check for consumers
             int totalPowerGenerated = _provider.parkManager.currentPowerGenerated;
-            // If the building being turned on IS a power plant, its output is not yet in totalPowerGenerated.
-            // So, we add its potential output if it's the one being toggled.
+            
             if (template.type == "power_plant") {
                 // This case is fine, power plants don't consume to turn on
             } else { // Consumer building
                 int currentTotalPowerConsumedByOthers = _provider.parkManager.currentPowerConsumed;
-                // If the building was already on and included in currentPowerConsumed, this check is slightly off,
-                // but the goal is to check if turning *this one* on exceeds generation.
-                // A more precise `currentPowerConsumed` would exclude this building if it was already on.
-                // However, `_updateBuildingOperationalStatusBasedOnPower` will correct things.
+               
                 if (totalPowerGenerated < currentTotalPowerConsumedByOthers + (template.powerRequired ?? 0)) {
                     _logToPark("Cannot turn on ${template.name}. Insufficient power. Available: $totalPowerGenerated, Required (incl. this): ${currentTotalPowerConsumedByOthers + (template.powerRequired ?? 0)}", isError: true);
                     return; // Don't change status
@@ -369,10 +374,8 @@ class ParkActions {
   void _updateBuildingOperationalStatusBasedOnPower() {
     int totalPowerGenerated = 0;
     int totalPowerRequiredByOperationalConsumers = 0;
-    List<OwnedBuilding> currentBuildings = List.from(_provider.ownedBuildings); // Work on a mutable copy
+    List<OwnedBuilding> currentBuildings = List.from(_provider.ownedBuildings); 
 
-    // First pass: ensure all power plants are considered for generation,
-    // and sum up demand from all *currently* (potentially user-set) operational consumers.
     for (var building in currentBuildings) {
         final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == building.templateId);
         if (template == null) continue;
@@ -388,7 +391,6 @@ class ParkActions {
     if (totalPowerRequiredByOperationalConsumers > totalPowerGenerated) {
         _logToPark("Power shortage! Demand ($totalPowerRequiredByOperationalConsumers) exceeds supply ($totalPowerGenerated). Attempting to manage load...", isError: true);
         
-        // Sort consumers by power requirement descending to turn off heaviest consumers first
         List<OwnedBuilding> consumersToPotentiallyTurnOff = currentBuildings
             .where((b) {
                 final t = _provider.buildingTemplatesList.firstWhereOrNull((tmpl) => tmpl.id == b.templateId);
@@ -403,18 +405,18 @@ class ParkActions {
 
         int currentDemand = totalPowerRequiredByOperationalConsumers;
         for (var buildingToTurnOff in consumersToPotentiallyTurnOff) {
-            if (currentDemand <= totalPowerGenerated) break; // Power balanced
+            if (currentDemand <= totalPowerGenerated) break; 
 
             final template = _provider.buildingTemplatesList.firstWhere((t) => t.id == buildingToTurnOff.templateId);
             int buildingIndex = currentBuildings.indexWhere((b) => b.uniqueId == buildingToTurnOff.uniqueId);
             
-            if (buildingIndex != -1 && currentBuildings[buildingIndex].isOperational) { // Check if it's still considered operational
+            if (buildingIndex != -1 && currentBuildings[buildingIndex].isOperational) { 
                 currentBuildings[buildingIndex] = OwnedBuilding(
                     uniqueId: buildingToTurnOff.uniqueId,
                     templateId: buildingToTurnOff.templateId,
                     dinosaurUniqueIds: buildingToTurnOff.dinosaurUniqueIds,
                     currentFoodLevel: buildingToTurnOff.currentFoodLevel,
-                    isOperational: false, // Turn it off
+                    isOperational: false, 
                 );
                 currentDemand -= (template.powerRequired ?? 0);
                 _logToPark("${template.name} turned offline due to power shortage.", isError: true);
@@ -424,14 +426,12 @@ class ParkActions {
         totalPowerRequiredByOperationalConsumers = currentDemand; 
     }
 
-    // Update GameProvider's ParkManager with new power stats
-    // And potentially update ownedBuildings if changes were made
     _provider.setProviderState(
         ownedBuildings: changesMadeToOperationalStatus ? currentBuildings : null, 
         parkManager: _provider.parkManager
             ..currentPowerGenerated = totalPowerGenerated
             ..currentPowerConsumed = totalPowerRequiredByOperationalConsumers,
-        doPersist: true, // Persist if any building status or power calculation changed.
+        doPersist: true, 
         doNotify: true 
     );
 }
@@ -443,29 +443,20 @@ class ParkActions {
 
     final List<OwnedDinosaur> updatedDinos = _provider.ownedDinosaurs.map((dino) {
         final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == dino.speciesId);
-        if (species == null) return dino; // Should not happen
+        if (species == null) return dino; 
 
-        OwnedDinosaur updatedDino = OwnedDinosaur.fromJson(dino.toJson()); // Create a mutable copy
+        OwnedDinosaur updatedDino = OwnedDinosaur.fromJson(dino.toJson()); 
 
         if (updatedDino.name.contains("(Incubating)")) {
-            updatedDino.age += 1; // Increment incubation time (e.g., 1 unit per minute)
-            // Check if incubation is complete
-            if (updatedDino.age >= baseIncubationDuration) { 
-                updatedDino.name = species.name; // Remove "(Incubating)"
-                _logToPark("${species.name} has hatched!");
-                updatedDino.age = 0; // Reset age to 0 for hatched dinos (or start actual aging)
-                changed = true;
-            }
-            return updatedDino;
+            // Incubation progress already handled by processParkTime via _provider.activeTimers
+            return updatedDino; // No further changes here if still incubating
         }
 
         // For hatched dinosaurs:
-        updatedDino.age +=1; // Age them up
+        updatedDino.age +=1; 
 
-        // Food decay
-        updatedDino.currentFood = (updatedDino.currentFood - (_random.nextDouble() * 2 + 1)).clamp(0.0, 100.0); // Decay 1-3 food
+        updatedDino.currentFood = (updatedDino.currentFood - (_random.nextDouble() * 2 + 1)).clamp(0.0, 100.0); 
 
-        // Comfort calculation (simplified)
         double comfortImpact = 0;
         final enclosure = _provider.ownedBuildings.firstWhereOrNull((b) => b.dinosaurUniqueIds.contains(dino.uniqueId));
         
@@ -473,26 +464,21 @@ class ParkActions {
             final enclosureTemplate = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == enclosure.templateId);
             if (enclosureTemplate != null) {
                 final dinosInSameEnclosure = enclosure.dinosaurUniqueIds.length;
-                // Social needs
                 if (dinosInSameEnclosure < species.socialNeedsMin || dinosInSameEnclosure > species.socialNeedsMax) {
                     comfortImpact -= 5;
                 } else {
                     comfortImpact += 2;
                 }
-                // Enclosure size (very basic check)
-                if (enclosureTemplate.capacity != null && species.enclosureSizeNeeds * dinosInSameEnclosure > enclosureTemplate.capacity! * 5 /* arbitrary multiplier */) {
-                     comfortImpact -= 3; // Overcrowded based on a simple capacity notion
+                if (enclosureTemplate.capacity != null && species.enclosureSizeNeeds * dinosInSameEnclosure > enclosureTemplate.capacity! * 5 ) {
+                     comfortImpact -= 3; 
                 }
             }
-             // Check food station linked to this enclosure (if any)
             final foodStation = _provider.ownedBuildings.firstWhereOrNull((b) {
                 final fTemplate = _provider.buildingTemplatesList.firstWhereOrNull((ft) => ft.id == b.templateId);
-                // This assumes a generic food station for now, or you'd link them
                 return fTemplate?.type == "food_station" && b.isOperational;
             });
             if (foodStation != null && (foodStation.currentFoodLevel ?? 0) > 0) {
-                // Consume food
-                final int foodConsumed = _random.nextInt(5) + 1; // Consumes 1-5 food
+                final int foodConsumed = _random.nextInt(5) + 1; 
                 final newFoodStationLevel = (foodStation.currentFoodLevel ?? 0) - foodConsumed;
                  List<OwnedBuilding> tempBuildings = List.from(_provider.ownedBuildings);
                  int fsIndex = tempBuildings.indexWhere((b) => b.uniqueId == foodStation.uniqueId);
@@ -504,19 +490,17 @@ class ParkActions {
                         isOperational: foodStation.isOperational,
                         currentFoodLevel: newFoodStationLevel.clamp(0, enclosureBaseFoodCapacity)
                     );
-                    // This state change should ideally be batched with other dino updates
-                     _provider.setProviderState(ownedBuildings: tempBuildings, doPersist: false, doNotify: false); // Notify at the end
+                     _provider.setProviderState(ownedBuildings: tempBuildings, doPersist: false, doNotify: false); 
                      changed = true;
                  }
-                updatedDino.currentFood = (updatedDino.currentFood + foodConsumed * 5).clamp(0.0, 100.0); // food value per unit
+                updatedDino.currentFood = (updatedDino.currentFood + foodConsumed * 5).clamp(0.0, 100.0); 
             }
 
 
         } else {
-            comfortImpact -= 10; // Not in an enclosure
+            comfortImpact -= 10; 
         }
 
-        // Food impact on comfort
         if (updatedDino.currentFood < 20) {
           comfortImpact -= 10;
         } else if (updatedDino.currentFood < 50) comfortImpact -= 5;
@@ -524,8 +508,7 @@ class ParkActions {
 
         updatedDino.currentComfort = (updatedDino.currentComfort + comfortImpact).clamp(0.0, 100.0);
 
-        // Health impact from low comfort or food
-        if (updatedDino.currentComfort < species.comfortThreshold * 100 * 0.5) { // If comfort is less than half the threshold
+        if (updatedDino.currentComfort < species.comfortThreshold * 100 * 0.5) { 
             updatedDino.currentHealth = (updatedDino.currentHealth - 2).clamp(0.0, 100.0);
         }
         if (updatedDino.currentFood < 10) {
@@ -540,26 +523,25 @@ class ParkActions {
 
     if (changed) {
         _provider.setProviderState(ownedDinosaurs: updatedDinos, doPersist: true, doNotify: true);
-        _recalculateParkStats(); // Dinosaur health/status might affect rating indirectly
+        _recalculateParkStats(); 
     }
 }
 
 
 
   void _recalculateParkStats() {
-    _updateBuildingOperationalStatusBasedOnPower(); // Ensure operational statuses are up-to-date first
+    _updateBuildingOperationalStatusBasedOnPower(); 
 
     int newParkRating = 0;
     int newIncomePerMinuteDollars = 0;
     int newOperationalCostPerMinuteDollars = 0;
     
-    // Recalculate power generated and consumed based on the potentially updated operational statuses
     int currentPowerGenerated = 0;
     int currentPowerConsumed = 0;
 
-    for (var ownedBuilding in _provider.ownedBuildings) { // Use the latest list from provider
+    for (var ownedBuilding in _provider.ownedBuildings) { 
       final template = _provider.buildingTemplatesList.firstWhereOrNull((t) => t.id == ownedBuilding.templateId);
-      if (template != null && ownedBuilding.isOperational) { // Only count operational buildings
+      if (template != null && ownedBuilding.isOperational) { 
         newParkRating += template.parkRatingBoost ?? 0;
         newIncomePerMinuteDollars += template.incomePerMinuteDollars ?? 0;
         newOperationalCostPerMinuteDollars += template.operationalCostPerMinuteDollars ?? 0;
@@ -574,10 +556,10 @@ class ParkActions {
     
     for (var ownedDino in _provider.ownedDinosaurs) {
         final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == ownedDino.speciesId);
-        if (species != null && !ownedDino.name.contains("(Incubating)")) { // Only count hatched dinos
+        if (species != null && !ownedDino.name.contains("(Incubating)")) { 
             double ratingModifier = 1.0;
-            if(ownedDino.currentComfort < species.comfortThreshold * 100) ratingModifier *= 0.5; // Penalty for low comfort
-            if(ownedDino.currentHealth < 50) ratingModifier *= 0.7; // Penalty for low health
+            if(ownedDino.currentComfort < species.comfortThreshold * 100) ratingModifier *= 0.5; 
+            if(ownedDino.currentHealth < 50) ratingModifier *= 0.7; 
             newParkRating += (species.baseRating * ratingModifier).round();
         }
     }
@@ -594,7 +576,7 @@ class ParkActions {
         currentPowerGenerated: currentPowerGenerated,
         currentPowerConsumed: currentPowerConsumed,
       ),
-      doPersist: true, // Persist after recalculation
+      doPersist: true, 
       doNotify: true,
     );
   }
@@ -608,33 +590,19 @@ class ParkActions {
         return;
     }
 
-    // Deduct energy
     final newPlayerEnergy = _provider.playerEnergy - SKIP_MINUTE_ENERGY_COST;
-
-    // Simulate one minute of park updates
-    updateAllDinosaursStatus(); // Update dinosaur needs & incubation
     
-    // Recalculate park stats immediately after dino status update which might affect income/costs
-    // _recalculateParkStats() already calls _updateBuildingOperationalStatusBasedOnPower
-    // and then updates the ParkManager instance with new income/costs based on *operational* buildings.
-    // So, we first get the income/cost *before* potentially changing dino states for this skipped minute.
-    int incomeThisSkippedMinute = _provider.parkManager.incomePerMinuteDollars;
-    int costsThisSkippedMinute = _provider.parkManager.operationalCostPerMinuteDollars;
-
-    double newParkDollars = _provider.parkManager.parkDollars + incomeThisSkippedMinute - costsThisSkippedMinute + SKIP_MINUTE_PARK_DOLLAR_BONUS;
-
+    processParkTime(1); // Process one minute of park time, which handles incubation and other per-minute updates
+    
+    // Note: processParkTime now handles its own recalculation and dollar updates.
+    // We just need to set the player energy.
     _provider.setProviderState(
         playerEnergy: newPlayerEnergy,
-        parkManager: _provider.parkManager..parkDollars = newParkDollars.isNegative ? 0 : newParkDollars,
-        // ownedDinosaurs and ownedBuildings are updated within their respective methods called by updateAllDinosaursStatus or _recalculateParkStats
-        doPersist: true,
+        doPersist: true, // processParkTime already persists some, this ensures energy is saved too
         doNotify: true
     );
     
-    // Final recalculate and log after all changes for the skipped minute are applied.
-    // This ensures ParkManager's generated/consumed power is also accurate.
-    _recalculateParkStats(); 
-    _logToPark("Fast forwarded 1 minute. Income: \$$incomeThisSkippedMinute, Costs: \$$costsThisSkippedMinute. Bonus: \$$SKIP_MINUTE_PARK_DOLLAR_BONUS. Energy Cost: $SKIP_MINUTE_ENERGY_COST⚡");
+    _logToPark("Fast forwarded 1 minute. Energy Cost: $SKIP_MINUTE_ENERGY_COST⚡. Check park log for income/cost details.");
   }
 
   // New method to process park time based on main task timer
@@ -642,31 +610,40 @@ class ParkActions {
     if (minutes <= 0) return;
 
     double totalNetIncomeFromTimedActivity = 0;
+    List<OwnedDinosaur> currentDinos = List.from(_provider.ownedDinosaurs);
 
     for (int i = 0; i < minutes; i++) {
-      // Simulate dinosaur status updates for each minute
-      updateAllDinosaursStatus(); 
+        // Update incubating dinosaurs
+        currentDinos = currentDinos.map((d) {
+            if (d.name.contains("(Incubating)")) {
+                OwnedDinosaur updatedDino = OwnedDinosaur.fromJson(d.toJson());
+                updatedDino.age +=1; // Each "minute" processed increases age/incubation time by 1 unit
+                 final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == updatedDino.speciesId);
+                if (species != null && updatedDino.age >= baseIncubationDuration) {
+                    updatedDino.name = species.name; // Hatch
+                    updatedDino.age = 0; // Reset age for hatched dino
+                    _logToPark("${species.name} has hatched during timed activity!");
+                }
+                return updatedDino;
+            }
+            return d;
+        }).toList();
+        
+        // Update other statuses (like food, comfort) for hatched dinos
+        updateAllDinosaursStatus(); 
 
-      // Recalculate park stats to get current income/cost rates for this specific minute
-      // This is crucial if dino status affects operational status of buildings,
-      // or if income/cost can change dynamically minute by minute.
-      // _recalculateParkStats internally calls _updateBuildingOperationalStatusBasedOnPower
-      // and then updates _provider.parkManager with fresh income/cost rates.
-      _recalculateParkStats(); 
+        _recalculateParkStats(); 
 
-      int incomeThisMinute = _provider.parkManager.incomePerMinuteDollars;
-      int costsThisMinute = _provider.parkManager.operationalCostPerMinuteDollars;
-      totalNetIncomeFromTimedActivity += (incomeThisMinute - costsThisMinute);
+        int incomeThisMinute = _provider.parkManager.incomePerMinuteDollars;
+        int costsThisMinute = _provider.parkManager.operationalCostPerMinuteDollars;
+        totalNetIncomeFromTimedActivity += (incomeThisMinute - costsThisMinute);
     }
 
     final double newParkDollars = _provider.parkManager.parkDollars + totalNetIncomeFromTimedActivity;
 
-    // Persist the final state of park dollars
-    // Note: ownedDinosaurs, ownedBuildings, and other parkManager stats (like rating, power)
-    // were already updated and persisted by the calls to updateAllDinosaursStatus and _recalculateParkStats within the loop.
-    // We only need to ensure the final dollar amount is set.
     _provider.setProviderState(
         parkManager: _provider.parkManager..parkDollars = newParkDollars.isNegative ? 0 : newParkDollars,
+        ownedDinosaurs: currentDinos, // Persist the updated dino list (especially incubation changes)
         doPersist: true,
         doNotify: true
     );

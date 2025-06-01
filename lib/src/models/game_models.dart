@@ -143,6 +143,7 @@ class SubSubTask {
   bool isCountable;
   int targetCount;
   int currentCount;
+  String? completionTimestamp; // NEW: For logging time of completion
 
   SubSubTask({
     required this.id,
@@ -151,6 +152,7 @@ class SubSubTask {
     this.isCountable = false,
     this.targetCount = 0,
     this.currentCount = 0,
+    this.completionTimestamp, // NEW
   });
 
   factory SubSubTask.fromJson(Map<String, dynamic> json) {
@@ -161,6 +163,7 @@ class SubSubTask {
       isCountable: json['isCountable'] as bool? ?? false,
       targetCount: json['targetCount'] as int? ?? 0,
       currentCount: json['currentCount'] as int? ?? 0,
+      completionTimestamp: json['completionTimestamp'] as String?, // NEW
     );
   }
   Map<String, dynamic> toJson() {
@@ -171,6 +174,7 @@ class SubSubTask {
       'isCountable': isCountable,
       'targetCount': targetCount,
       'currentCount': currentCount,
+      'completionTimestamp': completionTimestamp, // NEW
     };
   }
 }
@@ -255,7 +259,6 @@ class GameSettings {
   int wakeupTimeHour;
   int wakeupTimeMinute;
 
-
   GameSettings({
     this.descriptionsVisible = true,
     this.dailyAutoGenerateContent = true, // Renamed
@@ -266,7 +269,9 @@ class GameSettings {
   factory GameSettings.fromJson(Map<String, dynamic> json) {
     return GameSettings(
       descriptionsVisible: json['descriptionsVisible'] as bool? ?? true,
-      dailyAutoGenerateContent: json['dailyAutoGenerateContent'] as bool? ?? json['autoGenerateContent'] as bool? ?? true, // Handle legacy name
+      dailyAutoGenerateContent: json['dailyAutoGenerateContent'] as bool? ??
+          json['autoGenerateContent'] as bool? ??
+          true, // Handle legacy name
       wakeupTimeHour: json['wakeupTimeHour'] as int? ?? 7,
       wakeupTimeMinute: json['wakeupTimeMinute'] as int? ?? 0,
     );
@@ -421,8 +426,9 @@ class ArtifactTemplate {
         (json['upgradeBonus'] as Map<String, dynamic>).forEach((key, value) {
           if (value is num) {
             parsedUpgradeBonus![key] = value.toInt();
-          } else if (value is String)
+          } else if (value is String) {
             parsedUpgradeBonus![key] = int.tryParse(value) ?? 0;
+          }
         });
       } catch (e) {/* ... */}
     }
@@ -737,6 +743,7 @@ class DinosaurSpecies {
   final int socialNeedsMax; // Max number of same species
   final int enclosureSizeNeeds; // Arbitrary units (e.g., squares)
   final String icon; // Emoji or MDI icon name
+  final int minPlayerLevelToUnlock;
 
   DinosaurSpecies({
     required this.id,
@@ -751,6 +758,7 @@ class DinosaurSpecies {
     required this.socialNeedsMax,
     required this.enclosureSizeNeeds,
     required this.icon,
+    this.minPlayerLevelToUnlock = 1,
   });
 
   factory DinosaurSpecies.fromJson(Map<String, dynamic> json) {
@@ -759,14 +767,19 @@ class DinosaurSpecies {
       name: json['name'] as String,
       description: json['description'] as String,
       diet: json['diet'] as String,
-      incubationCostDollars: json['incubationCostDollars'] as int? ?? json['incubationCost'] as int, // Handle legacy 'incubationCost'
-      fossilExcavationEnergyCost: json['fossilExcavationEnergyCost'] as int? ?? json['fossilExcavationCost'] as int, // Handle legacy 'fossilExcavationCost'
+      incubationCostDollars: json['incubationCostDollars'] as int? ??
+          json['incubationCost'] as int, // Handle legacy 'incubationCost'
+      fossilExcavationEnergyCost:
+          json['fossilExcavationEnergyCost'] as int? ??
+              json['fossilExcavationCost']
+                  as int, // Handle legacy 'fossilExcavationCost'
       baseRating: json['baseRating'] as int,
       comfortThreshold: (json['comfortThreshold'] as num).toDouble(),
       socialNeedsMin: json['socialNeedsMin'] as int,
       socialNeedsMax: json['socialNeedsMax'] as int,
       enclosureSizeNeeds: json['enclosureSizeNeeds'] as int,
       icon: json['icon'] as String,
+      minPlayerLevelToUnlock: json['minPlayerLevelToUnlock'] as int? ?? 1,
     );
   }
 
@@ -784,6 +797,7 @@ class DinosaurSpecies {
       'socialNeedsMax': socialNeedsMax,
       'enclosureSizeNeeds': enclosureSizeNeeds,
       'icon': icon,
+      'minPlayerLevelToUnlock': minPlayerLevelToUnlock,
     };
   }
 }
@@ -801,8 +815,7 @@ class BuildingTemplate {
   final int? sizeX; // Grid size X
   final int? sizeY; // Grid size Y
   final int? powerRequired; // Power units this building consumes when operational
-  final int? powerOutput;   // Power units this building generates (for power plants)
-
+  final int? powerOutput; // Power units this building generates (for power plants)
 
   BuildingTemplate({
     required this.id,
@@ -825,11 +838,15 @@ class BuildingTemplate {
       id: json['id'] as String,
       name: json['name'] as String,
       type: json['type'] as String,
-      costDollars: json['costDollars'] as int? ?? json['cost'] as int, // Handle legacy 'cost'
+      costDollars: json['costDollars'] as int? ??
+          json['cost'] as int, // Handle legacy 'cost'
       icon: json['icon'] as String,
       capacity: json['capacity'] as int?,
-      operationalCostPerMinuteDollars: json['operationalCostPerMinuteDollars'] as int? ?? json['operationalCostPerMinute'] as int?,
-      incomePerMinuteDollars: json['incomePerMinuteDollars'] as int? ?? json['incomePerMinute'] as int?,
+      operationalCostPerMinuteDollars:
+          json['operationalCostPerMinuteDollars'] as int? ??
+              json['operationalCostPerMinute'] as int?,
+      incomePerMinuteDollars: json['incomePerMinuteDollars'] as int? ??
+          json['incomePerMinute'] as int?,
       parkRatingBoost: json['parkRatingBoost'] as int?,
       sizeX: json['sizeX'] as int?,
       sizeY: json['sizeY'] as int?,
@@ -880,8 +897,9 @@ class OwnedBuilding {
       templateId: json['templateId'] as String,
       // position: GridPosition.fromJson(json['position']),
       dinosaurUniqueIds: (json['dinosaurUniqueIds'] as List<dynamic>?)
-          ?.map((id) => id as String)
-          .toList() ?? [],
+              ?.map((id) => id as String)
+              .toList() ??
+          [],
       currentFoodLevel: json['currentFoodLevel'] as int?,
       isOperational: json['isOperational'] as bool? ?? true,
     );
@@ -957,7 +975,8 @@ class FossilRecord {
   factory FossilRecord.fromJson(Map<String, dynamic> json) {
     return FossilRecord(
       speciesId: json['speciesId'] as String,
-      excavationProgress: (json['excavationProgress'] as num? ?? 0.0).toDouble(),
+      excavationProgress:
+          (json['excavationProgress'] as num? ?? 0.0).toDouble(),
       isGenomeComplete: json['isGenomeComplete'] as bool? ?? false,
     );
   }
@@ -981,7 +1000,6 @@ class ParkManager {
   int currentPowerGenerated;
   int currentPowerConsumed;
 
-
   ParkManager({
     this.parkRating = 0,
     this.parkDollars = 50000, // Starting park dollars
@@ -999,8 +1017,13 @@ class ParkManager {
       parkDollars: (json['parkDollars'] as num? ?? 50000.0).toDouble(),
       parkEnergy: (json['parkEnergy'] as num? ?? 100.0).toDouble(),
       maxParkEnergy: (json['maxParkEnergy'] as num? ?? 100.0).toDouble(),
-      incomePerMinuteDollars: json['incomePerMinuteDollars'] as int? ?? json['incomePerMinute'] as int? ?? 0,
-      operationalCostPerMinuteDollars: json['operationalCostPerMinuteDollars'] as int? ?? json['operationalCostPerMinute'] as int? ?? 0,
+      incomePerMinuteDollars: json['incomePerMinuteDollars'] as int? ??
+          json['incomePerMinute'] as int? ??
+          0,
+      operationalCostPerMinuteDollars:
+          json['operationalCostPerMinuteDollars'] as int? ??
+              json['operationalCostPerMinute'] as int? ??
+              0,
       currentPowerGenerated: json['currentPowerGenerated'] as int? ?? 0,
       currentPowerConsumed: json['currentPowerConsumed'] as int? ?? 0,
     );
@@ -1037,6 +1060,127 @@ class EmotionLog {
     return {
       'timestamp': timestamp.toIso8601String(),
       'rating': rating,
+    };
+  }
+}
+
+// Chatbot models
+enum MessageSender { user, bot }
+
+// For AI Dynamic UI
+enum DynamicUiType { graph, unknown }
+
+class DynamicUiPayload {
+  final DynamicUiType type;
+  final Map<String, dynamic> data; // e.g., {'graphType': 'bar', 'title': 'Emotion Trend', 'seriesData': [...]}
+
+  DynamicUiPayload({required this.type, required this.data});
+
+  factory DynamicUiPayload.fromJson(Map<String, dynamic> json) {
+    DynamicUiType uiType;
+    try {
+      uiType = DynamicUiType.values.firstWhere(
+        (e) => e.toString() == 'DynamicUiType.${json['type'] as String? ?? 'unknown'}'
+      );
+    } catch (e) {
+      uiType = DynamicUiType.unknown;
+    }
+    return DynamicUiPayload(
+      type: uiType,
+      data: Map<String, dynamic>.from(json['data'] as Map? ?? {}),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type.toString().split('.').last,
+      'data': data,
+    };
+  }
+}
+
+
+class ChatbotMessage {
+  final String id;
+  final String text;
+  final MessageSender sender;
+  final DateTime timestamp;
+  final DynamicUiPayload? uiPayload; // NEW: Optional UI payload
+
+  ChatbotMessage({
+    required this.id,
+    required this.text,
+    required this.sender,
+    required this.timestamp,
+    this.uiPayload, // NEW
+  });
+
+  factory ChatbotMessage.fromJson(Map<String, dynamic> json) {
+    return ChatbotMessage(
+      id: json['id'] as String,
+      text: json['text'] as String,
+      sender: MessageSender.values
+          .firstWhere((e) => e.toString() == json['sender'] as String),
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      uiPayload: json['uiPayload'] != null
+          ? DynamicUiPayload.fromJson(json['uiPayload'] as Map<String, dynamic>)
+          : null, // NEW
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'text': text,
+      'sender': sender.toString(),
+      'timestamp': timestamp.toIso8601String(),
+      'uiPayload': uiPayload?.toJson(), // NEW
+    };
+  }
+}
+
+
+class ChatbotMemory {
+  List<ChatbotMessage> conversationHistory;
+  String? lastWeeklySummary;
+  List<String> dailyCompletedGoals; // List of strings, e.g., "Completed X on YYYY-MM-DD"
+  List<String> userRememberedItems; // Items explicitly told to remember
+
+  ChatbotMemory({
+    List<ChatbotMessage>? conversationHistory,
+    this.lastWeeklySummary,
+    List<String>? dailyCompletedGoals,
+    List<String>? userRememberedItems,
+  })  : conversationHistory = conversationHistory ?? [],
+        dailyCompletedGoals = dailyCompletedGoals ?? [],
+        userRememberedItems = userRememberedItems ?? [];
+
+  factory ChatbotMemory.fromJson(Map<String, dynamic> json) {
+    return ChatbotMemory(
+      conversationHistory: (json['conversationHistory'] as List<dynamic>?)
+              ?.map((msgJson) =>
+                  ChatbotMessage.fromJson(msgJson as Map<String, dynamic>))
+              .toList() ??
+          [],
+      lastWeeklySummary: json['lastWeeklySummary'] as String?,
+      dailyCompletedGoals: (json['dailyCompletedGoals'] as List<dynamic>?)
+              ?.map((goal) => goal as String)
+              .toList() ??
+          [],
+      userRememberedItems: (json['userRememberedItems'] as List<dynamic>?)
+              ?.map((item) => item as String)
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'conversationHistory':
+          conversationHistory.map((msg) => msg.toJson()).toList(),
+      'lastWeeklySummary': lastWeeklySummary,
+      'dailyCompletedGoals': dailyCompletedGoals,
+      'userRememberedItems': userRememberedItems,
     };
   }
 }

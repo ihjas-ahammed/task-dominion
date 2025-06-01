@@ -262,7 +262,6 @@ const int SKIP_MINUTE_PARK_DOLLAR_BONUS = 50; // Optional: Bonus dollars for ski
 
 // Initial Dinosaur Species
 List<DinosaurSpecies> initialDinosaurSpecies = [
-  // From your initial list
   DinosaurSpecies(
     id: "dino_triceratops",
     name: "Triceratops",
@@ -276,6 +275,7 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 5,
     enclosureSizeNeeds: 10,
     icon: "🦕",
+    minPlayerLevelToUnlock: 1,
   ),
   DinosaurSpecies(
     id: "dino_velociraptor",
@@ -290,9 +290,8 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 6,
     enclosureSizeNeeds: 8,
     icon: "🦖",
+    minPlayerLevelToUnlock: 3,
   ),
-
-  // Adding the rest
   DinosaurSpecies(
     id: "dino_tyrannosaurus_rex",
     name: "Tyrannosaurus Rex",
@@ -301,11 +300,12 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     incubationCostDollars: 100000,
     fossilExcavationEnergyCost: 150,
     baseRating: 950,
-    comfortThreshold: 0.40, // More resilient but needs space
+    comfortThreshold: 0.40, 
     socialNeedsMin: 1,
     socialNeedsMax: 2,
     enclosureSizeNeeds: 25,
     icon: "🦖",
+    minPlayerLevelToUnlock: 15,
   ),
   DinosaurSpecies(
     id: "dino_brachiosaurus",
@@ -318,8 +318,9 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     comfortThreshold: 0.65,
     socialNeedsMin: 1,
     socialNeedsMax: 3,
-    enclosureSizeNeeds: 30, // Needs very tall trees and space
+    enclosureSizeNeeds: 30, 
     icon: "🦕",
+    minPlayerLevelToUnlock: 12,
   ),
   DinosaurSpecies(
     id: "dino_parasaurolophus",
@@ -334,20 +335,22 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 10,
     enclosureSizeNeeds: 12,
     icon: "🦕",
+    minPlayerLevelToUnlock: 5,
   ),
   DinosaurSpecies(
     id: "dino_gallimimus",
     name: "Gallimimus",
     description: "A fast, ostrich-like dinosaur that likely lived in flocks and foraged for small animals and plants.",
-    diet: "omnivore", // Often depicted as herbivore, but likely omnivorous
+    diet: "omnivore", 
     incubationCostDollars: 8000,
     fossilExcavationEnergyCost: 30,
     baseRating: 120,
-    comfortThreshold: 0.75, // Skittish
+    comfortThreshold: 0.75, 
     socialNeedsMin: 5,
     socialNeedsMax: 15,
-    enclosureSizeNeeds: 15, // Needs room to run
+    enclosureSizeNeeds: 15, 
     icon: "🦕",
+    minPlayerLevelToUnlock: 2,
   ),
   DinosaurSpecies(
     id: "dino_dilophosaurus",
@@ -362,6 +365,7 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 3,
     enclosureSizeNeeds: 9,
     icon: "🦖",
+    minPlayerLevelToUnlock: 7,
   ),
   DinosaurSpecies(
     id: "dino_stegosaurus",
@@ -376,6 +380,7 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 6,
     enclosureSizeNeeds: 14,
     icon: "🦕",
+    minPlayerLevelToUnlock: 8,
   ),
   DinosaurSpecies(
     id: "dino_compsognathus",
@@ -384,15 +389,16 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     diet: "carnivore",
     incubationCostDollars: 5000,
     fossilExcavationEnergyCost: 20,
-    baseRating: 50, // Individually low, but high in numbers
+    baseRating: 50, 
     comfortThreshold: 0.60,
     socialNeedsMin: 5,
     socialNeedsMax: 20,
     enclosureSizeNeeds: 5,
     icon: "🦖",
+    minPlayerLevelToUnlock: 1,
   ),
   DinosaurSpecies(
-    id: "dino_pteranodon", // Though not a dinosaur, it's a classic JP creature
+    id: "dino_pteranodon", 
     name: "Pteranodon",
     description: "A large flying reptile (pterosaur) with a distinctive cranial crest and a leathery wingspan.",
     diet: "piscivore",
@@ -402,8 +408,9 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     comfortThreshold: 0.50,
     socialNeedsMin: 2,
     socialNeedsMax: 8,
-    enclosureSizeNeeds: 18, // Needs an aviary (large vertical and horizontal space)
-    icon: "🐉", // Using dragon as a stand-in for flying reptile
+    enclosureSizeNeeds: 18, 
+    icon: "🐉", 
+    minPlayerLevelToUnlock: 10,
   ),
   DinosaurSpecies(
     id: "dino_metriacanthosaurus",
@@ -418,6 +425,7 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 2,
     enclosureSizeNeeds: 16,
     icon: "🦖",
+    minPlayerLevelToUnlock: 9,
   ),
   DinosaurSpecies(
     id: "dino_proceratosaurus",
@@ -432,6 +440,7 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 5,
     enclosureSizeNeeds: 7,
     icon: "🦖",
+    minPlayerLevelToUnlock: 4,
   ),
   DinosaurSpecies(
     id: "dino_herrerasaurus",
@@ -446,12 +455,13 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 3,
     enclosureSizeNeeds: 10,
     icon: "🦖",
+    minPlayerLevelToUnlock: 6,
   ),
   DinosaurSpecies(
     id: "dino_segisaurus",
     name: "Segisaurus",
     description: "A small, agile coelophysoid theropod known from a single incomplete fossil.",
-    diet: "carnivore", // Likely insectivore/small prey
+    diet: "carnivore", 
     incubationCostDollars: 7000,
     fossilExcavationEnergyCost: 25,
     baseRating: 90,
@@ -460,6 +470,7 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     socialNeedsMax: 7,
     enclosureSizeNeeds: 6,
     icon: "🦖",
+    minPlayerLevelToUnlock: 2,
   ),
   DinosaurSpecies(
     id: "dino_baryonyx",
@@ -472,22 +483,24 @@ List<DinosaurSpecies> initialDinosaurSpecies = [
     comfortThreshold: 0.50,
     socialNeedsMin: 1,
     socialNeedsMax: 2,
-    enclosureSizeNeeds: 17, // Needs water features
+    enclosureSizeNeeds: 17, 
     icon: "🦖",
+    minPlayerLevelToUnlock: 11,
   ),
   DinosaurSpecies(
-    id: "dino_ankylosaurus", // Though more prominent in later films, often considered for original park
+    id: "dino_ankylosaurus", 
     name: "Ankylosaurus",
     description: "A heavily armored herbivore with a massive club-like tail, offering formidable defense.",
     diet: "herbivore",
     incubationCostDollars: 22000,
     fossilExcavationEnergyCost: 70,
     baseRating: 300,
-    comfortThreshold: 0.55, // Tough
+    comfortThreshold: 0.55, 
     socialNeedsMin: 1,
     socialNeedsMax: 3,
     enclosureSizeNeeds: 15,
     icon: "🦕",
+    minPlayerLevelToUnlock: 14,
   ),
 ];
 

@@ -1,20 +1,3 @@
 Make the following changes:
 
-    *  Fix generation of artifacts that they generate artifacts with higher defense and attack so game became so easy, do it by changeing the prompt:
-       * Only use ai to generate names and icons of places, artifacts and enemy names,
-       * Generate their properties with help of some math equations based on player level and properties so that we don't need to use an advanced ai model
-    * Also fix error when all places are empty
-   * Make sure they generate places and artifacts with different icons
-    * Generate enemies place wise instead of being theme wise
-   * Only show enemies and artifacts of current theme
-   * Change player level number from roman to common numbering but keep a good style
-   * Add a new bottom nav tab and a gameplay:
-        * Make it possible to build buidlings as in jurassic world evolution
-        * Expedate dino fossil using energy
-        * Incubate them in hammend lab
-        * Build enclosures and add dinos, which increases parks rating
-        * Keep feeding dinos who lack comfert and food, by implimenting food enc in encosres and also using energy
-       * Add new buidlings to do the business
-  * Improve player level exp, update it for old user, make it that user need more xp than  before for a new level
-
 Now, recreate project_snapshot.txt only for the files that are changed in the original format

@@ -626,7 +626,7 @@ class _SettingsViewState extends State<SettingsView> {
                       minimumSize: const Size(double.infinity, 44)),
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton.icon( // New Button
+                ElevatedButton.icon( 
                   icon: Icon(MdiIcons.earthRemove,
                       size: 18, color: AppTheme.fhTextPrimary),
                   label: const Text('DECOMMISSION ALL REALMS'),
@@ -663,6 +663,53 @@ class _SettingsViewState extends State<SettingsView> {
                             const SnackBar(
                                 content: Text(
                                     'All realms decommissioned.'),
+                                backgroundColor: AppTheme.fhAccentGreen));
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.fhAccentOrange,
+                      foregroundColor: AppTheme.fhTextPrimary,
+                      minimumSize: const Size(double.infinity, 44)),
+                ),
+                 const SizedBox(height: 12),
+                ElevatedButton.icon( // Reset Park Data button
+                  icon: Icon(MdiIcons.island, // Changed icon to MdiIcons.island
+                      size: 18, color: AppTheme.fhTextPrimary),
+                  label: const Text('RESET JURASSIC PARK DATA'),
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Row(children: [
+                          Icon(MdiIcons.alertOutline,
+                              color: AppTheme.fhAccentOrange),
+                          const SizedBox(width: 10),
+                          const Text('Confirm Park Reset')
+                        ]),
+                        content: const Text(
+                            'This will reset all Jurassic Park data (owned dinosaurs, buildings, fossils, park rating, funds). Dinosaur species and building blueprints will remain. This action cannot be undone. Are you sure?'),
+                        actionsAlignment: MainAxisAlignment.spaceBetween,
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('CANCEL')),
+                          ElevatedButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.fhAccentOrange,
+                                  foregroundColor: AppTheme.fhTextPrimary),
+                              child: const Text('CONFIRM PARK RESET')),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await gameProvider.resetParkData();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'Jurassic Park data has been reset.'),
                                 backgroundColor: AppTheme.fhAccentGreen));
                       }
                     }

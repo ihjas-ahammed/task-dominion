@@ -57,7 +57,8 @@ class TaskActions {
         {
           'taskTimes': <String, int>{},
           'subtasksCompleted': <Map<String, dynamic>>[],
-          'checkpointsCompleted': <Map<String, dynamic>>[]
+          'checkpointsCompleted': <Map<String, dynamic>>[], // Ensure this exists
+          'emotionLogs': <Map<String, dynamic>>[]
         });
 
     if (type == 'taskTime') {
@@ -74,6 +75,10 @@ class TaskActions {
     } else if (type == 'subSubtaskCompleted') {
       final checkpointsCompleted = List<Map<String, dynamic>>.from(
           dayData['checkpointsCompleted'] as List? ?? []);
+      // Ensure data includes 'completionTimestamp'
+      if (!data.containsKey('completionTimestamp')) {
+          data['completionTimestamp'] = DateTime.now().toIso8601String();
+      }
       checkpointsCompleted.add(data);
       dayData['checkpointsCompleted'] = checkpointsCompleted;
     }
@@ -393,6 +398,7 @@ class TaskActions {
                 isCountable: sss.isCountable,
                 targetCount: sss.targetCount,
                 currentCount: 0,
+                completionTimestamp: null, // Reset timestamp
               ))
           .toList(),
     );
@@ -425,6 +431,7 @@ class TaskActions {
       targetCount: subSubtaskData['isCountable'] as bool? ?? false
           ? (subSubtaskData['targetCount'] as int? ?? 1)
           : 0,
+      completionTimestamp: null,
     );
 
     final newMainTasks = _provider.mainTasks.map((task) {
@@ -497,6 +504,7 @@ class TaskActions {
                           updates['targetCount'] as int? ?? sss.targetCount,
                       currentCount:
                           updates['currentCount'] as int? ?? sss.currentCount,
+                      completionTimestamp: updates['completionTimestamp'] as String? ?? sss.completionTimestamp,
                     );
                     if (updatedSss.isCountable) {
                       updatedSss.currentCount = updatedSss.currentCount
@@ -522,11 +530,12 @@ class TaskActions {
     double xpReward = 0;
     double coinReward = 0;
     bool subSubTaskCompletedSuccessfully = false;
-    SubSubTask? completedSubSubTaskInstance;
+    SubSubTask? completedSubSubTaskInstanceForLog; // Used specifically for logging
 
     final newMainTasks = _provider.mainTasks.map((task) {
       if (task.id == mainTaskId) {
         return MainTask(
+          // ... (copy other MainTask fields) ...
           id: task.id,
           name: task.name,
           description: task.description,
@@ -538,6 +547,7 @@ class TaskActions {
           subTasks: task.subTasks.map((st) {
             if (st.id == parentSubtaskId) {
               return SubTask(
+                // ... (copy other SubTask fields) ...
                 id: st.id,
                 name: st.name,
                 completed: st.completed,
@@ -552,40 +562,41 @@ class TaskActions {
                       subSubTaskCompletedSuccessfully = false;
                       return sss;
                     }
-                    final double luckBonus =
-                        1 + (_provider.playerGameStats['luck']!.value / 100);
-                    final double xpBonusFromArtifact =
-                        _provider.playerGameStats['bonusXPMod']?.value ?? 0.0;
-                    final double totalXPMultiplier =
-                        luckBonus * (1 + xpBonusFromArtifact);
-
+                    // ... (reward calculation as before) ...
+                    final double luckBonus = 1 + (_provider.playerGameStats['luck']!.value / 100);
+                    final double xpBonusFromArtifact = _provider.playerGameStats['bonusXPMod']?.value ?? 0.0;
+                    final double totalXPMultiplier = luckBonus * (1 + xpBonusFromArtifact);
                     double proportionalXp = 0;
                     double proportionalCoins = 0;
-
                     if (sss.isCountable) {
-                      proportionalXp =
-                          sss.targetCount * xpPerCountUnitSubSubtask;
-                      proportionalCoins =
-                          sss.targetCount * coinsPerCountUnitSubSubtask;
+                      proportionalXp = sss.targetCount * xpPerCountUnitSubSubtask;
+                      proportionalCoins = sss.targetCount * coinsPerCountUnitSubSubtask;
                     }
+                    xpReward = ((subSubtaskCompletionXpBase + proportionalXp) * totalXPMultiplier).floorToDouble();
+                    coinReward = ((subSubtaskCompletionCoinBase + proportionalCoins) * luckBonus).floorToDouble();
 
-                    xpReward = ((subSubtaskCompletionXpBase + proportionalXp) *
-                            totalXPMultiplier)
-                        .floorToDouble();
-                    coinReward =
-                        ((subSubtaskCompletionCoinBase + proportionalCoins) *
-                                luckBonus)
-                            .floorToDouble();
-
-                    completedSubSubTaskInstance = SubSubTask(
+                    // This is the instance that gets saved in the task structure
+                    SubSubTask updatedSss = SubSubTask(
                         id: sss.id,
                         name: sss.name,
                         completed: true,
                         isCountable: sss.isCountable,
                         targetCount: sss.targetCount,
-                        currentCount: sss.currentCount);
+                        currentCount: sss.currentCount,
+                        completionTimestamp: DateTime.now().toIso8601String(), // SET TIMESTAMP
+                    );
+                    // This is for logging, capture the state at completion
+                    completedSubSubTaskInstanceForLog = SubSubTask(
+                        id: sss.id,
+                        name: sss.name,
+                        completed: true,
+                        isCountable: sss.isCountable,
+                        targetCount: sss.targetCount,
+                        currentCount: sss.currentCount,
+                        completionTimestamp: updatedSss.completionTimestamp, // Use the same timestamp
+                    );
                     subSubTaskCompletedSuccessfully = true;
-                    return completedSubSubTaskInstance!;
+                    return updatedSss;
                   }
                   return sss;
                 }).toList(),
@@ -599,7 +610,7 @@ class TaskActions {
     }).toList();
 
     if (subSubTaskCompletedSuccessfully &&
-        completedSubSubTaskInstance != null) {
+        completedSubSubTaskInstanceForLog != null) {
       _provider.setProviderState(
         mainTasks: newMainTasks,
         xp: _provider.xp + xpReward,
@@ -609,10 +620,11 @@ class TaskActions {
         'mainTaskId': mainTaskId,
         'parentSubtaskId': parentSubtaskId,
         'subSubtaskId': subSubtaskId,
-        'name': completedSubSubTaskInstance!.name,
-        'isCountable': completedSubSubTaskInstance!.isCountable,
-        'currentCount': completedSubSubTaskInstance!.currentCount,
-        'targetCount': completedSubSubTaskInstance!.targetCount,
+        'name': completedSubSubTaskInstanceForLog!.name,
+        'isCountable': completedSubSubTaskInstanceForLog!.isCountable,
+        'currentCount': completedSubSubTaskInstanceForLog!.currentCount,
+        'targetCount': completedSubSubTaskInstanceForLog!.targetCount,
+        'completionTimestamp': completedSubSubTaskInstanceForLog!.completionTimestamp, // Pass to log
         'parentSubtaskName': _provider.mainTasks
                 .firstWhereOrNull((m) => m.id == mainTaskId)
                 ?.subTasks

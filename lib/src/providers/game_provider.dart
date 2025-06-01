@@ -18,9 +18,11 @@ import 'actions/combat_actions.dart';
 import 'actions/ai_generation_actions.dart';
 import 'actions/timer_actions.dart';
 import 'actions/park_actions.dart';
+import 'package:arcane/src/services/ai_service.dart'; // For chatbot AI service
 
 class GameProvider with ChangeNotifier {
   final StorageService _storageService = StorageService();
+  final AIService _aiService = AIService(); // For chatbot
   Timer? _periodicUiTimer;
   Timer? _autoSaveTimer;
   Timer? _parkUpdateTimer; // For park income/costs
@@ -169,8 +171,13 @@ class GameProvider with ChangeNotifier {
       ? (currentLevelXPProgress / xpNeededForNextLevel).clamp(0.0, 1.0) * 100
       : 0;
 
-  TimeOfDay get wakeupTime => TimeOfDay(hour: _settings.wakeupTimeHour, minute: _settings.wakeupTimeMinute);
+  TimeOfDay get wakeupTime =>
+      TimeOfDay(hour: _settings.wakeupTimeHour, minute: _settings.wakeupTimeMinute);
 
+  // Chatbot State
+  ChatbotMemory _chatbotMemory = ChatbotMemory();
+  ChatbotMemory get chatbotMemory => _chatbotMemory;
+  bool _isChatbotMemoryInitialized = false;
 
   late final TaskActions _taskActions;
   late final ItemActions _itemActions;
@@ -266,11 +273,13 @@ class GameProvider with ChangeNotifier {
         await _resetToInitialState(); // Make reset async if it involves async ops
         _lastLoginDate = helper.getTodayDateString(); // Set login date for new user
         _hasUnsavedChanges = true; // Mark as changed to trigger initial save
-        if (settings.dailyAutoGenerateContent) { // Use new setting name
+        if (settings.dailyAutoGenerateContent) {
+          // Use new setting name
           print("[GameProvider] Initial content generation for new user.");
           // Don't await this if it blocks UI too much, let it run in background
           _aiGenerationActions
-              .generateGameContent(_playerLevel, isManual: false, isInitial: true, contentType: "all")
+              .generateGameContent(_playerLevel,
+                  isManual: false, isInitial: true, contentType: "all")
               .catchError((e) {
             print("Error during initial content generation: $e");
           }).whenComplete(() => _performActualSave()); // Save after initial content is generated
@@ -279,6 +288,8 @@ class GameProvider with ChangeNotifier {
         }
         _handleDailyReset(); // Call daily reset even for new user to set up daily state
       }
+      _isChatbotMemoryInitialized = false; // Reset flag on new login/data load
+      initializeChatbotMemory(); // Initialize chatbot memory after data load
 
       if (_currentUser?.displayName == null ||
           _currentUser!.displayName!.trim().isEmpty) {
@@ -294,6 +305,7 @@ class GameProvider with ChangeNotifier {
       await _resetToInitialState(); // Make reset async
       _isDataLoadingAfterLogin = false;
       _hasUnsavedChanges = false;
+      _isChatbotMemoryInitialized = false;
     }
 
     _authLoading = false;
@@ -345,6 +357,8 @@ class GameProvider with ChangeNotifier {
       'ownedDinosaurs': _ownedDinosaurs.map((od) => od.toJson()).toList(),
       'fossilRecords': _fossilRecords.map((fr) => fr.toJson()).toList(),
       'parkManager': _parkManager.toJson(),
+      // Chatbot Data
+      'chatbotMemory': _chatbotMemory.toJson(),
     };
   }
 
@@ -370,7 +384,8 @@ class GameProvider with ChangeNotifier {
             'subtasksCompleted', () => <Map<String, dynamic>>[]);
         dayDataMap.putIfAbsent(
             'checkpointsCompleted', () => <Map<String, dynamic>>[]);
-        dayDataMap.putIfAbsent('emotionLogs', () => <Map<String, dynamic>>[]); // Initialize emotionLogs
+        dayDataMap.putIfAbsent(
+            'emotionLogs', () => <Map<String, dynamic>>[]); // Initialize emotionLogs
       }
     });
 
@@ -525,6 +540,12 @@ class GameProvider with ChangeNotifier {
         ? ParkManager.fromJson(data['parkManager'] as Map<String, dynamic>)
         : ParkManager();
 
+    // Chatbot data loading
+    _chatbotMemory = data['chatbotMemory'] != null
+        ? ChatbotMemory.fromJson(data['chatbotMemory'] as Map<String, dynamic>)
+        : ChatbotMemory();
+    _isChatbotMemoryInitialized = true; // Mark as initialized after loading
+
     _recalculatePlayerLevel();
     _updatePlayerStatsFromItemsAndRunes();
     _parkActions.recalculateParkStats(); // Recalculate park stats after loading
@@ -592,6 +613,9 @@ class GameProvider with ChangeNotifier {
         parkEnergy: _playerEnergy,
         maxParkEnergy:
             calculatedMaxEnergy); // Start with some dollars and link park energy to player energy
+    // Chatbot Reset
+    _chatbotMemory = ChatbotMemory();
+    _isChatbotMemoryInitialized = true;
 
     _hasUnsavedChanges = true;
 
@@ -683,6 +707,8 @@ class GameProvider with ChangeNotifier {
           _isUsernameMissing = false;
         }
         _hasUnsavedChanges = false; // Data is now in sync with cloud
+        _isChatbotMemoryInitialized = false; // Ensure chatbot memory is re-initialized
+        initializeChatbotMemory();
       } else {
         throw Exception("No data found on cloud.");
       }
@@ -722,18 +748,23 @@ class GameProvider with ChangeNotifier {
         await _resetToInitialState(); // Make reset async
         _lastLoginDate = helper.getTodayDateString();
         _hasUnsavedChanges = true; // Mark for initial save
-        // Trigger initial content generation if daily auto-generate is on
-        if (settings.dailyAutoGenerateContent) { 
-          print("[GameProvider] Initial content generation for new user after signup.");
-           _aiGenerationActions
-              .generateGameContent(_playerLevel, isManual: false, isInitial: true, contentType: "all")
+        // Trigger initial content generation if daily auto-gen is on
+        if (settings.dailyAutoGenerateContent) {
+          print(
+              "[GameProvider] Initial content generation for new user after signup.");
+          _aiGenerationActions
+              .generateGameContent(_playerLevel,
+                  isManual: false, isInitial: true, contentType: "all")
               .catchError((e) {
             print("Error during signup initial content generation: $e");
           }).whenComplete(() => _performActualSave());
         } else {
-            await _performActualSave();
+          await _performActualSave();
         }
-        
+        _isChatbotMemoryInitialized =
+            false; // Ensure chatbot memory is re-initialized
+        initializeChatbotMemory();
+
         _handleDailyReset();
         _isDataLoadingAfterLogin = false;
         _isUsernameMissing = false;
@@ -885,13 +916,62 @@ class GameProvider with ChangeNotifier {
     _currentGame.playerCurrentHp = _playerGameStats['vitality']!.value;
 
     _currentGame.log = [
-        ..._currentGame.log,
-        "<span style=\"color:#${(getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed).value.toRadixString(16).substring(2)}\">You feel a surge of power! Level up to $_playerLevel.</span>"
-      ];
-    
+      ..._currentGame.log,
+      "<span style=\"color:#${(getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed).value.toRadixString(16).substring(2)}\">You feel a surge of power! Level up to $_playerLevel.</span>"
+    ];
+
     _hasUnsavedChanges = true;
     notifyListeners();
   }
+
+  String _generateWeeklySummaryForChatbot() {
+    if (_completedByDay.isEmpty) {
+      return "No activity logged in the past week to generate a summary.";
+    }
+    List<String> summaryLines = ["Last Week's Activity Summary:"];
+    int totalMinutes = 0;
+    int totalSubtasks = 0;
+    int totalCheckpoints = 0;
+    Map<String, int> mainTaskTimes = {};
+
+    DateTime today = DateTime.now();
+    for (int i = 0; i < 7; i++) {
+      DateTime dayToConsider = today.subtract(Duration(days: i));
+      String dateKey = DateFormat('yyyy-MM-dd').format(dayToConsider);
+      if (_completedByDay.containsKey(dateKey)) {
+        final dayData = _completedByDay[dateKey] as Map<String, dynamic>;
+        final taskTimes = dayData['taskTimes'] as Map<String, dynamic>? ?? {};
+        taskTimes.forEach((taskId, time) {
+          final taskName =
+              _mainTasks.firstWhereOrNull((t) => t.id == taskId)?.name ?? taskId;
+          mainTaskTimes[taskName] = (mainTaskTimes[taskName] ?? 0) + (time as int);
+          totalMinutes += time;
+        });
+        totalSubtasks += (dayData['subtasksCompleted'] as List?)?.length ?? 0;
+        totalCheckpoints +=
+            (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
+      }
+    }
+
+    if (totalMinutes > 0) {
+      summaryLines.add("- Total time logged: $totalMinutes minutes.");
+      mainTaskTimes.forEach((taskName, time) {
+        summaryLines.add("  - On '$taskName': $time minutes.");
+      });
+    }
+    if (totalSubtasks > 0) {
+      summaryLines.add("- Sub-tasks completed: $totalSubtasks.");
+    }
+    if (totalCheckpoints > 0) {
+      summaryLines.add("- Checkpoints cleared: $totalCheckpoints.");
+    }
+    
+    if (summaryLines.length == 1) { // Only the title
+      return "No significant activity logged in the past week to generate a summary.";
+    }
+    return summaryLines.join("\n");
+  }
+
 
   Future<void> _handleDailyReset() async {
     if (_currentUser == null) return;
@@ -899,7 +979,8 @@ class GameProvider with ChangeNotifier {
     bool hasResetRun = false;
 
     if (_lastLoginDate != today) {
-      print("[GameProvider] Daily reset triggered. Last login: $_lastLoginDate, Today: $today");
+      print(
+          "[GameProvider] Daily reset triggered. Last login: $_lastLoginDate, Today: $today");
       hasResetRun = true;
       _mainTasks = _mainTasks.map((task) {
         int newStreak = task.streak;
@@ -911,7 +992,8 @@ class GameProvider with ChangeNotifier {
               task.lastWorkedDate != today &&
               task.lastWorkedDate != yesterdayStr) {
             newStreak = 0;
-            print("[GameProvider] Task '${task.name}' streak reset due to inactivity.");
+            print(
+                "[GameProvider] Task '${task.name}' streak reset due to inactivity.");
           }
         }
         return MainTask(
@@ -933,17 +1015,22 @@ class GameProvider with ChangeNotifier {
       _lastLoginDate = today;
       _hasUnsavedChanges = true; // Mark changes for saving
       scheduleEmotionReminders(); // Re-schedule reminders for the new day
-      print("[GameProvider] Daily reset applied. Player energy restored. Streaks updated.");
+      print(
+          "[GameProvider] Daily reset applied. Player energy restored. Streaks updated.");
     }
 
-    if (settings.dailyAutoGenerateContent && hasResetRun) { // Only run auto-gen if a daily reset actually occurred
+    if (settings.dailyAutoGenerateContent &&
+        hasResetRun) { // Only run auto-gen if a daily reset actually occurred
       print("[GameProvider] Daily auto-generation triggered.");
       String? currentLocationId = _currentGame.currentPlaceKey;
       bool currentRealmPacified = false;
 
       if (currentLocationId != null) {
-        final enemiesInLocation = _enemyTemplatesList.where((e) => e.locationKey == currentLocationId).toList();
-        if (enemiesInLocation.isNotEmpty && enemiesInLocation.every((e) => _defeatedEnemyIds.contains(e.id))) {
+        final enemiesInLocation = _enemyTemplatesList
+            .where((e) => e.locationKey == currentLocationId)
+            .toList();
+        if (enemiesInLocation.isNotEmpty &&
+            enemiesInLocation.every((e) => _defeatedEnemyIds.contains(e.id))) {
           currentRealmPacified = true;
           print("[GameProvider] Current realm '$currentLocationId' is pacified.");
         }
@@ -953,36 +1040,58 @@ class GameProvider with ChangeNotifier {
         if (currentLocationId != null && currentRealmPacified) {
           _gameLocationsList.removeWhere((loc) => loc.id == currentLocationId);
           _clearedLocationIds.removeWhere((id) => id == currentLocationId);
-           _currentGame.log.add("<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Realm '$currentLocationId' pacified and archived.</span>");
+          _currentGame.log.add(
+              "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Realm '$currentLocationId' pacified and archived.</span>");
           print("[GameProvider] Pacified realm '$currentLocationId' removed.");
         }
-        
-        print("[GameProvider] Generating a new realm due to daily reset or pacified current realm.");
-        await _aiGenerationActions.generateGameContent(
-            _playerLevel, isManual: false, isInitial: false, contentType: "locations", numLocationsToGenerate: 1); // generate 1 new location
-        
+
+        print(
+            "[GameProvider] Generating a new realm due to daily reset or pacified current realm.");
+        await _aiGenerationActions.generateGameContent(_playerLevel,
+            isManual: false,
+            isInitial: false,
+            contentType: "locations",
+            numLocationsToGenerate:
+                1); // generate 1 new location
+
         // Select the newly generated or first available realm
         if (_gameLocationsList.isNotEmpty) {
-            currentLocationId = _gameLocationsList.where((loc) => !_clearedLocationIds.contains(loc.id)).firstOrNull?.id ?? _gameLocationsList.first.id;
+          currentLocationId = _gameLocationsList
+                  .where((loc) => !_clearedLocationIds.contains(loc.id))
+                  .firstOrNull
+                  ?.id ??
+              _gameLocationsList.first.id;
         } else {
-            currentLocationId = null; // No locations available
+          currentLocationId = null; // No locations available
         }
         _currentGame.currentPlaceKey = currentLocationId;
-         _hasUnsavedChanges = true; // Mark changes for saving
+        _hasUnsavedChanges = true; // Mark changes for saving
       }
-      
+
       if (currentLocationId != null) {
         print("[GameProvider] Generating new enemies for realm '$currentLocationId'.");
-        await _aiGenerationActions.generateGameContent(
-            _playerLevel, isManual: false, isInitial: false, contentType: "enemies", numEnemiesToGenerate: 3, specificLocationKeyForEnemies: currentLocationId); // generate 3 enemies for current/new location
+        await _aiGenerationActions.generateGameContent(_playerLevel,
+            isManual: false,
+            isInitial: false,
+            contentType: "enemies",
+            numEnemiesToGenerate: 3,
+            specificLocationKeyForEnemies:
+                currentLocationId); // generate 3 enemies for current/new location
       } else {
-        print("[GameProvider] No active realm to populate with new threats after daily reset.");
-         _currentGame.log.add("<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">No active realm available for new threats.</span>");
+        print(
+            "[GameProvider] No active realm to populate with new threats after daily reset.");
+        _currentGame.log.add(
+            "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">No active realm available for new threats.</span>");
       }
     }
-    if (hasResetRun) notifyListeners(); // Notify at the end if any reset or generation happened
+    if (hasResetRun) {
+      // If a daily reset happened, also refresh chatbot's weekly summary.
+      _chatbotMemory.lastWeeklySummary = _generateWeeklySummaryForChatbot();
+      _getCompletedGoalsForChatbotMemory();
+      setProviderState(chatbotMemory: _chatbotMemory, doNotify: false); // Update chatbot memory without double notification, persist will happen with notifyListeners below
+      notifyListeners(); // Notify at the end if any reset or generation happened
+    }
   }
-
 
   void _updatePlayerStatsFromItemsAndRunes() {
     final Map<String, PlayerStat> newStats = {
@@ -1104,7 +1213,8 @@ class GameProvider with ChangeNotifier {
     // After reset, if daily auto-gen is on, an initial populate will happen.
     if (settings.dailyAutoGenerateContent) {
       print("[GameProvider] Generating initial content after data purge.");
-      await _aiGenerationActions.generateGameContent(_playerLevel, isManual: false, isInitial: true, contentType: "all");
+      await _aiGenerationActions.generateGameContent(_playerLevel,
+          isManual: false, isInitial: true, contentType: "all");
     }
     await _performActualSave(); // Save the reset (and potentially newly generated) state.
     notifyListeners();
@@ -1182,7 +1292,6 @@ class GameProvider with ChangeNotifier {
       ),
     );
   }
-
 
   Future<void> clearDiscoverablePowerUps() async {
     if (_currentUser == null) return;
@@ -1284,12 +1393,12 @@ class GameProvider with ChangeNotifier {
         clearedLocationIds: newClearedLocationIds,
         currentGame: CurrentGame(
           enemy: _currentGame.enemy, // Keep current enemy if any
-          playerCurrentHp: _currentGame.playerCurrentHp,
+          playerCurrentHp: currentGame.playerCurrentHp,
           log: [
-            ..._currentGame.log,
+            ...currentGame.log,
             "<span style=\"color:${AppTheme.fhAccentGreen.value.toRadixString(16).substring(2)};\">Zone '${_gameLocationsList.firstWhereOrNull((loc) => loc.id == locationId)?.name ?? locationId}' has been pacified!</span>"
           ],
-          currentPlaceKey: _currentGame.currentPlaceKey,
+          currentPlaceKey: currentGame.currentPlaceKey,
         ));
   }
 
@@ -1301,7 +1410,8 @@ class GameProvider with ChangeNotifier {
     }
     return (dayData['emotionLogs'] as List<dynamic>)
         .map((logJson) => EmotionLog.fromJson(logJson as Map<String, dynamic>))
-        .toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 
   void logEmotion(String date, int rating, [DateTime? customTimestamp]) {
@@ -1317,21 +1427,24 @@ class GameProvider with ChangeNotifier {
           'emotionLogs': <Map<String, dynamic>>[]
         });
 
-    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
-    
+    final emotionLogsList =
+        List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+
     if (emotionLogsList.length >= 10) {
       // emotionLogsList is already sorted by timestamp in getEmotionLogsForDate, and new logs are added to keep sort
       emotionLogsList.removeAt(0); // Remove the oldest
     }
     emotionLogsList.add(emotionLog.toJson());
     // Ensure it remains sorted after adding
-    emotionLogsList.sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
+    emotionLogsList.sort(
+        (a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
 
     dayData['emotionLogs'] = emotionLogsList;
     newCompletedByDay[date] = dayData;
 
     setProviderState(completedByDay: newCompletedByDay);
-    _currentGame.log.add("<span style='color:${AppTheme.fhAccentPurple.value.toRadixString(16).substring(2)};'>Emotion logged: $rating/5 for $date.</span>");
+    _currentGame.log.add(
+        "<span style='color:${AppTheme.fhAccentPurple.value.toRadixString(16).substring(2)};'>Emotion logged: $rating/5 for $date.</span>");
     notifyListeners(); // Ensure UI updates for new log
   }
 
@@ -1341,20 +1454,22 @@ class GameProvider with ChangeNotifier {
 
     final newCompletedByDay = Map<String, dynamic>.from(_completedByDay);
     final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ?? {});
-    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+    final emotionLogsList =
+        List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
 
     if (emotionLogsList.isNotEmpty) {
-        emotionLogsList.removeLast(); // Assumes logs are always sorted, last one is latest
+      emotionLogsList.removeLast(); // Assumes logs are always sorted, last one is latest
     }
-    
+
     dayData['emotionLogs'] = emotionLogsList;
     newCompletedByDay[date] = dayData;
 
     setProviderState(completedByDay: newCompletedByDay);
-    _currentGame.log.add("<span style='color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)};'>Latest emotion log for $date deleted.</span>");
+    _currentGame.log.add(
+        "<span style='color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)};'>Latest emotion log for $date deleted.</span>");
     notifyListeners(); // Ensure UI updates
   }
-  
+
   void setWakeupTime(TimeOfDay newTime) {
     _settings.wakeupTimeHour = newTime.hour;
     _settings.wakeupTimeMinute = newTime.minute;
@@ -1364,22 +1479,24 @@ class GameProvider with ChangeNotifier {
 
   List<DateTime> calculateNotificationTimes() {
     final now = DateTime.now();
-    final wakeupDateTime = DateTime(now.year, now.month, now.day, wakeupTime.hour, wakeupTime.minute);
-    const int loggingDurationMinutes = 16 * 60; 
+    final wakeupDateTime = DateTime(
+        now.year, now.month, now.day, wakeupTime.hour, wakeupTime.minute);
+    const int loggingDurationMinutes = 16 * 60;
     const int numberOfLogs = 10;
-    final int intervalMinutes = (loggingDurationMinutes / (numberOfLogs -1 )).floor();
+    final int intervalMinutes =
+        (loggingDurationMinutes / (numberOfLogs - 1)).floor();
 
     List<DateTime> times = [];
     DateTime currentTime = wakeupDateTime;
 
     for (int i = 0; i < numberOfLogs; i++) {
-        times.add(currentTime);
-        currentTime = currentTime.add(Duration(minutes: intervalMinutes));
+      times.add(currentTime);
+      currentTime = currentTime.add(Duration(minutes: intervalMinutes));
     }
     // Filter times that are in the past relative to 'now' for today's reminders.
     // For future days, all 10 times would be valid.
-    if (now.day == wakeupDateTime.day){
-        return times.where((t) => t.isAfter(now)).toList();
+    if (now.day == wakeupDateTime.day) {
+      return times.where((t) => t.isAfter(now)).toList();
     }
     return times; // For future days, return all calculated times
   }
@@ -1395,8 +1512,219 @@ class GameProvider with ChangeNotifier {
     //   }
     // }
     if (kDebugMode) {
-      print("[GameProvider] Conceptual: Would schedule notifications for: ${calculateNotificationTimes().map((t) => DateFormat('HH:mm').format(t)).join(', ')}");
+      print(
+          "[GameProvider] Conceptual: Would schedule notifications for: ${calculateNotificationTimes().map((t) => DateFormat('HH:mm').format(t)).join(', ')}");
     }
+  }
+
+  Future<void> resetParkData() async {
+    if (_currentUser == null) return;
+    print("[GameProvider] Resetting park data for user ${_currentUser!.uid}");
+
+    setProviderState(
+        ownedBuildings: [],
+        ownedDinosaurs: [],
+        fossilRecords: _dinosaurSpeciesList
+            .map((species) => FossilRecord(speciesId: species.id))
+            .toList(),
+        parkManager: ParkManager(
+          parkDollars: 50000,
+          parkEnergy: _playerEnergy,
+          maxParkEnergy: calculatedMaxEnergy,
+        ),
+        currentGame: CurrentGame(
+          enemy: _currentGame.enemy,
+          playerCurrentHp: _currentGame.playerCurrentHp,
+          log: [
+            ..._currentGame.log,
+            "<span style=\"color:${AppTheme.fhAccentOrange.value.toRadixString(16).substring(2)}\">Jurassic Park systems reset. All assets and progress within the park have been purged.</span>"
+          ],
+          currentPlaceKey: _currentGame.currentPlaceKey,
+        ),
+        doPersist: false, // Save will be handled by _performActualSave
+        doNotify: false // Notify will be handled by _performActualSave
+        );
+
+    await _performActualSave(); // Persist the reset park state
+    notifyListeners(); // Notify listeners after save
+    print("[GameProvider] Park data reset and saved.");
+  }
+
+
+  String _generateWeeklySummary() {
+    if (_completedByDay.isEmpty) {
+      return "No activity logged in the past week to generate a summary.";
+    }
+    List<String> summaryLines = ["Last Week's Activity Summary:"];
+    int totalMinutes = 0;
+    int totalSubtasks = 0;
+    int totalCheckpoints = 0;
+    Map<String, int> mainTaskTimes = {};
+
+    DateTime today = DateTime.now();
+    for (int i = 0; i < 7; i++) {
+      DateTime dayToConsider = today.subtract(Duration(days: i));
+      String dateKey = DateFormat('yyyy-MM-dd').format(dayToConsider);
+      if (_completedByDay.containsKey(dateKey)) {
+        final dayData = _completedByDay[dateKey] as Map<String, dynamic>;
+        final taskTimes = dayData['taskTimes'] as Map<String, dynamic>? ?? {};
+        taskTimes.forEach((taskId, time) {
+          final taskName =
+              _mainTasks.firstWhereOrNull((t) => t.id == taskId)?.name ?? taskId;
+          mainTaskTimes[taskName] = (mainTaskTimes[taskName] ?? 0) + (time as int);
+          totalMinutes += time;
+        });
+        totalSubtasks += (dayData['subtasksCompleted'] as List?)?.length ?? 0;
+        totalCheckpoints +=
+            (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
+      }
+    }
+
+    if (totalMinutes > 0) {
+      summaryLines.add("- Total time logged: $totalMinutes minutes.");
+      mainTaskTimes.forEach((taskName, time) {
+        summaryLines.add("  - On '$taskName': $time minutes.");
+      });
+    }
+    if (totalSubtasks > 0) {
+      summaryLines.add("- Sub-tasks completed: $totalSubtasks.");
+    }
+    if (totalCheckpoints > 0) {
+      summaryLines.add("- Checkpoints cleared: $totalCheckpoints.");
+    }
+    
+    if (summaryLines.length == 1) { // Only the title
+      return "No significant activity logged in the past week to generate a summary.";
+    }
+    return summaryLines.join("\n");
+  }
+
+
+  void _getCompletedGoalsForChatbotMemory() {
+    List<String> goals = [];
+    DateTime today = DateTime.now();
+    // Look at past 7 days for completed tasks/subtasks
+    for (int i = 0; i < 7; i++) {
+        DateTime dayToConsider = today.subtract(Duration(days: i));
+        String dateKey = DateFormat('yyyy-MM-dd').format(dayToConsider);
+        if (_completedByDay.containsKey(dateKey)) {
+            final dayData = _completedByDay[dateKey] as Map<String, dynamic>;
+            final subtasks = dayData['subtasksCompleted'] as List<dynamic>? ?? [];
+            for (var subtaskMap in subtasks) {
+                if (subtaskMap is Map<String, dynamic>) {
+                    String parentTaskName = mainTasks.firstWhereOrNull((t) => t.id == subtaskMap['parentTaskId'])?.name ?? "Unknown Quest";
+                    goals.add("Completed sub-task '${subtaskMap['name']}' for '$parentTaskName' on $dateKey.");
+                }
+            }
+            final checkpoints = dayData['checkpointsCompleted'] as List<dynamic>? ?? [];
+             for (var checkpointMap in checkpoints) {
+                if (checkpointMap is Map<String, dynamic>) {
+                    goals.add("Completed checkpoint '${checkpointMap['name']}' for '${checkpointMap['parentSubtaskName']}' on $dateKey.");
+                }
+            }
+        }
+    }
+    // Limit to most recent N goals to keep memory manageable
+    _chatbotMemory.dailyCompletedGoals = goals.take(10).toList();
+  }
+
+  void initializeChatbotMemory() {
+    if (_isChatbotMemoryInitialized) return;
+    _chatbotMemory.lastWeeklySummary = _generateWeeklySummary();
+    _getCompletedGoalsForChatbotMemory();
+    if (_chatbotMemory.conversationHistory.isEmpty) {
+       _chatbotMemory.conversationHistory.add(ChatbotMessage(
+          id: 'init_${DateTime.now().millisecondsSinceEpoch}',
+          text: "Hello! I am Arcane Advisor. How can I assist you with your mission logs or goals today?",
+          sender: MessageSender.bot,
+          timestamp: DateTime.now()));
+    }
+    _isChatbotMemoryInitialized = true;
+    print("[GameProvider] Chatbot memory initialized/refreshed.");
+    notifyListeners();
+  }
+
+  Future<void> sendMessageToChatbot(String userMessageText) async {
+    if (!_isChatbotMemoryInitialized) initializeChatbotMemory();
+
+    final userMessage = ChatbotMessage(
+        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+        text: userMessageText,
+        sender: MessageSender.user,
+        timestamp: DateTime.now());
+
+    _chatbotMemory.conversationHistory.add(userMessage);
+    if (_chatbotMemory.conversationHistory.length > 20) { // Keep history limited
+      _chatbotMemory.conversationHistory.removeAt(0);
+    }
+
+    // Handle "Remember" command
+    if (userMessageText.toLowerCase().startsWith("remember:")) {
+      final itemToRemember = userMessageText.substring("remember:".length).trim();
+      if (itemToRemember.isNotEmpty) {
+        _chatbotMemory.userRememberedItems.add(itemToRemember);
+        if(_chatbotMemory.userRememberedItems.length > 10) { // Limit remembered items
+            _chatbotMemory.userRememberedItems.removeAt(0);
+        }
+        final botResponse = ChatbotMessage(
+            id: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+            text: "Okay, I will remember: \"$itemToRemember\"",
+            sender: MessageSender.bot,
+            timestamp: DateTime.now());
+        _chatbotMemory.conversationHistory.add(botResponse);
+        setProviderState(chatbotMemory: _chatbotMemory); // Persist memory
+        return;
+      }
+    }
+     if (userMessageText.toLowerCase().startsWith("forget last") || userMessageText.toLowerCase().startsWith("forget everything")) {
+        bool forgetEverything = userMessageText.toLowerCase().startsWith("forget everything");
+        String responseText;
+        if (forgetEverything) {
+            _chatbotMemory.userRememberedItems.clear();
+            responseText = "Okay, I've cleared all previously remembered items.";
+        } else if (_chatbotMemory.userRememberedItems.isNotEmpty) {
+            String forgottenItem = _chatbotMemory.userRememberedItems.removeLast();
+            responseText = "Okay, I've forgotten: \"$forgottenItem\"";
+        } else {
+            responseText = "I don't have any specific items I was asked to remember right now.";
+        }
+         final botResponse = ChatbotMessage(
+            id: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+            text: responseText,
+            sender: MessageSender.bot,
+            timestamp: DateTime.now());
+        _chatbotMemory.conversationHistory.add(botResponse);
+        setProviderState(chatbotMemory: _chatbotMemory); // Persist memory
+        return;
+    }
+
+
+    notifyListeners(); // Show user message immediately
+
+    try {
+      final botResponseText = await _aiService.getChatbotResponse(
+        memory: _chatbotMemory,
+        userMessage: userMessageText,
+        currentApiKeyIndex: _apiKeyIndex,
+        onNewApiKeyIndex: (newIndex) => _apiKeyIndex = newIndex,
+        onLog: (logMsg) => _currentGame.log.add(logMsg),
+      );
+      final botMessage = ChatbotMessage(
+          id: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+          text: botResponseText,
+          sender: MessageSender.bot,
+          timestamp: DateTime.now());
+      _chatbotMemory.conversationHistory.add(botMessage);
+    } catch (e) {
+      final errorMessage = ChatbotMessage(
+          id: 'error_${DateTime.now().millisecondsSinceEpoch}',
+          text: "I'm having trouble connecting right now. Please try again later.",
+          sender: MessageSender.bot,
+          timestamp: DateTime.now());
+      _chatbotMemory.conversationHistory.add(errorMessage);
+    }
+    
+    setProviderState(chatbotMemory: _chatbotMemory); // Persist memory including bot response
   }
 
 
@@ -1410,13 +1738,12 @@ class GameProvider with ChangeNotifier {
           String? specificLocationKeyForEnemies // Added
           }) =>
       _aiGenerationActions.generateGameContent(level,
-          isManual: isManual, 
-          isInitial: isInitial, 
+          isManual: isManual,
+          isInitial: isInitial,
           contentType: contentType,
           numLocationsToGenerate: numLocationsToGenerate,
           numEnemiesToGenerate: numEnemiesToGenerate,
-          specificLocationKeyForEnemies: specificLocationKeyForEnemies
-          );
+          specificLocationKeyForEnemies: specificLocationKeyForEnemies);
 
   void addMainTask(
           {required String name,
@@ -1562,6 +1889,8 @@ class GameProvider with ChangeNotifier {
     List<OwnedDinosaur>? ownedDinosaurs,
     List<FossilRecord>? fossilRecords,
     ParkManager? parkManager,
+    // Chatbot
+    ChatbotMemory? chatbotMemory,
     bool doNotify = true,
     bool doPersist = true,
   }) {
@@ -1729,6 +2058,11 @@ class GameProvider with ChangeNotifier {
         _parkManager.parkEnergy = _playerEnergy;
         _parkManager.maxParkEnergy = calculatedMaxEnergy;
       }
+      changed = true;
+    }
+    // Chatbot state update
+    if (chatbotMemory != null && _chatbotMemory != chatbotMemory) {
+      _chatbotMemory = chatbotMemory;
       changed = true;
     }
 
