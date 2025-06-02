@@ -35,7 +35,10 @@ class HeaderWidget extends StatelessWidget {
                   IconButton(
                     icon: Icon(MdiIcons.formatListChecks,
                         color: AppTheme.fhTextSecondary),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
+                    onPressed: () {
+                       FocusScope.of(context).unfocus(); // Unfocus before opening drawer
+                       Scaffold.of(context).openDrawer();
+                    },
                     tooltip: 'Missions',
                   ),
                 if (!isSmallScreen)
@@ -57,6 +60,7 @@ class HeaderWidget extends StatelessWidget {
                   icon: Icon(MdiIcons.bookOpenVariant,
                       color: AppTheme.fhTextSecondary),
                   onPressed: () {
+                    FocusScope.of(context).unfocus(); // Unfocus before navigation
                     Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -68,6 +72,7 @@ class HeaderWidget extends StatelessWidget {
                   icon: Icon(MdiIcons.cogOutline,
                       color: AppTheme.fhTextSecondary),
                   onPressed: () {
+                    FocusScope.of(context).unfocus(); // Unfocus before navigation
                     Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -79,7 +84,10 @@ class HeaderWidget extends StatelessWidget {
                   IconButton(
                     icon: Icon(MdiIcons.accountCircleOutline,
                         color: AppTheme.fhTextSecondary),
-                    onPressed: () => Scaffold.of(context).openEndDrawer(),
+                    onPressed: () {
+                      FocusScope.of(context).unfocus(); // Unfocus before opening drawer
+                      Scaffold.of(context).openEndDrawer();
+                    },
                     tooltip: 'Profile & Stats',
                   ),
               ],

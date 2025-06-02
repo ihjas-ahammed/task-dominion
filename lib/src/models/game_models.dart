@@ -1067,52 +1067,17 @@ class EmotionLog {
 // Chatbot models
 enum MessageSender { user, bot }
 
-// For AI Dynamic UI
-enum DynamicUiType { graph, unknown }
-
-class DynamicUiPayload {
-  final DynamicUiType type;
-  final Map<String, dynamic> data; // e.g., {'graphType': 'bar', 'title': 'Emotion Trend', 'seriesData': [...]}
-
-  DynamicUiPayload({required this.type, required this.data});
-
-  factory DynamicUiPayload.fromJson(Map<String, dynamic> json) {
-    DynamicUiType uiType;
-    try {
-      uiType = DynamicUiType.values.firstWhere(
-        (e) => e.toString() == 'DynamicUiType.${json['type'] as String? ?? 'unknown'}'
-      );
-    } catch (e) {
-      uiType = DynamicUiType.unknown;
-    }
-    return DynamicUiPayload(
-      type: uiType,
-      data: Map<String, dynamic>.from(json['data'] as Map? ?? {}),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'type': type.toString().split('.').last,
-      'data': data,
-    };
-  }
-}
-
-
 class ChatbotMessage {
   final String id;
   final String text;
   final MessageSender sender;
   final DateTime timestamp;
-  final DynamicUiPayload? uiPayload; // NEW: Optional UI payload
 
   ChatbotMessage({
     required this.id,
     required this.text,
     required this.sender,
     required this.timestamp,
-    this.uiPayload, // NEW
   });
 
   factory ChatbotMessage.fromJson(Map<String, dynamic> json) {
@@ -1122,9 +1087,6 @@ class ChatbotMessage {
       sender: MessageSender.values
           .firstWhere((e) => e.toString() == json['sender'] as String),
       timestamp: DateTime.parse(json['timestamp'] as String),
-      uiPayload: json['uiPayload'] != null
-          ? DynamicUiPayload.fromJson(json['uiPayload'] as Map<String, dynamic>)
-          : null, // NEW
     );
   }
 
@@ -1134,7 +1096,6 @@ class ChatbotMessage {
       'text': text,
       'sender': sender.toString(),
       'timestamp': timestamp.toIso8601String(),
-      'uiPayload': uiPayload?.toJson(), // NEW
     };
   }
 }
@@ -1142,17 +1103,12 @@ class ChatbotMessage {
 
 class ChatbotMemory {
   List<ChatbotMessage> conversationHistory;
-  String? lastWeeklySummary;
-  List<String> dailyCompletedGoals; // List of strings, e.g., "Completed X on YYYY-MM-DD"
   List<String> userRememberedItems; // Items explicitly told to remember
 
   ChatbotMemory({
     List<ChatbotMessage>? conversationHistory,
-    this.lastWeeklySummary,
-    List<String>? dailyCompletedGoals,
     List<String>? userRememberedItems,
   })  : conversationHistory = conversationHistory ?? [],
-        dailyCompletedGoals = dailyCompletedGoals ?? [],
         userRememberedItems = userRememberedItems ?? [];
 
   factory ChatbotMemory.fromJson(Map<String, dynamic> json) {
@@ -1160,11 +1116,6 @@ class ChatbotMemory {
       conversationHistory: (json['conversationHistory'] as List<dynamic>?)
               ?.map((msgJson) =>
                   ChatbotMessage.fromJson(msgJson as Map<String, dynamic>))
-              .toList() ??
-          [],
-      lastWeeklySummary: json['lastWeeklySummary'] as String?,
-      dailyCompletedGoals: (json['dailyCompletedGoals'] as List<dynamic>?)
-              ?.map((goal) => goal as String)
               .toList() ??
           [],
       userRememberedItems: (json['userRememberedItems'] as List<dynamic>?)
@@ -1178,8 +1129,6 @@ class ChatbotMemory {
     return {
       'conversationHistory':
           conversationHistory.map((msg) => msg.toJson()).toList(),
-      'lastWeeklySummary': lastWeeklySummary,
-      'dailyCompletedGoals': dailyCompletedGoals,
       'userRememberedItems': userRememberedItems,
     };
   }

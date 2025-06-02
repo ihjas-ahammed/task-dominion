@@ -63,10 +63,9 @@ class _HomeScreenState extends State<HomeScreen>
     _tabController.addListener(() {
       if (_tabController.indexIsChanging ||
           _tabController.index == _selectedIndex) {
-        // Only update if the index is actually changing by user interaction or a direct set.
-        // Avoid redundant updates when _selectedIndex is already in sync.
         return;
       }
+      FocusScope.of(context).unfocus(); // Unfocus on tab change
       setState(() {
         _selectedIndex = _tabController.index;
       });
@@ -100,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen>
         _views.indexWhere((view) => view['value'] == gameProvider.currentView);
     if (newIndex != -1 && newIndex != _selectedIndex) {
       if (mounted) {
+        FocusScope.of(context).unfocus(); // Unfocus if view changes from provider
         setState(() {
           _selectedIndex = newIndex;
         });
@@ -111,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen>
         _views.indexWhere((v) => v['value'] == gameProvider.currentView) ==
             -1) {
       if (mounted && _selectedIndex != 0) {
+        FocusScope.of(context).unfocus(); // Unfocus if defaulting
         setState(() {
           _selectedIndex = 0;
         });
@@ -211,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onItemTapped(int index) {
     if (index < 0 || index >= _views.length) return;
+    FocusScope.of(context).unfocus(); // Unfocus on BottomNav tap
     print(
         "[HomeScreen] _onItemTapped: index $index, view value: ${_views[index]['value']}");
     setState(() {

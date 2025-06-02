@@ -430,6 +430,7 @@ class _TaskNavigationDrawerState extends State<TaskNavigationDrawer> {
                               ]),
                           selected: isSelected,
                           onTap: () {
+                            FocusScope.of(context).unfocus(); // Unfocus on task selection
                             gameProvider.setSelectedTaskId(task.id);
                             if (gameProvider.currentView != 'task-details') {
                               gameProvider.setCurrentView('task-details');

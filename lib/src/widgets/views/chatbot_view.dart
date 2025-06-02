@@ -6,8 +6,7 @@ import 'package:arcane/src/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:fl_chart/fl_chart.dart'; // For rendering graphs
-import 'dart:convert'; // For jsonDecode if AI provides complex data
+
 
 class ChatbotView extends StatefulWidget {
   const ChatbotView({super.key});
@@ -51,6 +50,7 @@ class _ChatbotViewState extends State<ChatbotView> {
     if (_messageController.text.trim().isEmpty) return;
     final messageText = _messageController.text.trim();
     _messageController.clear();
+    FocusScope.of(context).unfocus(); // Unfocus after sending
 
     setState(() => _isSending = true);
 
@@ -100,6 +100,8 @@ class _ChatbotViewState extends State<ChatbotView> {
                           ));
                   if (confirm == true) {
                     gameProvider.chatbotMemory.conversationHistory.clear();
+                    // Re-initialize with the welcome message
+                    gameProvider.initializeChatbotMemory();
                   }
                 },
               ),
@@ -224,10 +226,6 @@ class _ChatbotViewState extends State<ChatbotView> {
                     message.text,
                     style: theme.textTheme.bodyMedium?.copyWith(color: textColor, fontSize: 13.5, height: 1.4),
                   ),
-                  if (message.uiPayload != null) ...[
-                    const SizedBox(height: 8),
-                    _buildDynamicUiWidget(message.uiPayload!, theme, dynamicAccent),
-                  ],
                   if (!isTyping) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -244,121 +242,6 @@ class _ChatbotViewState extends State<ChatbotView> {
     );
   }
 
-  Widget _buildDynamicUiWidget(DynamicUiPayload payload, ThemeData theme, Color dynamicAccent) {
-    switch (payload.type) {
-      case DynamicUiType.graph:
-        return _buildGraphFromPayload(payload.data, theme, dynamicAccent);
-      case DynamicUiType.unknown:
-      default:
-        return Text(
-          "[Dynamic UI Error: Unknown payload type or data error. Raw: ${jsonEncode(payload.data)}]",
-          style: TextStyle(color: AppTheme.fhAccentRed.withOpacity(0.8), fontSize: 10, fontStyle: FontStyle.italic),
-        );
-    }
-  }
-
-  Widget _buildGraphFromPayload(Map<String, dynamic> data, ThemeData theme, Color dynamicAccent) {
-    final String graphType = data['graphType'] as String? ?? '';
-    final String title = data['title'] as String? ?? 'Graph';
-    final String source = data['source'] as String? ?? '';
-    
-    final gameProvider = Provider.of<GameProvider>(context, listen: false);
-
-    if (graphType == 'emotion_trend_bar' && source == 'emotion_logs') {
-      List<MapEntry<String, double>> dailyAverageEmotions = [];
-      final today = DateTime.now();
-      for (int i = 6; i >= 0; i--) { // Last 7 days
-        final date = today.subtract(Duration(days: i));
-        final dateString = DateFormat('yyyy-MM-dd').format(date);
-        final logsForDay = gameProvider.getEmotionLogsForDate(dateString);
-        if (logsForDay.isNotEmpty) {
-          double sum = logsForDay.fold(0, (prev, log) => prev + log.rating);
-          dailyAverageEmotions.add(MapEntry(dateString, sum / logsForDay.length));
-        } else {
-           dailyAverageEmotions.add(MapEntry(dateString, 0.0)); // Represent no data as 0
-        }
-      }
-
-      if (dailyAverageEmotions.where((e) => e.value > 0).isEmpty) {
-        return Text("Not enough emotion data for the past 7 days to display a trend.", style: theme.textTheme.bodySmall);
-      }
-
-      return SizedBox(
-        height: 200,
-        child: BarChart(
-          BarChartData(
-            alignment: BarChartAlignment.spaceAround,
-            maxY: 5.5,
-            minY: 0,
-            barTouchData: BarTouchData(
-              touchTooltipData: BarTouchTooltipData(
-                getTooltipColor: (_) => AppTheme.fhBgMedium,
-                getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                  final dateEntry = dailyAverageEmotions[group.x.toInt()];
-                  return BarTooltipItem(
-                    '${DateFormat('MMM d').format(DateTime.parse(dateEntry.key))}\n',
-                    TextStyle(color: dynamicAccent, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontDisplay),
-                    children: <TextSpan>[
-                      TextSpan(
-                        text: 'Avg: ${dateEntry.value.toStringAsFixed(1)}/5',
-                        style: TextStyle(color: dynamicAccent, fontWeight: FontWeight.w500, fontFamily: AppTheme.fontBody),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            titlesData: FlTitlesData(
-              show: true,
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  getTitlesWidget: (double value, TitleMeta meta) {
-                    final date = DateTime.parse(dailyAverageEmotions[value.toInt()].key);
-                    return SideTitleWidget(
-                      meta: meta,
-                      space: 4.0,
-                      child: Text(DateFormat('E').format(date).substring(0,1), style: TextStyle(color: AppTheme.fhTextSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
-                    );
-                  },
-                  reservedSize: 18,
-                ),
-              ),
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, interval: 1, reservedSize: 28, getTitlesWidget: (v,m) => Text(v.toInt().toString(), style: TextStyle(fontSize:10, color: AppTheme.fhTextSecondary)))),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-            borderData: FlBorderData(show: false),
-            barGroups: dailyAverageEmotions.asMap().entries.map((entry) {
-              final index = entry.key;
-              final avgRating = entry.value.value;
-              return BarChartGroupData(
-                x: index,
-                barRods: [
-                  BarChartRodData(
-                    toY: avgRating > 0 ? avgRating : 0.1, // Show a tiny bar for 0 to indicate data point
-                    color: avgRating > 0 ? dynamicAccent.withOpacity(0.8) : AppTheme.fhTextDisabled.withOpacity(0.3),
-                    width: 16,
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(3), topRight: Radius.circular(3)),
-                  ),
-                ],
-              );
-            }).toList(),
-            gridData: FlGridData(
-              show: true,
-              drawVerticalLine: false,
-              horizontalInterval: 1,
-              getDrawingHorizontalLine: (value) => FlLine(color: AppTheme.fhBorderColor.withOpacity(0.1), strokeWidth: 0.8),
-            ),
-          ),
-        ),
-      );
-    }
-    return Text(
-      "[Dynamic UI Error: Graph type '$graphType' or source '$source' not supported. Data: ${jsonEncode(data)}]",
-      style: TextStyle(color: AppTheme.fhAccentRed.withOpacity(0.8), fontSize: 10, fontStyle: FontStyle.italic),
-    );
-  }
 
    @override
   void dispose() {

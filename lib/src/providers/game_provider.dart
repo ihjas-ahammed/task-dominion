@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:arcane/src/theme/app_theme.dart';
 import 'package:collection/collection.dart';
 import 'dart:async';
+import 'dart:convert'; // For jsonEncode
 import 'package:flutter/material.dart'; // For TimeOfDay
 
 import 'package:arcane/src/models/game_models.dart';
@@ -924,53 +925,50 @@ class GameProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  String _generateWeeklySummaryForChatbot() {
+  String _generateSummaryForOlderDays() {
     if (_completedByDay.isEmpty) {
-      return "No activity logged in the past week to generate a summary.";
-    }
-    List<String> summaryLines = ["Last Week's Activity Summary:"];
-    int totalMinutes = 0;
-    int totalSubtasks = 0;
-    int totalCheckpoints = 0;
-    Map<String, int> mainTaskTimes = {};
-
-    DateTime today = DateTime.now();
-    for (int i = 0; i < 7; i++) {
-      DateTime dayToConsider = today.subtract(Duration(days: i));
-      String dateKey = DateFormat('yyyy-MM-dd').format(dayToConsider);
-      if (_completedByDay.containsKey(dateKey)) {
-        final dayData = _completedByDay[dateKey] as Map<String, dynamic>;
-        final taskTimes = dayData['taskTimes'] as Map<String, dynamic>? ?? {};
-        taskTimes.forEach((taskId, time) {
-          final taskName =
-              _mainTasks.firstWhereOrNull((t) => t.id == taskId)?.name ?? taskId;
-          mainTaskTimes[taskName] = (mainTaskTimes[taskName] ?? 0) + (time as int);
-          totalMinutes += time;
-        });
-        totalSubtasks += (dayData['subtasksCompleted'] as List?)?.length ?? 0;
-        totalCheckpoints +=
-            (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
-      }
-    }
-
-    if (totalMinutes > 0) {
-      summaryLines.add("- Total time logged: $totalMinutes minutes.");
-      mainTaskTimes.forEach((taskName, time) {
-        summaryLines.add("  - On '$taskName': $time minutes.");
-      });
-    }
-    if (totalSubtasks > 0) {
-      summaryLines.add("- Sub-tasks completed: $totalSubtasks.");
-    }
-    if (totalCheckpoints > 0) {
-      summaryLines.add("- Checkpoints cleared: $totalCheckpoints.");
+        return "No activity logged before the last 7 days.";
     }
     
-    if (summaryLines.length == 1) { // Only the title
-      return "No significant activity logged in the past week to generate a summary.";
+    List<String> olderDaysSummaryLines = ["Summary of activity older than 7 days:"];
+    int olderDaysActivityCount = 0;
+    DateTime today = DateTime.now();
+
+    // Sort dates to process older ones first for the summary
+    List<String> sortedDates = _completedByDay.keys.toList()..sort();
+
+    for (String dateString in sortedDates) {
+        DateTime date = DateTime.parse(dateString);
+        if (today.difference(date).inDays >= 7) {
+            final dayData = _completedByDay[dateString] as Map<String, dynamic>;
+            final taskTimes = dayData['taskTimes'] as Map<String, dynamic>? ?? {};
+            int dailyTotalMinutes = taskTimes.values.fold(0, (sum, time) => sum + (time as int));
+            int dailySubtasks = (dayData['subtasksCompleted'] as List?)?.length ?? 0;
+            int dailyCheckpoints = (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
+            int dailyEmotions = (dayData['emotionLogs'] as List?)?.length ?? 0;
+
+            if (dailyTotalMinutes > 0 || dailySubtasks > 0 || dailyCheckpoints > 0 || dailyEmotions > 0) {
+                olderDaysActivityCount++;
+                String activityLine = "On $dateString: ${dailyTotalMinutes}m logged";
+                if (dailySubtasks > 0) activityLine += ", $dailySubtasks sub-quests completed";
+                if (dailyCheckpoints > 0) activityLine += ", $dailyCheckpoints checkpoints cleared";
+                if (dailyEmotions > 0) activityLine += ", $dailyEmotions emotion logs";
+                activityLine += ".";
+                olderDaysSummaryLines.add(activityLine);
+            }
+        }
     }
-    return summaryLines.join("\n");
-  }
+
+    if (olderDaysActivityCount == 0) {
+        return "No significant activity logged before the last 7 days.";
+    }
+    
+    // Limit the summary length if it's too long
+    if (olderDaysSummaryLines.length > 21) { // 1 title line + 20 entries
+        return olderDaysSummaryLines.sublist(0, 21).join("\n") + "\n... (older entries truncated)";
+    }
+    return olderDaysSummaryLines.join("\n");
+}
 
 
   Future<void> _handleDailyReset() async {
@@ -1085,10 +1083,7 @@ class GameProvider with ChangeNotifier {
       }
     }
     if (hasResetRun) {
-      // If a daily reset happened, also refresh chatbot's weekly summary.
-      _chatbotMemory.lastWeeklySummary = _generateWeeklySummaryForChatbot();
-      _getCompletedGoalsForChatbotMemory();
-      setProviderState(chatbotMemory: _chatbotMemory, doNotify: false); // Update chatbot memory without double notification, persist will happen with notifyListeners below
+      // If a daily reset happened, chatbot memory does not need specific update here as full context is passed during send.
       notifyListeners(); // Notify at the end if any reset or generation happened
     }
   }
@@ -1551,87 +1546,9 @@ class GameProvider with ChangeNotifier {
   }
 
 
-  String _generateWeeklySummary() {
-    if (_completedByDay.isEmpty) {
-      return "No activity logged in the past week to generate a summary.";
-    }
-    List<String> summaryLines = ["Last Week's Activity Summary:"];
-    int totalMinutes = 0;
-    int totalSubtasks = 0;
-    int totalCheckpoints = 0;
-    Map<String, int> mainTaskTimes = {};
-
-    DateTime today = DateTime.now();
-    for (int i = 0; i < 7; i++) {
-      DateTime dayToConsider = today.subtract(Duration(days: i));
-      String dateKey = DateFormat('yyyy-MM-dd').format(dayToConsider);
-      if (_completedByDay.containsKey(dateKey)) {
-        final dayData = _completedByDay[dateKey] as Map<String, dynamic>;
-        final taskTimes = dayData['taskTimes'] as Map<String, dynamic>? ?? {};
-        taskTimes.forEach((taskId, time) {
-          final taskName =
-              _mainTasks.firstWhereOrNull((t) => t.id == taskId)?.name ?? taskId;
-          mainTaskTimes[taskName] = (mainTaskTimes[taskName] ?? 0) + (time as int);
-          totalMinutes += time;
-        });
-        totalSubtasks += (dayData['subtasksCompleted'] as List?)?.length ?? 0;
-        totalCheckpoints +=
-            (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
-      }
-    }
-
-    if (totalMinutes > 0) {
-      summaryLines.add("- Total time logged: $totalMinutes minutes.");
-      mainTaskTimes.forEach((taskName, time) {
-        summaryLines.add("  - On '$taskName': $time minutes.");
-      });
-    }
-    if (totalSubtasks > 0) {
-      summaryLines.add("- Sub-tasks completed: $totalSubtasks.");
-    }
-    if (totalCheckpoints > 0) {
-      summaryLines.add("- Checkpoints cleared: $totalCheckpoints.");
-    }
-    
-    if (summaryLines.length == 1) { // Only the title
-      return "No significant activity logged in the past week to generate a summary.";
-    }
-    return summaryLines.join("\n");
-  }
-
-
-  void _getCompletedGoalsForChatbotMemory() {
-    List<String> goals = [];
-    DateTime today = DateTime.now();
-    // Look at past 7 days for completed tasks/subtasks
-    for (int i = 0; i < 7; i++) {
-        DateTime dayToConsider = today.subtract(Duration(days: i));
-        String dateKey = DateFormat('yyyy-MM-dd').format(dayToConsider);
-        if (_completedByDay.containsKey(dateKey)) {
-            final dayData = _completedByDay[dateKey] as Map<String, dynamic>;
-            final subtasks = dayData['subtasksCompleted'] as List<dynamic>? ?? [];
-            for (var subtaskMap in subtasks) {
-                if (subtaskMap is Map<String, dynamic>) {
-                    String parentTaskName = mainTasks.firstWhereOrNull((t) => t.id == subtaskMap['parentTaskId'])?.name ?? "Unknown Quest";
-                    goals.add("Completed sub-task '${subtaskMap['name']}' for '$parentTaskName' on $dateKey.");
-                }
-            }
-            final checkpoints = dayData['checkpointsCompleted'] as List<dynamic>? ?? [];
-             for (var checkpointMap in checkpoints) {
-                if (checkpointMap is Map<String, dynamic>) {
-                    goals.add("Completed checkpoint '${checkpointMap['name']}' for '${checkpointMap['parentSubtaskName']}' on $dateKey.");
-                }
-            }
-        }
-    }
-    // Limit to most recent N goals to keep memory manageable
-    _chatbotMemory.dailyCompletedGoals = goals.take(10).toList();
-  }
-
   void initializeChatbotMemory() {
     if (_isChatbotMemoryInitialized) return;
-    _chatbotMemory.lastWeeklySummary = _generateWeeklySummary();
-    _getCompletedGoalsForChatbotMemory();
+    
     if (_chatbotMemory.conversationHistory.isEmpty) {
        _chatbotMemory.conversationHistory.add(ChatbotMessage(
           id: 'init_${DateTime.now().millisecondsSinceEpoch}',
@@ -1701,10 +1618,26 @@ class GameProvider with ChangeNotifier {
 
     notifyListeners(); // Show user message immediately
 
+    // Prepare context for AI
+    Map<String, dynamic> completedByDayLast7DaysData = {};
+    DateTime today = DateTime.now();
+
+    _completedByDay.forEach((dateString, data) {
+      DateTime date = DateTime.parse(dateString);
+      if (today.difference(date).inDays < 7) {
+        completedByDayLast7DaysData[dateString] = data;
+      }
+    });
+    String completedByDayJsonForAI = jsonEncode(completedByDayLast7DaysData);
+    String olderDaysSummaryForAI = _generateSummaryForOlderDays();
+
+
     try {
       final botResponseText = await _aiService.getChatbotResponse(
-        memory: _chatbotMemory,
+        memory: _chatbotMemory, // Contains conversation history and user remembered items
         userMessage: userMessageText,
+        completedByDayJsonLast7Days: completedByDayJsonForAI, // NEW
+        olderDaysSummary: olderDaysSummaryForAI, // NEW
         currentApiKeyIndex: _apiKeyIndex,
         onNewApiKeyIndex: (newIndex) => _apiKeyIndex = newIndex,
         onLog: (logMsg) => _currentGame.log.add(logMsg),

@@ -421,9 +421,11 @@ Return ONLY the JSON object, no markdown or comments. NO TRAILING COMMAS.
     }
   }
 
-  Future<String> getChatbotResponse({ // Return String for now, UI generation will be embedded or a separate call
+  Future<String> getChatbotResponse({ 
     required ChatbotMemory memory,
     required String userMessage,
+    required String completedByDayJsonLast7Days,
+    required String olderDaysSummary,
     required int currentApiKeyIndex,
     required Function(int) onNewApiKeyIndex,
     required Function(String) onLog,
@@ -433,30 +435,7 @@ Return ONLY the JSON object, no markdown or comments. NO TRAILING COMMAS.
     final conversationHistoryString = memory.conversationHistory
         .map((msg) => "${msg.sender == MessageSender.user ? 'User' : 'Bot'}: ${msg.text}")
         .join('\n');
-
-    // Prepare emotion log summary for the prompt
-    String emotionLogSummary = "No emotion logs available for the past week.";
-    if (memory.dailyCompletedGoals.any((goal) => goal.contains("Emotion logged:"))) { // Crude check if emotion logs are present via daily goals
-        emotionLogSummary = "Emotion logs from the past week are available. Ask for a summary if interested.";
-    } else { // Attempt to build a simple summary if GameProvider has direct access or passes it
-        // This part is tricky as AIService doesn't directly access GameProvider's completedByDay.
-        // For now, we'll rely on dailyCompletedGoals if they indirectly reflect emotion logs.
-        // A more robust solution would involve passing a summary of emotion logs to ChatbotMemory.
-        // For this iteration, we'll keep it simple.
-    }
-
-
-    // Prepare checkpoint log summary
-    String checkpointLogSummary = "No checkpoint logs available for the past week.";
-    List<String> recentCheckpoints = memory.dailyCompletedGoals
-        .where((goal) => goal.toLowerCase().contains("completed checkpoint"))
-        .take(5) // Take last 5 for brevity
-        .toList();
-    if (recentCheckpoints.isNotEmpty) {
-        checkpointLogSummary = "Recently completed checkpoints:\n${recentCheckpoints.join('\n')}";
-    }
-
-
+    
     final String prompt = """
 You are Arcane Advisor, a helpful AI assistant integrated into a gamified task management app.
 Your user is interacting with you through a chat interface.
@@ -465,45 +444,30 @@ Your knowledge includes:
 1.  Conversation History (most recent first):
 $conversationHistoryString
 
-2.  Last Weekly Summary (if available):
-${memory.lastWeeklySummary ?? "No weekly summary available for last week."}
+2.  User's Logbook Data for the Last 7 Days (JSON format):
+```json
+$completedByDayJsonLast7Days
+```
+   (This contains daily 'taskTimes', 'subtasksCompleted', 'checkpointsCompleted', and 'emotionLogs'.)
 
-3.  Recently Completed Goals/Tasks (if available):
-${memory.dailyCompletedGoals.isNotEmpty ? memory.dailyCompletedGoals.join('\n') : "No specific completed goals logged recently."}
-    (This may include emotion logs and checkpoint completions with timestamps if logged by the system.)
+3.  Summary of Logbook Data Older Than 7 Days:
+$olderDaysSummary
 
 4.  User's Explicitly Remembered Items:
 ${memory.userRememberedItems.isNotEmpty ? memory.userRememberedItems.join('\n') : "Nothing specific noted by the user to remember."}
 
-5.  Emotion Log Summary:
-$emotionLogSummary
-
-6.  Checkpoint Log Summary:
-$checkpointLogSummary
 
 User's current message: "$userMessage"
 
 Based on all this information, provide a concise, helpful, and encouraging response.
 If the user asks to "Remember X", acknowledge it and state that you will remember "X". Do not include "X" in your response beyond the acknowledgement, as the system will store it separately.
 If the user asks to "Forget last" or "Forget everything", acknowledge the action. The system handles the memory modification.
-If the user asks about their progress, summaries, emotion trends, or checkpoint completions, use the provided information.
+If the user asks about their progress, summaries, emotion trends, or checkpoint completions, use the provided information from the JSON data or the older summary.
 Keep responses relatively short and conversational.
 Do not use markdown in your primary text response.
-
-DYNAMIC UI REQUEST (Optional):
-If you think a visual representation would be helpful (e.g., a graph of emotion logs, task progress), you can request it.
-To request dynamic UI, end your text response with a special JSON string on a new line:
-UI_REQUEST:{"type":"graph","data":{"graphType":"emotion_trend_bar","title":"Emotion Trend Past 7 Days","source":"emotion_logs"}}
-Valid 'type' values: "graph".
-Valid 'graphType' for "graph": "emotion_trend_bar" (shows daily average emotion as bars for last 7 days).
-'source' can be "emotion_logs".
-The system will attempt to render this if possible. If not requesting UI, omit the UI_REQUEST line.
-Example: "Here is your summary. Would you like to see a graph? \\nUI_REQUEST:{\\"type\\":\\"graph\\",\\"data\\":{\\"graphType\\":\\"emotion_trend_bar\\",\\"title\\":\\"Emotions This Week\\",\\"source\\":\\"emotion_logs\\"}}"
-Only request UI if it makes sense for the conversation and the data is likely available (e.g., emotion logs).
 """
         .trim();
 
-    // For chatbot, we don't expect JSON back, just text.
     if (geminiApiKeys.isEmpty || geminiApiKeys.every((key) => key.startsWith('YOUR_GEMINI_API_KEY'))) {
         const errorMsg = "No valid Gemini API keys found. Chatbot cannot respond.";
         onLog("<span style=\"color:var(--fh-accent-red);\">Error: Chatbot failed (No API Key).</span>");
@@ -543,7 +507,7 @@ Only request UI if it makes sense for the conversation and the data is likely av
         }
         onLog("<span style=\"color:var(--fh-accent-green);\">Chatbot successfully processed response with API key index $keyAttemptIndex.</span>");
         onNewApiKeyIndex(keyAttemptIndex);
-        return rawResponseText.trim(); // The parsing of UI_REQUEST will happen in GameProvider
+        return rawResponseText.trim(); 
 
       } catch (e) {
         String errorDetail = e.toString();
