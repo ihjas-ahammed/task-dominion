@@ -494,7 +494,11 @@ Do not use markdown in your primary text response.
 
       try {
         onLog("Chatbot trying API key index $keyAttemptIndex for model $geminiModelName...");
-        final model = genai.GenerativeModel(model: geminiModelName, apiKey: apiKey);
+        final model = genai.GenerativeModel(model: 'gemini-2.0-flash-lite', apiKey: apiKey);
+
+        if(userMessage.startsWith("Remember")) memory.userRememberedItems.add(userMessage.substring(8).trim());
+
+
         final response = await model.generateContent([genai.Content.text(prompt)]);
 
         String? rawResponseText = response.text;
