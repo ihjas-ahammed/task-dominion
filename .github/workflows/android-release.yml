@@ -2,10 +2,6 @@ name: Flutter Android Release Build & Upload
 
 on:
   push:
-    branches:
-      - lava # Triggers the workflow on pushes to the 'main' branch.
-            # You can list other branches here, e.g., ['main', 'develop']
-            # Or remove 'branches' entirely to run on all pushes to any branch.
 
 permissions:
   contents: write # Required to create/edit GitHub Releases and upload assets
