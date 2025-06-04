@@ -1,0 +1,52 @@
+# FAILED HUNKS - Manual Application Required
+# Lines below have +/- prefixes removed for easy copying
+# Apply these changes manually to the respective files
+
+=== FILE: lib/src/providers/actions/park_actions.dart ===
+
+--- FAILED HUNK #1 ---
+Reason: Could not find matching context in target file
+Original header: @@ -257,6 +257,28 @@
+
+SEARCH FOR (context/lines to remove):
+----------------------------------------
+    _recalculateParkStats();
+  }
+
+
+  void _recalculateParkStats() {
+    _updateBuildingOperationalStatusBasedOnPower(); 
+
+REPLACE WITH:
+----------------------------------------
+    _recalculateParkStats();
+  }
+
+  void discardDinosaur(String dinosaurUniqueId) {
+    final ownedDino = _provider.ownedDinosaurs.firstWhereOrNull((d) => d.uniqueId == dinosaurUniqueId);
+    if (ownedDino == null) {
+      _logToPark("Error: Dinosaur not found to discard.", isError: true);
+      return;
+    }
+
+    if (ownedDino.currentHealth > 0) {
+      _logToPark("Cannot discard ${ownedDino.name}. It is still alive.", isError: true);
+      return;
+    }
+
+    final List<OwnedDinosaur> updatedOwnedDinosaurs = _provider.ownedDinosaurs.where((d) => d.uniqueId != dinosaurUniqueId).toList();
+    _provider.setProviderState(
+      ownedDinosaurs: updatedOwnedDinosaurs,
+      doPersist: true,
+      doNotify: true,
+    );
+    _logToPark("${ownedDino.name} has been removed from the park.");
+    _recalculateParkStats();
+  }
+
+
+  void _recalculateParkStats() {
+    _updateBuildingOperationalStatusBasedOnPower(); 
+
+==================================================
+

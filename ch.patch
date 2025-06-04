@@ -1,0 +1,312 @@
+--- a/lib/src/providers/actions/park_actions.dart
++++ b/lib/src/providers/actions/park_actions.dart
+@@ -257,6 +257,28 @@
+     _recalculateParkStats();
+   }
+ 
++  void discardDinosaur(String dinosaurUniqueId) {
++    final ownedDino = _provider.ownedDinosaurs.firstWhereOrNull((d) => d.uniqueId == dinosaurUniqueId);
++    if (ownedDino == null) {
++      _logToPark("Error: Dinosaur not found to discard.", isError: true);
++      return;
++    }
++
++    if (ownedDino.currentHealth > 0) {
++      _logToPark("Cannot discard ${ownedDino.name}. It is still alive.", isError: true);
++      return;
++    }
++
++    final List<OwnedDinosaur> updatedOwnedDinosaurs = _provider.ownedDinosaurs.where((d) => d.uniqueId != dinosaurUniqueId).toList();
++    _provider.setProviderState(
++      ownedDinosaurs: updatedOwnedDinosaurs,
++      doPersist: true,
++      doNotify: true,
++    );
++    _logToPark("${ownedDino.name} has been removed from the park.");
++    _recalculateParkStats();
++  }
++
+ 
+   void _recalculateParkStats() {
+     _updateBuildingOperationalStatusBasedOnPower(); 
+--- a/lib/src/providers/game_provider.dart
++++ b/lib/src/providers/game_provider.dart
+@@ -857,6 +857,8 @@
+       _parkActions.addDinosaurToEnclosure(dinosaurUniqueId, enclosureUniqueId);
+   void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) =>
+       _parkActions.feedDinosaursInEnclosure(enclosureUniqueId, amount);
++  void discardDinosaur(String dinosaurUniqueId) =>
++      _parkActions.discardDinosaur(dinosaurUniqueId);
+   void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) =>
+       _parkActions.toggleBuildingOperationalStatus(ownedBuildingUniqueId);
+   void skipOneMinute() =>
+--- a/lib/src/widgets/views/park_view.dart
++++ b/lib/src/widgets/views/park_view.dart
+@@ -62,12 +62,14 @@
+                 _buildParkActionsCard(context, gameProvider, dynamicAccent),
+               ],
+             ),
+-          ),
+-          currentViewWidget,
+-          if (_selectedOwnedDinoId != null &&
+-              _currentSubView == _ParkSubView.enclosures)
+-            _buildOwnedDinosaurDetails(
+-                context, gameProvider, dynamicAccent, _selectedOwnedDinoId!),
++          ), // This was the end of the SingleChildScrollView
++          Expanded( // Make the sub-view content scrollable
++            child: SingleChildScrollView(
++              child: currentViewWidget,
++            ),
++          ),
++          // The dialog is now modal, so it doesn't need to be part of the main layout here.
++          // _buildOwnedDinosaurDetails will be called via showDialog.
+         ],
+       ),
+     );
+@@ -89,12 +91,14 @@
+                         .displaySmall
+                         ?.copyWith(color: AppTheme.fhTextPrimary)),
+               ],
+-            ),
+-          ),
+-          SingleChildScrollView(
++            ), // End of Park Title Row
++          ), // End of Padding for Park Title
++          _buildParkStatsCard(context, gameProvider, dynamicAccent),
++          const SizedBox(height: 16),
++          _buildParkActionsCard(context, gameProvider, dynamicAccent),
++          const SizedBox(height: 16), // Added space before GridView
++          GridView.count( // GridView should not be inside another SingleChildScrollView
+             child: Column(
+-              children: [
+-                _buildParkStatsCard(context, gameProvider, dynamicAccent),
+-                const SizedBox(height: 16),
+-                _buildParkActionsCard(context, gameProvider, dynamicAccent),
+-              ],
+-            ),
+-          ),
+-          GridView.count(
+             shrinkWrap: true,
+             physics: const NeverScrollableScrollPhysics(),
+             crossAxisCount: 1,
+@@ -330,11 +334,14 @@
+                       subtitle: Text(
+                           "${species?.name ?? "Dinosaur"} - Comfort: ${dino.currentComfort.toStringAsFixed(0)}% Food: ${dino.currentFood.toStringAsFixed(0)}%"),
+                       onTap: () {
+-                        setState(() {
+-                          _selectedOwnedDinoId = dino.uniqueId;
+-                        });
++                        _showOwnedDinosaurDetailsDialog(context, gameProvider, dynamicAccent, dino.uniqueId);
+                       },
++                      trailing: dino.currentHealth <= 0 
++                        ? Icon(MdiIcons.skullCrossbonesOutline, color: AppTheme.fhAccentRed.withOpacity(0.7)) 
++                        : null,
+                     );
+                   }),
++                  if (_selectedOwnedDinoId != null) // This check is likely redundant now as dialog is modal
++                    _buildOwnedDinosaurDetails(context, gameProvider, dynamicAccent, _selectedOwnedDinoId!),
+                 ],
+               ),
+             ),
+@@ -344,8 +351,9 @@
+     );
+   }
+ 
+-  Widget _buildOwnedDinosaurDetails(BuildContext context,
+-      GameProvider gameProvider, Color dynamicAccent, String dinoUniqueId) {
++  // Changed to a method that shows a dialog
++  void _showOwnedDinosaurDetailsDialog(BuildContext context,
++        GameProvider gameProvider, Color dynamicAccent, String dinoUniqueId) {
+     final theme = Theme.of(context);
+     final ownedDino = gameProvider.ownedDinosaurs
+         .firstWhereOrNull((d) => d.uniqueId == dinoUniqueId);
+@@ -353,64 +361,93 @@
+     final species = gameProvider.dinosaurSpeciesList
+         .firstWhereOrNull((s) => s.id == ownedDino.speciesId);
+     if (species == null) return const SizedBox.shrink();
+-
+-    return Dialog(
+-      backgroundColor: AppTheme.fhBgMedium,
+-      child: Padding(
+-        padding: const EdgeInsets.all(20.0),
+-        child: SingleChildScrollView(
+-          child: Column(
+-            mainAxisSize: MainAxisSize.min,
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              Row(
+-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
++    
++    showDialog(
++      context: context,
++      builder: (BuildContext dialogContext) {
++        return Dialog(
++          backgroundColor: AppTheme.fhBgMedium,
++          child: Padding(
++            padding: const EdgeInsets.all(20.0),
++            child: SingleChildScrollView(
++              child: Column(
++                mainAxisSize: MainAxisSize.min,
++                crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+-                  Text(ownedDino.name,
+-                      style: theme.textTheme.headlineMedium
+-                          ?.copyWith(color: dynamicAccent)),
+-                  IconButton(
+-                      icon: Icon(MdiIcons.closeCircleOutline,
+-                          color: AppTheme.fhTextSecondary),
+-                      onPressed: () =>
+-                          setState(() => _selectedOwnedDinoId = null))
++                  Row(
++                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
++                    children: [
++                      Text(ownedDino.name,
++                          style: theme.textTheme.headlineMedium
++                              ?.copyWith(color: dynamicAccent)),
++                      IconButton(
++                          icon: Icon(MdiIcons.closeCircleOutline,
++                              color: AppTheme.fhTextSecondary),
++                          onPressed: () => Navigator.of(dialogContext).pop())
++                    ],
++                  ),
++                  Text("Species: ${species.name}",
++                      style: theme.textTheme.titleMedium),
++                  const Divider(height: 20),
++                  _buildStatRow(
++                      theme,
++                      MdiIcons.heartPulse,
++                      "Health:",
++                      "${ownedDino.currentHealth.toStringAsFixed(0)}%",
++                      ownedDino.currentHealth > 60
++                          ? AppTheme.fhAccentGreen
++                          : (ownedDino.currentHealth > 30
++                              ? AppTheme.fhAccentOrange
++                              : AppTheme.fhAccentRed)),
++                  _buildStatRow(
++                      theme,
++                      MdiIcons.emoticonHappyOutline,
++                      "Comfort:",
++                      "${ownedDino.currentComfort.toStringAsFixed(0)}%",
++                      ownedDino.currentComfort > species.comfortThreshold * 100
++                          ? AppTheme.fhAccentGreen
++                          : AppTheme.fhAccentOrange),
++                  _buildStatRow(
++                      theme,
++                      MdiIcons.foodDrumstickOutline,
++                      "Food:",
++                      "${ownedDino.currentFood.toStringAsFixed(0)}%",
++                      ownedDino.currentFood > 50
++                          ? AppTheme.fhAccentGreen
++                          : (ownedDino.currentFood > 20
++                              ? AppTheme.fhAccentOrange
++                              : AppTheme.fhAccentRed)),
++                  _buildStatRow(theme, MdiIcons.cakeVariantOutline, "Age:",
++                      "${ownedDino.age} days", AppTheme.fhTextSecondary),
++                  _buildStatRow(theme, MdiIcons.scaleBalance, "Diet:", species.diet,
++                      AppTheme.fhTextSecondary),
++                  const SizedBox(height: 10),
++                  Text("Needs:", style: theme.textTheme.titleSmall),
++                  Padding(
++                    padding: const EdgeInsets.only(left: 16.0),
++                    child: Column(
++                      crossAxisAlignment: CrossAxisAlignment.start,
++                      children: [
++                        Text(
++                            "- Social Group: ${species.socialNeedsMin}-${species.socialNeedsMax}",
++                            style: theme.textTheme.bodySmall),
++                        Text("- Paddock Size: ${species.enclosureSizeNeeds} units",
++                            style: theme.textTheme.bodySmall),
++                      ],
++                    ),
++                  ),
++                  const SizedBox(height: 20),
++                  Text(species.description,
++                      style: theme.textTheme.bodyMedium?.copyWith(
++                          fontStyle: FontStyle.italic,
++                          color: AppTheme.fhTextSecondary)),
++                  if (ownedDino.currentHealth <= 0) ...[
++                    const SizedBox(height: 20),
++                    ElevatedButton.icon(
++                      icon: Icon(MdiIcons.deleteForeverOutline, size: 18),
++                      label: const Text("DISCARD DINOSAUR"),
++                      onPressed: () {
++                        gameProvider.discardDinosaur(ownedDino.uniqueId);
++                        Navigator.of(dialogContext).pop(); // Close dialog after discard
++                        setState(() { // To refresh the enclosure list or dino count
++                          _selectedOwnedDinoId = null; // Clear selection
++                        });
++                      },
++                      style: ElevatedButton.styleFrom(
++                        backgroundColor: AppTheme.fhAccentRed,
++                        foregroundColor: AppTheme.fhTextPrimary,
++                        minimumSize: const Size(double.infinity, 40)
++                      ),
++                    )
++                  ]
+                 ],
+               ),
+-              Text("Species: ${species.name}",
+-                  style: theme.textTheme.titleMedium),
+-              const Divider(height: 20),
+-              _buildStatRow(
+-                  theme,
+-                  MdiIcons.heartPulse,
+-                  "Health:",
+-                  "${ownedDino.currentHealth.toStringAsFixed(0)}%",
+-                  ownedDino.currentHealth > 60
+-                      ? AppTheme.fhAccentGreen
+-                      : (ownedDino.currentHealth > 30
+-                          ? AppTheme.fhAccentOrange
+-                          : AppTheme.fhAccentRed)),
+-              _buildStatRow(
+-                  theme,
+-                  MdiIcons.emoticonHappyOutline,
+-                  "Comfort:",
+-                  "${ownedDino.currentComfort.toStringAsFixed(0)}%",
+-                  ownedDino.currentComfort > species.comfortThreshold * 100
+-                      ? AppTheme.fhAccentGreen
+-                      : AppTheme.fhAccentOrange),
+-              _buildStatRow(
+-                  theme,
+-                  MdiIcons.foodDrumstickOutline,
+-                  "Food:",
+-                  "${ownedDino.currentFood.toStringAsFixed(0)}%",
+-                  ownedDino.currentFood > 50
+-                      ? AppTheme.fhAccentGreen
+-                      : (ownedDino.currentFood > 20
+-                          ? AppTheme.fhAccentOrange
+-                          : AppTheme.fhAccentRed)),
+-              _buildStatRow(theme, MdiIcons.cakeVariantOutline, "Age:",
+-                  "${ownedDino.age} days", AppTheme.fhTextSecondary),
+-              _buildStatRow(theme, MdiIcons.scaleBalance, "Diet:", species.diet,
+-                  AppTheme.fhTextSecondary),
+-              const SizedBox(height: 10),
+-              Text("Needs:", style: theme.textTheme.titleSmall),
+-              Padding(
+-                padding: const EdgeInsets.only(left: 16.0),
+-                child: Column(
+-                  crossAxisAlignment: CrossAxisAlignment.start,
+-                  children: [
+-                    Text(
+-                        "- Social Group: ${species.socialNeedsMin}-${species.socialNeedsMax}",
+-                        style: theme.textTheme.bodySmall),
+-                    Text("- Paddock Size: ${species.enclosureSizeNeeds} units",
+-                        style: theme.textTheme.bodySmall),
+-                  ],
+-                ),
+-              ),
+-              const SizedBox(height: 20),
+-              Text(species.description,
+-                  style: theme.textTheme.bodyMedium?.copyWith(
+-                      fontStyle: FontStyle.italic,
+-                      color: AppTheme.fhTextSecondary)),
+-            ],
++            ),
+           ),
+-        ),
+-      ),
++        );
++      },
+     );
+   }
+ }

@@ -1409,7 +1409,7 @@ class GameProvider with ChangeNotifier {
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 
-  void logEmotion(String date, double rating, [DateTime? customTimestamp]) {
+  void logEmotion(String date, int rating, [DateTime? customTimestamp]) {
     final timestamp = customTimestamp ?? DateTime.now();
     final emotionLog = EmotionLog(timestamp: timestamp, rating: rating);
 
@@ -1425,6 +1425,10 @@ class GameProvider with ChangeNotifier {
     final emotionLogsList =
         List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
 
+    if (emotionLogsList.length >= 10) {
+      // emotionLogsList is already sorted by timestamp in getEmotionLogsForDate, and new logs are added to keep sort
+      emotionLogsList.removeAt(0); // Remove the oldest
+    }
     emotionLogsList.add(emotionLog.toJson());
     // Ensure it remains sorted after adding
     emotionLogsList.sort(

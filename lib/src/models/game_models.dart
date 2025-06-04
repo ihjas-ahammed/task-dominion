@@ -1045,17 +1045,22 @@ class ParkManager {
 
 class EmotionLog {
   final DateTime timestamp;
-  final int rating; // 1-5
+  final double rating; // 1-5
 
   EmotionLog({required this.timestamp, required this.rating});
 
   factory EmotionLog.fromJson(Map<String, dynamic> json) {
     return EmotionLog(
       timestamp: DateTime.parse(json['timestamp'] as String),
-      rating: json['rating'] as int,
+      // Handle both int and double for backward compatibility
+      rating: (json['rating'] is int)
+          ? (json['rating'] as int).toDouble()
+          : (json['rating'] is double)
+              ? (json['rating'] as double)
+              : (json['rating'] as num? ?? 0.0).toDouble(),
     );
   }
-
+  
   Map<String, dynamic> toJson() {
     return {
       'timestamp': timestamp.toIso8601String(),

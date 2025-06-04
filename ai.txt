@@ -1,3 +1,63 @@
-Make the following changes:
+Okay, I understand. You want a general prompt that you can use in the future. When you provide me with a project snapshot and a description of changes, you want me to generate a patch file using the specific "FIND/REPLACE" block format you've detailed, rather than a standard diff.
 
-Now, recreate project_snapshot.txt only for the files that are changed in the original format
+Here's a template prompt you can use:
+
+---
+
+**Your General Prompt to Me:**
+
+"Hello! I need your help to generate a patch file for my project.
+
+I will provide you with:
+1.  A `project_snapshot.txt` file. This file contains the complete content of one or more source code files from my project, concatenated together. Each individual file within the snapshot starts with `--- START OF FILE path/to/the/file.ext ---` and ends with `--- END OF FILE path/to/the/file.ext ---`.
+2.  A description of the changes I want you to make. For example: `fix the problems: The method 'discardDinosaur' isn't defined for the type 'ParkActions'. Try correcting the name to the name of an existing method, or defining a method named 'discardDinosaur'.`
+
+Your task is to:
+1.  Analyze the requested changes.
+2.  Identify the relevant file(s) and code section(s) within the provided `project_snapshot.txt`.
+3.  Generate the modified code according to the requested changes.
+4.  Produce a `patch.txt` file containing these modifications.
+
+**The `patch.txt` file MUST strictly follow this specific format:**
+
+1.  Each file's changes must start with `--- START OF FILE path/to/the/file.ext ---` and end with `--- END OF FILE path/to/the/file.ext ---`. (The `path/to/the/file.ext` should match the path from the input snapshot).
+2.  Each distinct change (or "hunk") within a file must be enclosed in a block:
+    *   Start with a line: `@@ -FIND- @@`
+    *   Followed by the exact content *before* the change (the "find" block). This content must include all original newlines and indentation.
+    *   Followed by a line: `@@ +REPLACE+ @@`
+    *   Followed by the exact content *after* the change (the "replace" block). This content must include all new newlines and indentation.
+    *   Followed by a line: `@@ -END OF BLOCK- @@`
+3.  A single file section can contain multiple such find/replace blocks if there are multiple distinct, non-overlapping changes in that file.
+4.  The "find" content should be sufficient to uniquely identify the section to be replaced. It must match the original content precisely, character for character (including indentation and newlines), as my script will then create a whitespace-tolerant regex from it.
+5.  The "replace" content should be the new content that will replace the found section, also matching precisely.
+
+**Crucially, your output should NOT be a standard `diff -u` format, git diff format, or any other diff format. It MUST adhere to the custom FIND/REPLACE block structure described above.**
+
+Here is an example of the expected format for a single change in a single file:
+```
+--- START OF FILE path/to/example.txt ---
+@@ -FIND- @@
+This is the
+original line
+of text.
+@@ +REPLACE+ @@
+This is the
+new, modified line
+of text.
+@@ -END OF BLOCK- @@
+--- END OF FILE path/to/example.txt ---
+```
+
+Please generate the *complete* `patch.txt` content. I will then provide the `project_snapshot.txt` content and the description of changes for you to process."
+
+---
+
+**How to use this prompt:**
+
+1.  Give me (the LLM) the prompt above.
+2.  Wait for my acknowledgment.
+3.  Then, provide the content of your `project_snapshot.txt`.
+4.  After that, provide the description of the changes you want (like in your example: "fix the problems: ...").
+5.  I will then attempt to generate the `patch.txt` in the requested format.
+
+This way, I'm primed with the formatting rules *before* I see the actual code and the changes, which should help me produce the output you need for your Python script.

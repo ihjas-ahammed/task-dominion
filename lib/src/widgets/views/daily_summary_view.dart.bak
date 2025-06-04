@@ -18,8 +18,7 @@ class DailySummaryView extends StatefulWidget {
 class _DailySummaryViewState extends State<DailySummaryView> {
   String? _selectedDate;
   int _touchedPieIndex = -1;
-  int _hoveredPrimaryEmotion = 0; // For emotion icon highlighting
-  double _emotionIntensity = 0.5; // For the intensity slider, default to middle
+  int _hoveredEmotionRating = 0; // For emotion logging UI
 
   @override
   void didChangeDependencies() {
@@ -38,77 +37,46 @@ class _DailySummaryViewState extends State<DailySummaryView> {
 
   Widget _buildEmotionLoggingRow(
       GameProvider gameProvider, String date, ThemeData theme) {
-    return Column(
-      children: [
-        Text("Intensity: ${_emotionIntensity.toStringAsFixed(2)}", style: theme.textTheme.labelMedium),
-        Slider(
-          value: _emotionIntensity,
-          min: 0.0,
-          max: 1.0,
-          divisions: 100,
-          label: _emotionIntensity.toStringAsFixed(2),
-          activeColor: gameProvider.getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed,
-          inactiveColor: (gameProvider.getSelectedTask()?.taskColor ?? AppTheme.fhAccentTealFixed).withOpacity(0.3),
-          onChanged: (double value) {
-            setState(() {
-              _emotionIntensity = value;
-            });
-          },
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(5, (index) {
-            final primaryRating = index + 1;
-            return MouseRegion(
-              onEnter: (_) => setState(() => _hoveredPrimaryEmotion = primaryRating),
-              onExit: (_) => setState(() => _hoveredPrimaryEmotion = 0),
-              child: GestureDetector(
-                onTap: () {
-                  // Combine primary rating with intensity from slider
-                  // If slider is 1.0, it effectively "rounds up" to the next category,
-                  // or extends the highest category.
-                  double finalRating = primaryRating.toDouble() + _emotionIntensity;
-                  // Clamp to ensure it doesn't exceed max possible (e.g., 5.0 + 1.0 = 6.0)
-                  finalRating = finalRating.clamp(1.0, 6.0);
-
-                  gameProvider.logEmotion(date, finalRating);
-                  setState(() {
-                    _hoveredPrimaryEmotion = 0;
-                    // Optionally reset slider, or keep its value for next log
-                    // _emotionIntensity = 0.5; 
-                  });
-                },
-                child: AnimatedScale(
-                  scale: _hoveredPrimaryEmotion == primaryRating ? 1.2 : 1.0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _getEmotionIcon(primaryRating),
-                        size: 32,
-                        color: _hoveredPrimaryEmotion >= primaryRating
-                            ? _getEmotionColor(primaryRating, theme)
-                            : AppTheme.fhTextDisabled,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(_getEmotionLabel(primaryRating),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                              color: _hoveredPrimaryEmotion >= primaryRating
-                                  ? _getEmotionColor(primaryRating, theme)
-                                  : AppTheme.fhTextDisabled,
-                              fontWeight: _hoveredPrimaryEmotion == primaryRating
-                                  ? FontWeight.bold
-                                  : FontWeight.normal))
-                    ],
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(5, (index) {
+        final rating = index + 1;
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hoveredEmotionRating = rating),
+          onExit: (_) => setState(() => _hoveredEmotionRating = 0),
+          child: GestureDetector(
+            onTap: () {
+              gameProvider.logEmotion(date, rating);
+              setState(() => _hoveredEmotionRating = 0);
+            },
+            child: AnimatedScale(
+              scale: _hoveredEmotionRating == rating ? 1.2 : 1.0,
+              duration: const Duration(milliseconds: 150),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _getEmotionIcon(rating),
+                    size: 32,
+                    color: _hoveredEmotionRating >= rating
+                        ? _getEmotionColor(rating, theme)
+                        : AppTheme.fhTextDisabled,
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(_getEmotionLabel(rating),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          color: _hoveredEmotionRating >= rating
+                              ? _getEmotionColor(rating, theme)
+                              : AppTheme.fhTextDisabled,
+                          fontWeight: _hoveredEmotionRating == rating
+                              ? FontWeight.bold
+                              : FontWeight.normal))
+                ],
               ),
-            );
-          }),
-        ),
-      ],
+            ),
+          ),
+        );
+      }),
     );
   }
 
@@ -129,9 +97,8 @@ class _DailySummaryViewState extends State<DailySummaryView> {
     }
   }
 
-  String _getEmotionLabel(int primaryRatingCategory) {
-    if (primaryRatingCategory >= 5) return "Great";
-    switch (primaryRatingCategory) {
+  String _getEmotionLabel(int rating) {
+    switch (rating) {
       case 1:
         return "Awful";
       case 2:
@@ -140,19 +107,16 @@ class _DailySummaryViewState extends State<DailySummaryView> {
         return "Okay";
       case 4:
         return "Good";
-      // Case 5 is handled by the >= 5 check above
+      case 5:
+        return "Great";
       default:
-        return "Okay"; // Default for safety or unexpected values
+        return "";
     }
   }
 
- Color _getEmotionColor(int primaryRatingCategory, ThemeData theme) {
+  Color _getEmotionColor(int rating, ThemeData theme) {
     // Use theme accents for consistency where appropriate
-    // primaryRatingCategory is the integer part (1-5)
-    if (primaryRatingCategory >= 5) {
-      return theme.colorScheme.primary; // Use dynamic primary accent for best rating
-    }
-    switch (primaryRatingCategory) {
+    switch (rating) {
       case 1:
         return AppTheme.fhAccentRed;
       case 2:
@@ -162,7 +126,8 @@ class _DailySummaryViewState extends State<DailySummaryView> {
       case 4:
         return AppTheme.fhAccentGreen;
       case 5:
-        return theme.colorScheme.primary; 
+        return theme
+            .colorScheme.primary; // Use dynamic primary accent for best rating
       default:
         return AppTheme.fhTextDisabled;
     }
@@ -188,7 +153,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
       final DateTime logDayMidnight =
           DateTime(log.timestamp.year, log.timestamp.month, log.timestamp.day);
       final Duration timeSinceMidnight =
-          log.timestamp.toLocal().difference(logDayMidnight); // Use local time for display consistency
+          log.timestamp.difference(logDayMidnight);
       double xValue =
           timeSinceMidnight.inMinutes / 60.0; // e.g., 10.5 for 10:30 AM
       return FlSpot(xValue, log.rating.toDouble());
@@ -245,8 +210,8 @@ class _DailySummaryViewState extends State<DailySummaryView> {
         LineChartData(
           minX: minX,
           maxX: maxX,
-          minY: 0.5, // To give space below 1.0
-          maxY: 6.5, // To accommodate ratings up to 6.0 (e.g., 5 + 1.0 slider)
+          minY: 0.5,
+          maxY: 5.5,
           gridData: FlGridData(
             show: true,
             drawVerticalLine: true,
@@ -268,12 +233,10 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                 interval: 1,
                 reservedSize: 30,
                 getTitlesWidget: (value, meta) {
-                  // Show labels for 1 to 6 on Y axis
-                  if (value >= 1 && value <= 6 && value == value.truncateToDouble()) {
+                  if (value >= 1 && value <= 5)
                     return Text(value.toInt().toString(),
                         style: TextStyle(
                             color: AppTheme.fhTextSecondary, fontSize: 10));
-                  }
                   return const Text('');
                 },
               ),
@@ -344,7 +307,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                       final DateTime time = logEntry.timestamp;
 
                       return LineTooltipItem(
-                        '${_getEmotionLabel(touchedSpot.y.truncate())} (${touchedSpot.y.toStringAsFixed(2)}) at ${DateFormat('HH:mm').format(time.toLocal())}',
+                        '${_getEmotionLabel(touchedSpot.y.toInt())} (${touchedSpot.y.toInt()}/5) at ${DateFormat('HH:mm').format(time)}',
                         TextStyle(
                             color: dynamicAccent,
                             fontWeight: FontWeight.bold,
@@ -793,10 +756,10 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                                 padding:
                                     const EdgeInsets.only(left: 16.0, top: 3.0),
                                 child: Text(
-                                    '- Rated ${log.rating.toStringAsFixed(2)} (${_getEmotionLabel(log.rating.truncate())}) at ${DateFormat('HH:mm').format(log.timestamp.toLocal())}',
+                                    '- Rated ${_getEmotionLabel(log.rating)} (${log.rating}/5) at ${DateFormat('HH:mm').format(log.timestamp.toLocal())}',
                                     style: theme.textTheme.bodySmall?.copyWith(
                                         color: _getEmotionColor(
-                                            log.rating.truncate(), theme))),
+                                            log.rating, theme))),
                               )),
                           const SizedBox(height: 10),
                         ],
