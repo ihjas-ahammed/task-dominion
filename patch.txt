@@ -1,80 +1,107 @@
 --- START OF FILE lib/src/providers/actions/park_actions.dart ---
 @@ -FIND- @@
-    if (totalNetIncomeFromTimedActivity != 0) {
-         _logToPark("Task activity resulted in park income change of \$${totalNetIncomeFromTimedActivity.toStringAsFixed(0)} over $minutes minute(s).");
-    }
+    _logToPark("Constructed ${template.name}!");
+    _recalculateParkStats(); // This will also update power status
   }
 
-}
+  void sellBuilding(String ownedBuildingUniqueId) {
+    final ownedBuilding = _provider.ownedBuildings.firstWhereOrNull((b) => b.uniqueId == ownedBuildingUniqueId);
 @@ +REPLACE+ @@
-    if (totalNetIncomeFromTimedActivity != 0) {
-         _logToPark("Task activity resulted in park income change of \$${totalNetIncomeFromTimedActivity.toStringAsFixed(0)} over $minutes minute(s).");
-    }
+    _logToPark("Constructed ${template.name}!");
+    _recalculateParkStats(); // This will also update power status
   }
 
-  void discardDinosaur(String dinosaurUniqueId) {
-    final dinosaurToDiscard = _provider.ownedDinosaurs.firstWhereOrNull((d) => d.uniqueId == dinosaurUniqueId);
-    if (dinosaurToDiscard == null) {
-      _logToPark("Error: Dinosaur $dinosaurUniqueId not found for discard.", isError: true);
-      return;
+  void discardDinosaur(String dinoUniqueId) {
+    final ownedDinoIndex = _provider.ownedDinosaurs.indexWhere((d) => d.uniqueId == dinoUniqueId);
+    if (ownedDinoIndex == -1) {
+        _logToPark("Error: Dinosaur not found to discard.", isError: true);
+        return;
     }
 
-    final List<OwnedDinosaur> updatedOwnedDinosaurs = _provider.ownedDinosaurs.where((d) => d.uniqueId != dinosaurUniqueId).toList();
-    
-    // Also remove from any enclosure it might be in
-    final List<OwnedBuilding> updatedOwnedBuildings = _provider.ownedBuildings.map((b) {
-      if (b.dinosaurUniqueIds.contains(dinosaurUniqueId)) {
-        final newDinoIds = List<String>.from(b.dinosaurUniqueIds)..remove(dinosaurUniqueId);
-        return OwnedBuilding(
-          uniqueId: b.uniqueId,
-          templateId: b.templateId,
-          dinosaurUniqueIds: newDinoIds,
-          currentFoodLevel: b.currentFoodLevel,
-          isOperational: b.isOperational,
-        );
-      }
-      return b;
-    }).toList();
+    final ownedDino = _provider.ownedDinosaurs[ownedDinoIndex];
+    if (ownedDino.currentHealth > 0) {
+        _logToPark("${ownedDino.name} is not dead and cannot be discarded.", isError: true);
+        return;
+    }
+
+    // Remove from its enclosure if it was in one
+    final List<OwnedBuilding> updatedBuildings = List.from(_provider.ownedBuildings);
+    bool removedFromEnclosure = false;
+    for (int i = 0; i < updatedBuildings.length; i++) {
+        if (updatedBuildings[i].dinosaurUniqueIds.contains(dinoUniqueId)) {
+            updatedBuildings[i].dinosaurUniqueIds.remove(dinoUniqueId);
+            removedFromEnclosure = true;
+            break;
+        }
+    }
+
+    List<OwnedDinosaur> updatedOwnedDinosaurs = List.from(_provider.ownedDinosaurs);
+    updatedOwnedDinosaurs.removeAt(ownedDinoIndex);
 
     _provider.setProviderState(
-      ownedDinosaurs: updatedOwnedDinosaurs,
-      ownedBuildings: updatedOwnedBuildings, 
-      doPersist: true,
-      doNotify: true,
+        ownedDinosaurs: updatedOwnedDinosaurs,
+        ownedBuildings: removedFromEnclosure ? updatedBuildings : null, // Only update if changed
+        doPersist: true,
+        doNotify: true,
     );
 
-    final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == dinosaurToDiscard.speciesId);
-    _logToPark("${species?.name ?? 'Dinosaur'} (${dinosaurToDiscard.name}) has been removed from the park.", isError: true); 
-    _recalculateParkStats();
+    final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == ownedDino.speciesId);
+    _logToPark("${ownedDino.name} (${species?.name ?? 'Unknown Species'}) has been discarded.");
+    _recalculateParkStats(); // Recalculate park stats after removal
   }
-}
+
+  void sellBuilding(String ownedBuildingUniqueId) {
+    final ownedBuilding = _provider.ownedBuildings.firstWhereOrNull((b) => b.uniqueId == ownedBuildingUniqueId);
 @@ -END OF BLOCK- @@
 --- END OF FILE lib/src/providers/actions/park_actions.dart ---
---- START OF FILE lib/src/providers/game_provider.dart ---
+--- START OF FILE lib/src/widgets/views/park_view.dart ---
 @@ -FIND- @@
-       _parkActions.addDinosaurToEnclosure(dinosaurUniqueId, enclosureUniqueId);
-   void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) =>
-       _parkActions.feedDinosaursInEnclosure(enclosureUniqueId, amount);
-  void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) =>
-      _parkActions.toggleBuildingOperationalStatus(ownedBuildingUniqueId);
-  void skipOneMinute() =>
-      _parkActions.skipOneMinute(); // New skip minute method
-
-  void setProviderState({
-    String? lastLoginDate,
+                          .headlineMedium
+                           ?.copyWith(color: dynamicAccent)),
+                   IconButton(
+                      icon: Icon(MdiIcons.closeCircleOutline,
+                          color: AppTheme.fhTextSecondary),
+                      onPressed: () =>
+                          setState(() => _selectedOwnedDinoId = null))
+                 ],
+               ),
+               Text("Species: ${species.name}",
+                   style: theme.textTheme.titleMedium
 @@ +REPLACE+ @@
-       _parkActions.addDinosaurToEnclosure(dinosaurUniqueId, enclosureUniqueId);
-   void feedDinosaursInEnclosure(String enclosureUniqueId, int amount) =>
-       _parkActions.feedDinosaursInEnclosure(enclosureUniqueId, amount);
-  void discardDinosaur(String dinosaurUniqueId) =>
-      _parkActions.discardDinosaur(dinosaurUniqueId);
-  void toggleBuildingOperationalStatus(String ownedBuildingUniqueId) =>
-      _parkActions.toggleBuildingOperationalStatus(ownedBuildingUniqueId);
-  void skipOneMinute() =>
-      _parkActions.skipOneMinute(); // New skip minute method
-
-
-  void setProviderState({
-    String? lastLoginDate,
+                          .headlineMedium
+                           ?.copyWith(color: dynamicAccent)),
+                   IconButton(
+                    icon: Icon(MdiIcons.closeCircleOutline,
+                        color: AppTheme.fhTextSecondary),
+                    onPressed: () => setState(() => _selectedOwnedDinoId = null),
+                    tooltip: "Close Details",
+                  )
+                 ],
+               ),
+               Text("Species: ${species.name}",
+                   style: theme.textTheme.titleMedium
+                           ?.copyWith(color: dynamicAccent)),
+              const SizedBox(height: 10), // Adding space between species name and button
+              if (ownedDino.currentHealth <= 0)
+                Padding( // Add padding for the button to make it look nicer
+                  padding: const EdgeInsets.only(bottom: 10.0),
+                  child: ElevatedButton.icon(
+                    icon: Icon(MdiIcons.trashCanOutline, size: 18),
+                    label: const Text("DISCARD REMAINS"),
+                    onPressed: () {
+                      gameProvider.parkActions.discardDinosaur(ownedDino.uniqueId);
+                      setState(() => _selectedOwnedDinoId = null); // Clear selection
+                      Navigator.of(context).pop(); // Close the dialog
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.fhAccentRed,
+                      foregroundColor: AppTheme.fhTextPrimary,
+                      minimumSize: const Size(double.infinity, 40),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 10), // Adding space between species name and button
+              _buildStatRow(
+                  theme,
 @@ -END OF BLOCK- @@
---- END OF FILE lib/src/providers/game_provider.dart ---
+--- END OF FILE lib/src/widgets/views/park_view.dart ---

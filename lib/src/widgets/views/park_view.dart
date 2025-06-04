@@ -1109,17 +1109,40 @@ class _ParkViewState extends State<ParkView> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(ownedDino.name,
-                      style: theme.textTheme.headlineMedium
-                          ?.copyWith(color: dynamicAccent)),
-                  IconButton(
-                      icon: Icon(MdiIcons.closeCircleOutline,
-                          color: AppTheme.fhTextSecondary),
-                      onPressed: () =>
-                          setState(() => _selectedOwnedDinoId = null))
-                ],
-              ),
-              Text("Species: ${species.name}",
-                  style: theme.textTheme.titleMedium),
+                      style: theme.textTheme                          .headlineMedium
+                           ?.copyWith(color: dynamicAccent)),
+                   IconButton(
+                    icon: Icon(MdiIcons.closeCircleOutline,
+                        color: AppTheme.fhTextSecondary),
+                    onPressed: () => setState(() => _selectedOwnedDinoId = null),
+                    tooltip: "Close Details",
+                  )
+                 ],
+               ),
+               Text("Species: ${species.name}",
+                   style: theme.textTheme.titleMedium
+                           ?.copyWith(color: dynamicAccent)),
+              const SizedBox(height: 10), // Adding space between species name and button
+              if (ownedDino.currentHealth <= 0)
+                Padding( // Add padding for the button to make it look nicer
+                  padding: const EdgeInsets.only(bottom: 10.0),
+                  child: ElevatedButton.icon(
+                    icon: Icon(MdiIcons.trashCanOutline, size: 18),
+                    label: const Text("DISCARD REMAINS"),
+                    onPressed: () {
+                      gameProvider.parkActions.discardDinosaur(ownedDino.uniqueId);
+                      setState(() => _selectedOwnedDinoId = null); // Clear selection
+
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.fhAccentRed,
+                      foregroundColor: AppTheme.fhTextPrimary,
+                      minimumSize: const Size(double.infinity, 40),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 10), // Adding space between species name and button
+
               const Divider(height: 20),
               _buildStatRow(
                   theme,

@@ -73,12 +73,52 @@ class ParkActions {
       doNotify: true,
     );
 
-    _logToPark("Constructed ${template.name}!");
+        _logToPark("Constructed ${template.name}!");
     _recalculateParkStats(); // This will also update power status
+  }
+
+  void discardDinosaur(String dinoUniqueId) {
+    final ownedDinoIndex = _provider.ownedDinosaurs.indexWhere((d) => d.uniqueId == dinoUniqueId);
+    if (ownedDinoIndex == -1) {
+        _logToPark("Error: Dinosaur not found to discard.", isError: true);
+        return;
+    }
+
+    final ownedDino = _provider.ownedDinosaurs[ownedDinoIndex];
+    if (ownedDino.currentHealth > 0) {
+        _logToPark("${ownedDino.name} is not dead and cannot be discarded.", isError: true);
+        return;
+    }
+
+    // Remove from its enclosure if it was in one
+    final List<OwnedBuilding> updatedBuildings = List.from(_provider.ownedBuildings);
+    bool removedFromEnclosure = false;
+    for (int i = 0; i < updatedBuildings.length; i++) {
+        if (updatedBuildings[i].dinosaurUniqueIds.contains(dinoUniqueId)) {
+            updatedBuildings[i].dinosaurUniqueIds.remove(dinoUniqueId);
+            removedFromEnclosure = true;
+            break;
+        }
+    }
+
+    List<OwnedDinosaur> updatedOwnedDinosaurs = List.from(_provider.ownedDinosaurs);
+    updatedOwnedDinosaurs.removeAt(ownedDinoIndex);
+
+    _provider.setProviderState(
+        ownedDinosaurs: updatedOwnedDinosaurs,
+        ownedBuildings: removedFromEnclosure ? updatedBuildings : null, // Only update if changed
+        doPersist: true,
+        doNotify: true,
+    );
+
+    final species = _provider.dinosaurSpeciesList.firstWhereOrNull((s) => s.id == ownedDino.speciesId);
+    _logToPark("${ownedDino.name} (${species?.name ?? 'Unknown Species'}) has been discarded.");
+    _recalculateParkStats(); // Recalculate park stats after removal
   }
 
   void sellBuilding(String ownedBuildingUniqueId) {
     final ownedBuilding = _provider.ownedBuildings.firstWhereOrNull((b) => b.uniqueId == ownedBuildingUniqueId);
+
     if (ownedBuilding == null) {
         _logToPark("Error: Building not found in park.", isError: true);
         return;
