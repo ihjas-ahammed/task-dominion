@@ -1,3 +1,12 @@
+// Step 1: Define a variable to load the keystore properties
+def keystoreProperties = new Properties()
+// The `rootProject` in this context is the `android` directory.
+// This line looks for `key.properties` inside the `android/` folder.
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -19,11 +28,21 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    // Step 2: Add the signing configuration for release builds
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                // The `storeFile` path is relative to the `android` directory because we use `rootProject.file()`.
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "me.ihjas.arcane"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -32,13 +51,8 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Step 3: Assign the new signing configuration to the release build type.
+            signingConfig signingConfigs.release
         }
     }
-}
-
-flutter {
-    source = "../.."
 }

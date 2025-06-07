@@ -24,7 +24,6 @@ class _ChatbotViewState extends State<ChatbotView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Ensure chatbot memory is initialized/loaded when view is first shown
       Provider.of<GameProvider>(context, listen: false).initializeChatbotMemory();
       _scrollToBottom();
     });
@@ -50,7 +49,7 @@ class _ChatbotViewState extends State<ChatbotView> {
     if (_messageController.text.trim().isEmpty) return;
     final messageText = _messageController.text.trim();
     _messageController.clear();
-    FocusScope.of(context).unfocus(); // Unfocus after sending
+    FocusScope.of(context).unfocus();
 
     setState(() => _isSending = true);
 
@@ -68,21 +67,20 @@ class _ChatbotViewState extends State<ChatbotView> {
     final gameProvider = Provider.of<GameProvider>(context);
     final theme = Theme.of(context);
     final chatbotMemory = gameProvider.chatbotMemory;
-    final Color dynamicAccent = gameProvider.getSelectedTask()?.taskColor ?? theme.colorScheme.secondary;
+    final Color dynamicAccent = gameProvider.getSelectedProject()?.color ?? theme.colorScheme.secondary;
 
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
         children: [
-          // Restart Session Button
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                icon: Icon(MdiIcons.refresh, size: 16, color: AppTheme.fhTextSecondary),
-                label: Text("Restart Session", style: TextStyle(color: AppTheme.fhTextSecondary, fontSize: 12)),
+                icon: Icon(MdiIcons.refresh, size: 16, color: AppTheme.fnTextSecondary),
+                label: Text("Restart Session", style: TextStyle(color: AppTheme.fnTextSecondary, fontSize: 12)),
                 onPressed: () async {
                   final confirm = await showDialog<bool>(
                       context: context,
@@ -94,13 +92,12 @@ class _ChatbotViewState extends State<ChatbotView> {
                               ElevatedButton(
                                 onPressed: () => Navigator.of(ctx).pop(true),
                                 style: ElevatedButton.styleFrom(backgroundColor: dynamicAccent),
-                                child: Text("Restart", style: TextStyle(color: ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fhTextPrimary : AppTheme.fhBgDark)),
+                                child: Text("Restart", style: TextStyle(color: ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fnTextPrimary : AppTheme.fnBgDark)),
                               ),
                             ],
                           ));
                   if (confirm == true) {
                     gameProvider.chatbotMemory.conversationHistory.clear();
-                    // Re-initialize with the welcome message
                     gameProvider.initializeChatbotMemory();
                   }
                 },
@@ -113,17 +110,14 @@ class _ChatbotViewState extends State<ChatbotView> {
                     child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(MdiIcons.robotHappyOutline, size: 48, color: dynamicAccent.withOpacity(0.7)),
+                      Icon(MdiIcons.robotHappyOutline, size: 48, color: dynamicAccent.withAlpha((255 * 0.7).round())),
                       const SizedBox(height: 16),
-                      Text(
-                        "Arcane Advisor Online",
-                        style: theme.textTheme.headlineSmall?.copyWith(color: dynamicAccent),
-                      ),
+                      Text("Arcane Advisor Online", style: theme.textTheme.headlineSmall?.copyWith(color: dynamicAccent)),
                        const SizedBox(height: 8),
                       Text(
                         "Ask about your past week's summary, completed goals, or tell me things to 'Remember'.",
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fhTextSecondary),
+                        style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextSecondary),
                       ),
                     ],
                   ))
@@ -134,14 +128,10 @@ class _ChatbotViewState extends State<ChatbotView> {
                        if (_isSending && index == chatbotMemory.conversationHistory.length) {
                         return _buildMessageBubble(
                           ChatbotMessage(
-                            id: 'typing',
-                            text: '...',
-                            sender: MessageSender.bot,
-                            timestamp: DateTime.now(),
+                            id: 'typing', text: '...',
+                            sender: MessageSender.bot, timestamp: DateTime.now(),
                           ),
-                          theme,
-                          dynamicAccent,
-                          true 
+                          theme, dynamicAccent, true 
                         );
                       }
                       final message = chatbotMemory.conversationHistory[index];
@@ -157,19 +147,13 @@ class _ChatbotViewState extends State<ChatbotView> {
                   child: TextField(
                     controller: _messageController,
                     decoration: InputDecoration(
-                      hintText: 'Send a message to Arcane Advisor...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25.0),
-                        borderSide: BorderSide(color: AppTheme.fhBorderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25.0),
-                        borderSide: BorderSide(color: dynamicAccent, width: 1.5),
-                      ),
+                      hintText: 'Send a message...',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(25.0), borderSide: const BorderSide(color: AppTheme.fnBorderColor)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(25.0), borderSide: BorderSide(color: dynamicAccent, width: 1.5)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
                     onSubmitted: (_) => _sendMessage(),
-                    style: TextStyle(color: AppTheme.fhTextPrimary, fontSize: 14),
+                    style: const TextStyle(color: AppTheme.fnTextPrimary, fontSize: 14),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -190,23 +174,19 @@ class _ChatbotViewState extends State<ChatbotView> {
 
   Widget _buildMessageBubble(ChatbotMessage message, ThemeData theme, Color dynamicAccent, bool isTyping) {
     final bool isUser = message.sender == MessageSender.user;
-    final Color bubbleColor = isUser ? dynamicAccent : AppTheme.fhBgMedium;
+    final Color bubbleColor = isUser ? dynamicAccent : AppTheme.fnBgMedium;
     final Color textColor = isUser 
-        ? (ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fhTextPrimary : AppTheme.fhBgDark) 
-        : AppTheme.fhTextPrimary;
+        ? (ThemeData.estimateBrightnessForColor(dynamicAccent) == Brightness.dark ? AppTheme.fnTextPrimary : AppTheme.fnBgDark) 
+        : AppTheme.fnTextPrimary;
     
-    final CrossAxisAlignment crossAxisAlignment = isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-    final MainAxisAlignment mainAxisAlignment = isUser ? MainAxisAlignment.end : MainAxisAlignment.start;
-
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
-        mainAxisAlignment: mainAxisAlignment,
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          Flexible( // Makes sure the bubble doesn't overflow
+          Flexible(
             child: Container(
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75), // Max width for bubble
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: bubbleColor,
@@ -216,10 +196,10 @@ class _ChatbotViewState extends State<ChatbotView> {
                   bottomLeft: isUser ? const Radius.circular(18) : const Radius.circular(4),
                   bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(18),
                 ),
-                border: Border.all(color: bubbleColor.withOpacity(0.5), width: 0.5)
+                border: Border.all(color: bubbleColor.withAlpha((255 * 0.5).round()), width: 0.5)
               ),
               child: Column(
-                crossAxisAlignment: crossAxisAlignment,
+                crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
@@ -230,7 +210,7 @@ class _ChatbotViewState extends State<ChatbotView> {
                     const SizedBox(height: 4),
                     Text(
                       DateFormat('HH:mm').format(message.timestamp.toLocal()),
-                      style: theme.textTheme.labelSmall?.copyWith(color: textColor.withOpacity(0.7), fontSize: 9),
+                      style: theme.textTheme.labelSmall?.copyWith(color: textColor.withAlpha((255 * 0.7).round()), fontSize: 9),
                     ),
                   ]
                 ],
