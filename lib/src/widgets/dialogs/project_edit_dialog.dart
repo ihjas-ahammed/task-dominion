@@ -121,9 +121,10 @@ class _ProjectEditDialogState extends State<ProjectEditDialog> {
       backgroundColor: AppTheme.fnBgMedium,
       title: Text(widget.isEditMode ? 'Edit Project' : 'Add New Project'),
       content: SingleChildScrollView(
+        // First fix: Removed the incorrect Expanded widget.
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
+          children: [
             TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Project Name')),
             const SizedBox(height: 8),
             TextField(controller: _descController, decoration: const InputDecoration(labelText: 'Description'), maxLines: 2),
@@ -183,6 +184,8 @@ class _ProjectEditDialogState extends State<ProjectEditDialog> {
           ],
         ),
       ),
+      // Second fix: Use actionsAlignment and group the right-side buttons.
+      actionsAlignment: MainAxisAlignment.spaceBetween,
       actions: <Widget>[
         if (widget.isEditMode)
           IconButton(
@@ -190,11 +193,18 @@ class _ProjectEditDialogState extends State<ProjectEditDialog> {
             onPressed: _handleDelete,
             tooltip: 'Delete Project',
           ),
-        const Spacer(),
-        TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(context).pop()),
-        ElevatedButton(
-          child: Text(widget.isEditMode ? 'Save Changes' : 'Add Project'),
-          onPressed: _handleSaveChanges,
+        // Group these two buttons so space is placed between this group
+        // and the delete button.
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(context).pop()),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              child: Text(widget.isEditMode ? 'Save Changes' : 'Add Project'),
+              onPressed: _handleSaveChanges,
+            ),
+          ],
         ),
       ],
     );
