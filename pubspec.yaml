@@ -32,7 +32,7 @@ dependencies:
   collection: ^1.18.0
   lucide_icons: ^0.257.0
   flutter_colorpicker: ^1.1.0 # For task color selection
-  flutter_local_notifications: ^19.2.1 # For local notifications
+  awesome_notifications: ^0.10.1
 
 
 dev_dependencies:
