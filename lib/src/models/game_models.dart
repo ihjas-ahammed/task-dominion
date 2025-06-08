@@ -68,7 +68,7 @@ class Project {
 
   Color get color {
     try {
-      return Color(int.parse("0x$colorHex"));
+      return Color(int.parse("0xFF$colorHex"));
     } catch (e) {
       return AppTheme.fortniteBlue; // Fallback color
     }

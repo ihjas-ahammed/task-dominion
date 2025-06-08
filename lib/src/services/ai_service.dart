@@ -54,6 +54,76 @@ class AIService {
     throw Exception("All API keys failed or were invalid.");
   }
 
+  Future<List<Map<String, dynamic>>> generateTasksFromPlan({
+    required Project project,
+    required String userInput,
+    required int currentApiKeyIndex,
+    required Function(int) onNewApiKeyIndex,
+    required Function(String) onLog,
+  }) async {
+    final String prompt = """
+You are an assistant for a gamified task management app. Your job is to break down a user's plan into a series of actionable tasks.
+
+**Context:**
+- Project: "${project.name}" (Theme/Skill: "${project.theme}")
+- User's Plan/Input:
+---
+$userInput
+---
+
+**Your Goal:**
+Generate a list of 3 to 7 specific, actionable tasks based on the user's plan.
+
+**Output Requirements:**
+Provide the output as a single, valid JSON object. The JSON object MUST have a single key:
+- "tasks": An array of task objects. Each task object MUST have:
+  - "name": string (A clear, actionable task name. e.g., "Read Chapter 1: Introduction", "Set up development environment")
+  - "isCountable": boolean (Set to true if the task involves a clear quantity, like "Solve 10 problems")
+  - "targetCount": number (If countable, the target number; otherwise, 0)
+
+**Example JSON Output:**
+{
+  "tasks": [
+    {
+      "name": "Research topic A",
+      "isCountable": false,
+      "targetCount": 0
+    },
+    {
+      "name": "Write 500 words of the draft",
+      "isCountable": true,
+      "targetCount": 500
+    },
+    {
+      "name": "Create initial slide deck",
+      "isCountable": false,
+      "targetCount": 0
+    }
+  ]
+}
+
+Return ONLY the JSON object. Do not include markdown, comments, or any extra text.
+""";
+    try {
+      final Map<String, dynamic> generatedData = await _makeAICall(
+        prompt: prompt,
+        currentApiKeyIndex: currentApiKeyIndex,
+        onNewApiKeyIndex: onNewApiKeyIndex,
+        onLog: onLog,
+      );
+
+      if (generatedData.containsKey('tasks') && generatedData['tasks'] is List) {
+        return List<Map<String, dynamic>>.from(generatedData['tasks']);
+      } else {
+        throw Exception("AI response for task generation was malformed.");
+      }
+    } catch (e) {
+      onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateTasksFromPlan: ${e.toString()}</span>");
+      rethrow;
+    }
+  }
+
+
   Future<Map<String, dynamic>> enhanceTaskWithAI({
     required Project project,
     required Task task,
@@ -62,21 +132,17 @@ class AIService {
     required Function(int) onNewApiKeyIndex,
     required Function(String) onLog,
   }) async {
-    final existingCheckpointsString = task.checkpoints.map((cp) => "- ${cp.name}").join('\n');
-
     final String prompt = """
 You are an assistant for a gamified task management app. Your task is to enhance an existing task by breaking it down into detailed, actionable checkpoints.
 
 **Context:**
 - Project: "${project.name}" (Theme/Skill: "${project.theme}")
 - Task to Enhance: "${task.name}"
-- Existing Checkpoints to be replaced: 
-$existingCheckpointsString
 - User's refinement instructions: "$userInput"
 - The Task Name ("${task.name}") MUST NOT be changed.
 
 **Your Goal:**
-Generate a list of 2 to 5 specific, small, and concrete checkpoints for the task. Also, define the skill XP for completing the overall task.
+Generate a new list of 2 to 5 specific, small, and concrete checkpoints for the task. Also, define the skill XP for completing the overall task.
 
 **Output Requirements:**
 Provide the output as a single, valid JSON object. The JSON object MUST have these keys:

@@ -1,7 +1,10 @@
+ 
 // lib/src/widgets/task_card.dart
 import 'dart:async';
 
 import 'package:arcane/src/widgets/components/checkpoint_list.dart';
+import 'package:arcane/src/widgets/components/task_progress_bar.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
@@ -50,19 +53,47 @@ class _TaskCardState extends State<TaskCard> {
   @override
   void didUpdateWidget(TaskCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.task.currentTimeSpent.toString() != _timeController.text) {
+    if (widget.task.id != oldWidget.task.id) {
+      // Task has completely changed, reset all controllers
       _timeController.text = widget.task.currentTimeSpent.toString();
-    }
-    // Update checkpoint controllers
-    for (var cp in widget.task.checkpoints) {
-      if (_checkpointCountControllers.containsKey(cp.id)) {
-        if (_checkpointCountControllers[cp.id]!.text != cp.currentCount.toString()) {
-           _checkpointCountControllers[cp.id]!.text = cp.currentCount.toString();
+      _checkpointCountControllers.values.forEach((controller) => controller.dispose());
+      _checkpointCountControllers = {
+        for (var cp in widget.task.checkpoints)
+          cp.id: TextEditingController(text: cp.currentCount.toString())
+      };
+    } else {
+      // Task is the same, just updating its properties
+      if (widget.task.currentTimeSpent.toString() != _timeController.text && !_timeFocusNode.hasFocus) {
+        _timeController.text = widget.task.currentTimeSpent.toString();
+      }
+
+      // Sync checkpoint controllers
+      final newCheckpointIds = widget.task.checkpoints.map((cp) => cp.id).toSet();
+      
+      // Remove controllers for deleted checkpoints
+      final oldCheckpointIds = _checkpointCountControllers.keys.toList();
+      for (final oldId in oldCheckpointIds) {
+          if (!newCheckpointIds.contains(oldId)) {
+              _checkpointCountControllers[oldId]?.dispose();
+              _checkpointCountControllers.remove(oldId);
+          }
+      }
+
+      // Add new or update existing controllers
+      for (var cp in widget.task.checkpoints) {
+        if (_checkpointCountControllers.containsKey(cp.id)) {
+          final controller = _checkpointCountControllers[cp.id]!;
+          if (controller.text != cp.currentCount.toString() && !controller.selection.isValid) {
+            controller.text = cp.currentCount.toString();
+          }
+        } else {
+          _checkpointCountControllers[cp.id] = TextEditingController(text: cp.currentCount.toString());
         }
-      } else {
-        _checkpointCountControllers[cp.id] = TextEditingController(text: cp.currentCount.toString());
       }
     }
+    
+    _timerDisplayUpdater?.cancel();
+    _startTimerDisplayUpdater();
   }
 
   @override
@@ -98,8 +129,8 @@ class _TaskCardState extends State<TaskCard> {
           backgroundColor: AppTheme.fnBgMedium,
           title:  Row(children: [
             Icon(MdiIcons.autoFix, color: AppTheme.fortnitePurple),
-            SizedBox(width: 8),
-            Text("Enhance Task", style: TextStyle(color: AppTheme.fortnitePurple)),
+            const SizedBox(width: 8),
+            const Text("Enhance Task", style: TextStyle(color: AppTheme.fortnitePurple)),
           ]),
           content: SingleChildScrollView(
             child: Column(
@@ -190,11 +221,21 @@ class _TaskCardState extends State<TaskCard> {
     }
   }
 
+  void _handleCompleteTask() {
+    final success = gameProvider.completeTask(widget.project.id, widget.task.id);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Cannot complete. Ensure countable tasks are at target and any sub-checkpoints are done.'),
+            backgroundColor: AppTheme.fnAccentRed),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final projectColor = widget.project.color;
     final task = widget.task;
     final timerState = gameProvider.activeTimers[task.id];
     final isTimerRunning = timerState?.isRunning ?? false;
@@ -208,12 +249,19 @@ class _TaskCardState extends State<TaskCard> {
     }
 
     final skillChips = task.skillXp.entries.map((entry) {
-      final skillName = gameProvider.skills.firstWhere((s) => s.id == entry.key, orElse: () => Skill(id: '', name: entry.key)).name;
+      final skillId = entry.key;
+      final skill = gameProvider.skills.firstWhereOrNull((s) => s.id == skillId) ?? Skill(id: '', name: entry.key);
+      final projectForColor = gameProvider.projects.firstWhere(
+        (p) => p.theme == skillId,
+        orElse: () => Project(id: '', name: '', description: '', theme: '', colorHex: 'FF00BFFF')
+      );
+      final skillColor = projectForColor.color;
+
       return Chip(
-        avatar: Icon(MdiIcons.starFourPointsOutline, color: projectColor, size: 14),
-        label: Text('+${entry.value.toStringAsFixed(1)} $skillName XP'),
-        backgroundColor: projectColor.withAlpha((255 * 0.15).round()),
-        labelStyle: TextStyle(color: projectColor, fontSize: 11, fontWeight: FontWeight.w500),
+        avatar: Icon(MdiIcons.starFourPointsOutline, color: skillColor, size: 14),
+        label: Text('+${entry.value.toStringAsFixed(1)} ${skill.name} XP'),
+        backgroundColor: skillColor.withAlpha((255 * 0.15).round()),
+        labelStyle: TextStyle(color: skillColor, fontSize: 11, fontWeight: FontWeight.w500),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       );
     }).toList();
@@ -227,6 +275,13 @@ class _TaskCardState extends State<TaskCard> {
             Row(
               children: [
                 Expanded(child: Text(task.name, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600))),
+                IconButton(
+                  icon:  Icon(MdiIcons.checkCircleOutline, size: 18),
+                  onPressed: _handleCompleteTask,
+                  tooltip: "Complete Task",
+                  style: IconButton.styleFrom(backgroundColor: AppTheme.fnAccentGreen.withAlpha((255 * 0.2).round()), foregroundColor: AppTheme.fnAccentGreen, fixedSize: const Size(32,32)),
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon:  Icon(MdiIcons.autoFix, size: 18),
                   onPressed: () => _showAIEnhanceDialog(context, gameProvider, widget.project, task),
@@ -242,6 +297,7 @@ class _TaskCardState extends State<TaskCard> {
                 ),
               ],
             ),
+            TaskProgressBar(task: task),
             const SizedBox(height: 16),
             if (skillChips.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: skillChips),
             if (skillChips.isNotEmpty) const SizedBox(height: 16),
@@ -271,6 +327,7 @@ class _TaskCardState extends State<TaskCard> {
                                   style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextPrimary),
                                   decoration: const InputDecoration(contentPadding: EdgeInsets.zero, border: OutlineInputBorder()),
                                   onEditingComplete: _handleSaveTime,
+                                  onTapOutside: (_) => _handleSaveTime(),
                                 ),
                               ),
                               IconButton(icon: const Icon(Icons.check, size: 20), onPressed: _handleSaveTime, color: AppTheme.fnAccentGreen),
@@ -300,18 +357,18 @@ class _TaskCardState extends State<TaskCard> {
                         decoration: BoxDecoration(
                           color: AppTheme.fnBgDark,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: projectColor.withAlpha(isTimerRunning ? (255 * 0.5).round() : (255 * 0.2).round()))
+                          border: Border.all(color: widget.project.color.withAlpha(isTimerRunning ? (255 * 0.5).round() : (255 * 0.2).round()))
                         ),
                         child: Text(
                           helper.formatTime(currentSessionSeconds),
-                          style: theme.textTheme.bodyLarge?.copyWith(fontFamily: 'Courier New', fontWeight: FontWeight.bold, color: projectColor)
+                          style: theme.textTheme.bodyLarge?.copyWith(fontFamily: 'Courier New', fontWeight: FontWeight.bold, color: widget.project.color)
                         ),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
                         icon: Icon(isTimerRunning ? Icons.pause : Icons.play_arrow, size: 24),
                         onPressed: _handlePlayPauseTimer,
-                        style: IconButton.styleFrom(backgroundColor: projectColor, foregroundColor: ThemeData.estimateBrightnessForColor(projectColor) == Brightness.dark ? Colors.white : AppTheme.fnBgDark, fixedSize: const Size(40,40), shape: const CircleBorder()),
+                        style: IconButton.styleFrom(backgroundColor: widget.project.color, foregroundColor: ThemeData.estimateBrightnessForColor(widget.project.color) == Brightness.dark ? Colors.white : AppTheme.fnBgDark, fixedSize: const Size(40,40), shape: const CircleBorder()),
                       )
                     ],
                   )
@@ -338,7 +395,7 @@ class _TaskCardState extends State<TaskCard> {
                       onSubmitted: (_) => _handleAddCheckpoint(),
                     ),
                   ),
-                  IconButton(icon: const Icon(Icons.add_circle_outline, size: 24), onPressed: _handleAddCheckpoint, color: projectColor)
+                  IconButton(icon: const Icon(Icons.add_circle_outline, size: 24), onPressed: _handleAddCheckpoint, color: widget.project.color)
                 ],
               ),
             )
@@ -348,3 +405,4 @@ class _TaskCardState extends State<TaskCard> {
     );
   }
 }
+ 

@@ -1,3 +1,4 @@
+ 
 import 'package:arcane/src/services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -267,9 +268,10 @@ class GameProvider with ChangeNotifier {
     _scheduleSave();
   }
 
-  void _scheduleSave() {
+  void _scheduleSave({bool immediate = false}) {
     if (_debounceSaveTimer?.isActive ?? false) _debounceSaveTimer!.cancel();
-    _debounceSaveTimer = Timer(const Duration(milliseconds: 1500), _performActualSave);
+    final saveDuration = immediate ? Duration.zero : const Duration(milliseconds: 750);
+    _debounceSaveTimer = Timer(saveDuration, _performActualSave);
   }
 
   Future<void> _performActualSave() async {
@@ -374,10 +376,10 @@ class GameProvider with ChangeNotifier {
     }
   }
 
-  void setSelectedProjectId(String? projectId) {
+  void setSelectedProjectId(String? projectId, {bool immediateSave = false}) {
     if (_selectedProjectId != projectId) {
       _selectedProjectId = projectId;
-      _scheduleSave();
+      _scheduleSave(immediate: immediateSave);
       notifyListeners();
     }
   }
@@ -726,6 +728,9 @@ class GameProvider with ChangeNotifier {
   Future<void> triggerAIEnhanceTask(Project project, Task taskToEnhance, String userInput) =>
     _aiGenerationActions.triggerAIEnhanceTask(project, taskToEnhance, userInput);
 
+  Future<void> triggerAIGenerateTasks(Project project, String userInput) =>
+    _aiGenerationActions.triggerAIGenerateTasks(project, userInput);
+
   void addProject({required String name, required String description, required String theme, required String colorHex}) =>
       _taskActions.addProject(name: name, description: description, theme: theme, colorHex: colorHex);
   void editProject(String projectId, {required String name, required String description, required String theme, required String colorHex}) =>
@@ -741,6 +746,8 @@ class GameProvider with ChangeNotifier {
   void duplicateCompletedTask(String projectId, String taskId) => _taskActions.duplicateCompletedTask(projectId, taskId);
   void addCheckpoint(String projectId, String parentTaskId, Map<String, dynamic> checkpointData) =>
       _taskActions.addCheckpoint(projectId, parentTaskId, checkpointData);
+  void duplicateCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
+      _taskActions.duplicateCheckpoint(projectId, parentTaskId, checkpointId);
   void updateCheckpoint(String projectId, String parentTaskId, String checkpointId, Map<String, dynamic> updates) =>
       _taskActions.updateCheckpoint(projectId, parentTaskId, checkpointId, updates);
   void completeCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
@@ -838,7 +845,7 @@ class GameProvider with ChangeNotifier {
     List<Project>? projects, Map<String, dynamic>? completedByDay, List<String>? gameLog,
     List<Skill>? skills, Map<String, ActiveTimerInfo>? activeTimers,
     DateTime? lastSuccessfulSaveTimestamp, bool? isUsernameMissing, ChatbotMemory? chatbotMemory,
-    bool doNotify = true,
+    bool doNotify = true, bool immediateSave = false,
   }) {
     bool changed = false;
     if (lastLoginDate != null && _lastLoginDate != lastLoginDate) { _lastLoginDate = lastLoginDate; changed = true; }
@@ -854,7 +861,7 @@ class GameProvider with ChangeNotifier {
     if (isUsernameMissing != null && _isUsernameMissing != isUsernameMissing) { _isUsernameMissing = isUsernameMissing; changed = true; }
     if (chatbotMemory != null && _chatbotMemory != chatbotMemory) { _chatbotMemory = chatbotMemory; changed = true; }
     if (changed) {
-      _scheduleSave();
+      _scheduleSave(immediate: immediateSave);
       if (doNotify) notifyListeners();
     }
   }
@@ -880,3 +887,4 @@ class GameProvider with ChangeNotifier {
     }
   }
 }
+ 

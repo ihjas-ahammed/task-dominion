@@ -1,3 +1,4 @@
+ 
 // lib/src/providers/actions/task_actions.dart
 import 'package:arcane/src/providers/game_provider.dart';
 import 'package:arcane/src/utils/constants.dart';
@@ -72,7 +73,8 @@ class TaskActions {
     
     _provider.setProviderState(
       projects: newProjects,
-      skills: newSkills
+      skills: newSkills,
+      immediateSave: true,
     );
     // setSelectedProjectId will trigger its own notify and save
     _provider.setSelectedProjectId(newSelectedId);
@@ -170,10 +172,12 @@ class TaskActions {
     Task? task = project.tasks.firstWhereOrNull((t) => t.id == taskId);
     if (task == null || task.completed) return false;
 
-    if (task.isCountable && task.currentCount < task.targetCount) return false;
-    if (task.currentTimeSpent <= 0 && !task.isCountable) {
-      if (task.checkpoints.isNotEmpty && !task.checkpoints.every((cp) => cp.completed)) return false;
-      if (task.checkpoints.isEmpty) return false;
+    // Validation checks
+    if (task.isCountable && task.currentCount < task.targetCount) {
+      return false;
+    }
+    if (task.checkpoints.isNotEmpty && !task.checkpoints.every((cp) => cp.completed)) {
+      return false;
     }
 
     ActiveTimerInfo? timerForTask = _provider.activeTimers[taskId];
@@ -204,7 +208,10 @@ class TaskActions {
     final newProjects = _provider.projects.map((p) {
       if (p.id == projectId) {
         p.tasks = p.tasks.map((t) {
-          if (t.id == taskId) t.completed = true; t.completedDate = getTodayDateString();
+          if (t.id == taskId) {
+            t.completed = true; 
+            t.completedDate = getTodayDateString();
+          }
           return t;
         }).toList();
       }
@@ -226,7 +233,7 @@ class TaskActions {
       return project;
     }).toList();
     final newActiveTimers = Map<String, ActiveTimerInfo>.from(_provider.activeTimers)..remove(taskId);
-    _provider.setProviderState(projects: newProjects, activeTimers: newActiveTimers);
+    _provider.setProviderState(projects: newProjects, activeTimers: newActiveTimers, immediateSave: true);
   }
 
   void replaceTask(String projectId, String oldTaskId, Task newTask) {
@@ -345,6 +352,35 @@ class TaskActions {
       }
       return project;
     }).toList();
+    _provider.setProviderState(projects: newProjects, immediateSave: true);
+  }
+
+  void duplicateCheckpoint(String projectId, String parentTaskId, String checkpointId) {
+    Project? project = _provider.projects.firstWhereOrNull((p) => p.id == projectId);
+    if (project == null) return;
+    Task? task = project.tasks.firstWhereOrNull((t) => t.id == parentTaskId);
+    if (task == null) return;
+    Checkpoint? checkpointToDuplicate = task.checkpoints.firstWhereOrNull((cp) => cp.id == checkpointId);
+    if (checkpointToDuplicate == null) return;
+
+    final newCheckpoint = Checkpoint(
+      id: 'cp_${DateTime.now().millisecondsSinceEpoch}_${checkpointToDuplicate.name.hashCode}',
+      name: checkpointToDuplicate.name,
+      completed: false,
+      isCountable: checkpointToDuplicate.isCountable,
+      targetCount: checkpointToDuplicate.targetCount,
+      currentCount: 0,
+      completionTimestamp: null,
+      skillXp: checkpointToDuplicate.skillXp,
+    );
+
+    final newProjects = _provider.projects.map((p) {
+      if (p.id == projectId) {
+        p.tasks.firstWhereOrNull((t) => t.id == parentTaskId)?.checkpoints.add(newCheckpoint);
+      }
+      return p;
+    }).toList();
     _provider.setProviderState(projects: newProjects);
   }
 }
+ 

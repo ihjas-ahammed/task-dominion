@@ -25,7 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isUsernameDialogShowing = false;
   bool _isTutorialShowing = false;
   int _mobileSelectedIndex = 0; // 0: Tasks, 1: Logbook, 2: Skills
-  bool _isHovering = true;
 
   @override
   void initState() {
@@ -88,15 +87,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildLogbookFab(BuildContext context, ThemeData theme) {
-    return FloatingActionButton.extended(
+    return FloatingActionButton(
       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatbotScreen())),
-      label: const Text('Advisor'),
-      icon: Icon(MdiIcons.robotHappyOutline),
+      tooltip: 'Advisor',
       backgroundColor: theme.colorScheme.secondary,
       foregroundColor: ThemeData.estimateBrightnessForColor(theme.colorScheme.secondary) == Brightness.dark
           ? AppTheme.fnTextPrimary
           : AppTheme.fnBgDark,
-      isExtended: false,
+      child: Icon(MdiIcons.robotHappyOutline),
     );
   }
 
@@ -139,15 +137,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildTaskDetailsFab(BuildContext context, ThemeData theme) {
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
-    return FloatingActionButton.extended(
+    return FloatingActionButton(
       onPressed: () => _showTakeBreakDialog(context, gameProvider),
-      label: const Text('Take Break'),
-      icon: Icon(MdiIcons.coffeeOutline),
+      tooltip: 'Take Break',
       backgroundColor: theme.colorScheme.secondary,
       foregroundColor: ThemeData.estimateBrightnessForColor(theme.colorScheme.secondary) == Brightness.dark
           ? AppTheme.fnTextPrimary
           : AppTheme.fnBgDark,
-        isExtended: false,
+      child: Icon(MdiIcons.coffeeOutline),
     );
   }
   
@@ -235,19 +232,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return Theme(
       data: dynamicTheme,
       child: Scaffold(
-        body: MouseRegion(
-          onEnter: (_) => setState(() => _isHovering = true),
-          onExit: (_) => setState(() => _isHovering = true),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [currentProjectColor.withOpacity(0.1), AppTheme.fnBgDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        backgroundColor: AppTheme.fnBgDark, // Set a base background color
+        body: Stack(
+          children: [
+            // Layer 1: Animated Gradient Background
+            Positioned.fill(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [currentProjectColor.withOpacity(0.1), AppTheme.fnBgDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
               ),
             ),
-            child: Column(
+            // Layer 2: Main Content
+            Column(
               children: [
                 if (gameProvider.breakEndTime != null) const BreakTimerBanner(),
                 Expanded(
@@ -290,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-          ),
+          ],
         ),
         drawer: isLargeScreen ? null : const ProjectNavigationDrawer(),
         endDrawer: isLargeScreen ? null : const SkillDrawer(),

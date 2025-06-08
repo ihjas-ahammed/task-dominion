@@ -110,7 +110,16 @@ class _HeaderWidgetState extends State<HeaderWidget> {
                   Icon(MdiIcons.shieldCrownOutline, color: currentAccentColor, size: 32),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
+                  child: gameProvider.isGeneratingContent ? 
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: currentAccentColor)),
+                      SizedBox(width: 8),
+                      Text("AI is working...", style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextSecondary),)
+                    ],
+                  ) :
+                  Text(
                     widget.currentViewLabel,
                     style: theme.textTheme.headlineSmall?.copyWith(color: AppTheme.fnTextPrimary, letterSpacing: 1.0),
                     textAlign: widget.isMobile ? TextAlign.center : TextAlign.center,

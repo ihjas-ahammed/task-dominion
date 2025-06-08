@@ -12,10 +12,49 @@ class AIGenerationActions {
 
   AIGenerationActions(this._provider);
 
-  void _logToGame(String logMessage) {
+  void _logToGame(String logMessage, {bool isError = false}) {
+    final color = isError
+        ? AppTheme.fnAccentRed.value.toRadixString(16).substring(2)
+        : AppTheme.fnTextSecondary.value.toRadixString(16).substring(2);
+    final finalMessage = "<span style=\"color:#$color;\">$logMessage</span>";
+
     if (kDebugMode) print("[AIActions]: $logMessage");
     _provider.setProviderState(
-        gameLog: [..._provider.gameLog, logMessage], doNotify: true);
+        gameLog: [..._provider.gameLog, finalMessage], doNotify: true);
+  }
+
+  Future<void> triggerAIGenerateTasks(
+      Project project, String userInput) async {
+    if (_provider.isGeneratingContent) return;
+
+    _provider.setProviderAIGlobalLoading(true,
+        statusMessage: 'Generating new tasks...');
+    _logToGame("AI is generating new tasks for project '${project.name}'...");
+
+    try {
+      final List<Map<String, dynamic>> tasksData =
+          await _aiService.generateTasksFromPlan(
+        project: project,
+        userInput: userInput,
+        currentApiKeyIndex: _provider.apiKeyIndex,
+        onNewApiKeyIndex: (newIndex) => _provider.setProviderApiKeyIndex(newIndex),
+        onLog: (msg) => _logToGame(msg),
+      );
+
+      int tasksAdded = 0;
+      for (final taskData in tasksData) {
+        _provider.addTask(project.id, taskData);
+        tasksAdded++;
+      }
+
+      _logToGame(
+          "AI successfully generated $tasksAdded new tasks for '${project.name}'.",
+          isError: false);
+    } catch (e) {
+      _logToGame("AI task generation failed: ${e.toString()}", isError: true);
+    } finally {
+      _provider.setProviderAIGlobalLoading(false);
+    }
   }
 
   Future<void> triggerAIEnhanceTask(
@@ -41,8 +80,11 @@ class AIGenerationActions {
         onLog: _logToGame,
       );
 
-      final Map<String, double> newSkillXp = (enhancementData['skillXp'] as Map<String, dynamic>?)
-              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ?? {};
+      final Map<String, double> newSkillXp =
+          (enhancementData['skillXp'] as Map<String, dynamic>?)
+                  ?.map((key, value) =>
+                      MapEntry(key, (value as num).toDouble())) ??
+              {};
 
       final List<Checkpoint> newCheckpoints =
           (enhancementData['checkpoints'] as List<dynamic>? ?? [])
@@ -51,11 +93,12 @@ class AIGenerationActions {
                   : null)
               .whereNotNull()
               .toList();
-      
+
       // Merge the results with the existing task
       final enhancedTask = Task(
         id: taskToEnhance.id,
         name: taskToEnhance.name, // Name is preserved
+        completed: taskToEnhance.completed,
         isCountable: taskToEnhance.isCountable, // Countability is preserved
         targetCount: taskToEnhance.targetCount,
         currentTimeSpent: taskToEnhance.currentTimeSpent,
@@ -67,7 +110,6 @@ class AIGenerationActions {
       _provider.replaceTask(project.id, taskToEnhance.id, enhancedTask);
       _logToGame(
           "<span style=\"color:${AppTheme.fnAccentGreen.value.toRadixString(16).substring(2)};\">Successfully enhanced task '${enhancedTask.name}'.</span>");
-
     } catch (e, stackTrace) {
       final errorMessage = e.toString();
       _logToGame(

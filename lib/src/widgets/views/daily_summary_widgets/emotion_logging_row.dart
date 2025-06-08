@@ -79,10 +79,18 @@ class _EmotionLoggingRowState extends State<EmotionLoggingRow> {
               onEnter: (_) => setState(() => _hoveredPrimaryEmotion = primaryRating),
               onExit: (_) => setState(() => _hoveredPrimaryEmotion = 0),
               child: GestureDetector(
-                onTap: () {
+                onTapDown: (_) => setState(() => _hoveredPrimaryEmotion = primaryRating),
+                onTapUp: (_) {
+                  // Commit and reset for tap devices
                   double finalRating = (primaryRating.toDouble() + _emotionIntensity).clamp(1.0, 6.0);
                   widget.gameProvider.logEmotion(widget.date, finalRating);
                   setState(() => _hoveredPrimaryEmotion = 0);
+                },
+                onTapCancel: () => setState(() => _hoveredPrimaryEmotion = 0),
+                onTap: () {
+                  // This handles click for mouse devices
+                  double finalRating = (primaryRating.toDouble() + _emotionIntensity).clamp(1.0, 6.0);
+                  widget.gameProvider.logEmotion(widget.date, finalRating);
                 },
                 child: AnimatedScale(
                   scale: _hoveredPrimaryEmotion == primaryRating ? 1.2 : 1.0,

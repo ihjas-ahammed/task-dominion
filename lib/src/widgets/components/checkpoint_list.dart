@@ -1,8 +1,10 @@
+ 
 // lib/src/widgets/components/checkpoint_list.dart
 import 'package:arcane/src/models/game_models.dart';
 import 'package:arcane/src/providers/game_provider.dart';
 import 'package:arcane/src/theme/app_theme.dart';
 import 'package:arcane/src/widgets/ui/rhombus_checkbox.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:provider/provider.dart';
@@ -61,6 +63,10 @@ class CheckpointList extends StatelessWidget {
     final checkpointProgress = totalCheckpoints > 0
         ? (completedCheckpoints / totalCheckpoints)
         : 0.0;
+        
+    final sortedCheckpoints = List<Checkpoint>.from(task.checkpoints)
+      ..sort((a,b) => a.completed == b.completed ? 0 : (a.completed ? 1 : -1));
+
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,22 +99,26 @@ class CheckpointList extends StatelessWidget {
         ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: task.checkpoints.length,
+            itemCount: sortedCheckpoints.length,
             itemBuilder: (sctx, sIndex) {
-              final cp = task.checkpoints[sIndex];
+              final cp = sortedCheckpoints[sIndex];
               final skillXpChips = cp.skillXp.entries.map((entry) {
-                final skillName = gameProvider.skills
-                    .firstWhere((s) => s.id == entry.key,
-                        orElse: () => Skill(id: '', name: entry.key))
-                    .name;
+                final skillId = entry.key;
+                final skill = gameProvider.skills.firstWhereOrNull((s) => s.id == skillId) ?? Skill(id: '', name: entry.key);
+                final projectForColor = gameProvider.projects.firstWhere(
+                  (p) => p.theme == skillId,
+                  orElse: () => Project(id: '', name: '', description: '', theme: '', colorHex: 'FF00BFFF')
+                );
+                final skillColor = projectForColor.color;
+
                 return Chip(
                   label: Text(
-                      '+${entry.value.toStringAsFixed(1)} $skillName XP'),
+                      '+${entry.value.toStringAsFixed(1)} ${skill.name} XP'),
                   avatar: Icon(MdiIcons.starFourPointsOutline,
-                      size: 10, color: project.color),
-                  backgroundColor: project.color.withAlpha((255 * 0.1).round()),
+                      size: 10, color: skillColor),
+                  backgroundColor: skillColor.withAlpha((255 * 0.1).round()),
                   labelStyle: TextStyle(
-                      fontSize: 9, color: project.color.withAlpha((255 * 0.9).round())),
+                      fontSize: 9, color: skillColor.withAlpha((255 * 0.9).round())),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   visualDensity: VisualDensity.compact,
@@ -169,7 +179,16 @@ class CheckpointList extends StatelessWidget {
                                   context, gameProvider, project, task, cp),
                             ),
                           ),
-                        if (!cp.completed)
+                        if (cp.completed)
+                          IconButton(
+                            icon: Icon(MdiIcons.restore, color: AppTheme.fnTextSecondary.withAlpha(179), size: 16),
+                            tooltip: 'Repeat Checkpoint',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => gameProvider.duplicateCheckpoint(project.id, task.id, cp.id),
+                          )
+                        else
                           IconButton(
                               icon: Icon(MdiIcons.deleteOutline,
                                   color: AppTheme.fnAccentRed.withAlpha((255 * 0.7).round()),
@@ -196,3 +215,4 @@ class CheckpointList extends StatelessWidget {
     );
   }
 }
+ 
