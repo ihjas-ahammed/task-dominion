@@ -62,7 +62,7 @@ class AIService {
     required Function(String) onLog,
   }) async {
     final String prompt = """
-You are an assistant for a gamified task management app. Your job is to break down a user's plan into a series of actionable tasks.
+You are an assistant for a gamified task management app. Your job is to break down a user's plan into a single comprehensive task with actionable checkpoints.
 
 **Context:**
 - Project: "${project.name}" (Theme/Skill: "${project.theme}")
@@ -72,35 +72,58 @@ $userInput
 ---
 
 **Your Goal:**
-Generate a list of 3 to 7 specific, actionable tasks based on the user's plan.
+Generate ONE comprehensive task that encapsulates the user's plan, broken down into 3 to 7 specific checkpoints.
 
 **Output Requirements:**
 Provide the output as a single, valid JSON object. The JSON object MUST have a single key:
-- "tasks": An array of task objects. Each task object MUST have:
-  - "name": string (A clear, actionable task name. e.g., "Read Chapter 1: Introduction", "Set up development environment")
-  - "isCountable": boolean (Set to true if the task involves a clear quantity, like "Solve 10 problems")
+- "tasks": An array containing exactly ONE task object. The task object MUST have:
+  - "name": string (A comprehensive task name that encompasses the overall goal, e.g., "Complete Chapter 1 Study Session", "Build Portfolio Website")
+  - "isCountable": boolean (Set to true if the overall task involves a clear quantity)
   - "targetCount": number (If countable, the target number; otherwise, 0)
+  - "checkpoints": array of checkpoint objects. Each checkpoint object MUST have:
+    - "name": string (A specific, actionable checkpoint, e.g., "Read section 1.1", "Set up HTML structure")
+    - "isCountable": boolean (Set to true if this checkpoint involves a clear quantity)
+    - "targetCount": number (If countable, the target number; otherwise, 0)
 
 **Example JSON Output:**
+```json
 {
   "tasks": [
     {
-      "name": "Research topic A",
+      "name": "Complete research paper draft",
       "isCountable": false,
-      "targetCount": 0
-    },
-    {
-      "name": "Write 500 words of the draft",
-      "isCountable": true,
-      "targetCount": 500
-    },
-    {
-      "name": "Create initial slide deck",
-      "isCountable": false,
-      "targetCount": 0
+      "targetCount": 0,
+      "checkpoints": [
+        {
+          "name": "Research and gather 10 sources",
+          "isCountable": true,
+          "targetCount": 10
+        },
+        {
+          "name": "Create detailed outline",
+          "isCountable": false,
+          "targetCount": 0
+        },
+        {
+          "name": "Write introduction section",
+          "isCountable": false,
+          "targetCount": 0
+        },
+        {
+          "name": "Write 1500 words for main body",
+          "isCountable": true,
+          "targetCount": 1500
+        },
+        {
+          "name": "Write conclusion and bibliography",
+          "isCountable": false,
+          "targetCount": 0
+        }
+      ]
     }
   ]
 }
+```
 
 Return ONLY the JSON object. Do not include markdown, comments, or any extra text.
 """;
@@ -132,14 +155,15 @@ Return ONLY the JSON object. Do not include markdown, comments, or any extra tex
     required Function(int) onNewApiKeyIndex,
     required Function(String) onLog,
   }) async {
+    final String taskStr = jsonEncode(task);
     final String prompt = """
 You are an assistant for a gamified task management app. Your task is to enhance an existing task by breaking it down into detailed, actionable checkpoints.
 
 **Context:**
 - Project: "${project.name}" (Theme/Skill: "${project.theme}")
-- Task to Enhance: "${task.name}"
+- Task to Enhance: \n "${taskStr} \n"
 - User's refinement instructions: "$userInput"
-- The Task Name ("${task.name}") MUST NOT be changed.
+- The Task Properties MUST NOT be changed, only add skills
 
 **Your Goal:**
 Generate a new list of 2 to 5 specific, small, and concrete checkpoints for the task. Also, define the skill XP for completing the overall task.
@@ -149,33 +173,11 @@ Provide the output as a single, valid JSON object. The JSON object MUST have the
 - "skillXp": object (e.g., `{"${project.theme}": 10.0, "another_skill": 5.0}`). The key MUST be a valid skill theme from the app. You can assign XP to multiple skills.
 - "checkpoints": array of checkpoint objects. Each checkpoint MUST have:
   - "id": string (Use a placeholder like "new_cp_1", "new_cp_2")
-  - "name": string (A small, concrete action. e.g., "Read pages 1-10", "Draft outline", "Complete 3 practice problems")
+  - "name": string (A small, concrete action. e.g., "Read pages 1-10", "Draft outline", "Complete 3 practice problems", only if there is no exitsting checkpoints, if there is use their names, only add skills if they don't have, never create new checkpoints)
   - "isCountable": boolean
   - "targetCount": number (if countable, otherwise 0)
   - "skillXp": object (e.g., `{"${project.theme}": 2.0}`). XP should be smaller than the parent task's XP.
 
-**Example JSON Output:**
-{
-  "skillXp": {
-    "tech": 15.0
-  },
-  "checkpoints": [
-    {
-      "id": "new_cp_1",
-      "name": "Analyze website's landing page",
-      "isCountable": false,
-      "targetCount": 0,
-      "skillXp": { "tech": 3.0 }
-    },
-    {
-      "id": "new_cp_2",
-      "name": "Review 5 recent social media posts",
-      "isCountable": true,
-      "targetCount": 5,
-      "skillXp": { "tech": 5.0 }
-    }
-  ]
-}
 
 Return ONLY the JSON object. Do not include markdown, comments, or any extra text.
 """;
