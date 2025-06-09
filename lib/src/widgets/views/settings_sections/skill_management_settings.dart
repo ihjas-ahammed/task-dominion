@@ -81,6 +81,27 @@ class _SkillManagementSettingsState extends State<SkillManagementSettings> {
     );
   }
 
+  void _confirmAndDeleteSubskill(BuildContext context, GameProvider gameProvider, Subskill subskill) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Subskill?', style: TextStyle(color: AppTheme.fnAccentRed)),
+        content: Text('Are you sure you want to delete the "${subskill.name}" subskill? This will remove its XP from all tasks and cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              gameProvider.deleteSubskill(subskill.id);
+              Navigator.of(ctx).pop();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fnAccentRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<GameProvider>(
@@ -90,33 +111,43 @@ class _SkillManagementSettingsState extends State<SkillManagementSettings> {
           title: 'Skill System',
           children: [
             Text(
-              'Manually edit skill names and icons. You can also recalculate all skill XP from your entire completion history to fix any inconsistencies.',
+              'Manually edit skill names and icons, or remove unwanted subskills. You can also recalculate all skill XP from your entire completion history to fix any inconsistencies.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.fnTextSecondary, height: 1.5),
             ),
             const SizedBox(height: 16),
             ...gameProvider.skills.map(
-              (skill) => ListTile(
+              (skill) => ExpansionTile(
                 leading: Icon(MdiIcons.fromString(skill.iconName)),
                 title: Text(skill.name),
                 trailing: IconButton(
                   icon: const Icon(Icons.edit_outlined, size: 20),
                   onPressed: () => _showEditSkillDialog(context, gameProvider, skill),
                 ),
-                contentPadding: EdgeInsets.zero,
+                children: skill.subskills
+                    .map((subskill) => ListTile(
+                          title: Text(subskill.name, style: Theme.of(context).textTheme.bodySmall),
+                          trailing: IconButton(
+                            icon:  Icon(MdiIcons.deleteOutline, size: 20),
+                            color: AppTheme.fnAccentRed.withOpacity(0.8),
+                            onPressed: () => _confirmAndDeleteSubskill(context, gameProvider, subskill),
+                          ),
+                          dense: true,
+                        ))
+                    .toList(),
               ),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               icon:  Icon(MdiIcons.restart, size: 18),
-              label: const Text('RESET SKILLS'),
+              label: const Text('RECALCULATE ALL SKILL XP'),
               onPressed: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title:  Row(children: [
                       Icon(MdiIcons.alertOutline, color: AppTheme.fnAccentOrange),
-                      SizedBox(width: 10),
-                      Text('Confirm')
+                      const SizedBox(width: 10),
+                      const Text('Confirm')
                     ]),
                     content: const Text('Are you sure you want to reset and recalculate all skills from your logs? This cannot be undone.'),
                     actionsAlignment: MainAxisAlignment.spaceBetween,

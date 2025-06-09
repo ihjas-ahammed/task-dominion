@@ -1,566 +1,3770 @@
---- START OF FILE lib/src/widgets/components/project_color_picker.dart ---
-// lib/src/widgets/components/project_color_picker.dart
-import 'package:arcane/src/theme/app_theme.dart';
+--- START OF FILE lib/src/models/game_models.dart ---
+// lib/src/models/game_models.dart
+import 'package:arcane/src/utils/helpers.dart' as helper;
 import 'package:flutter/material.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-
-class ProjectColorPicker extends StatelessWidget {
-final String selectedColorHex;
-final ValueChanged<String> onColorSelected;
-
-const ProjectColorPicker({
-super.key,
-required this.selectedColorHex,
-required this.onColorSelected,
-});
-
-static final List<Color> _availableColors = [
-AppTheme.fortniteBlue,
-AppTheme.fortnitePurple,
-AppTheme.fnAccentGreen,
-AppTheme.fnAccentOrange,
-AppTheme.fnAccentRed,
-const Color(0xFF58D68D), // health
-const Color(0xFFF1C40F), // finance
-const Color(0xFFEC7063), // creative
-const Color(0xFF5DADE2), // exploration
-const Color(0xFFE59866), // social
-const Color(0xFF2ECC71), // nature
-const Color(0xFFF1948A), // Light Red
-const Color(0xFF85C1E9), // Light Blue
-const Color(0xFFD7BDE2), // Light Purple
-const Color(0xFFFAD7A0), // Light Orange
-];
-
-String _colorToHex(Color color) {
-return color.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
-}
-
-@override
-Widget build(BuildContext context) {
-return Wrap(
-spacing: 8.0,
-runSpacing: 8.0,
-children: _availableColors.map((color) {
-final colorHex = _colorToHex(color);
-final isSelectedColor = selectedColorHex == colorHex;
-return GestureDetector(
-onTap: () => onColorSelected(colorHex),
-child: Container(
-width: 32,
-height: 32,
-decoration: BoxDecoration(
-color: color,
-borderRadius: BorderRadius.circular(8),
-border: isSelectedColor
-? Border.all(color: Colors.white, width: 2.5)
-: Border.all(color: Colors.white.withAlpha(77), width: 1),
-boxShadow: isSelectedColor
-? [
-BoxShadow(
-color: Colors.white.withOpacity(0.5),
-blurRadius: 4,
-spreadRadius: 1,
-)
-]
-: [],
-),
-child: isSelectedColor
-? Icon(
-MdiIcons.check,
-color: ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-? Colors.white
-: Colors.black,
-size: 18,
-)
-: null,
-),
-);
-}).toList(),
-);
-}
-}
---- END OF FILE lib/src/widgets/components/project_color_picker.dart ---
---- START OF FILE lib/src/widgets/components/xp_history_graph.dart ---
-// lib/src/widgets/components/xp_history_graph.dart
-import 'package:arcane/src/providers/game_provider.dart';
 import 'package:arcane/src/theme/app_theme.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 
-class XpHistoryGraph extends StatelessWidget {
-final String selectedSkillId;
-final Color skillColor;
+class Project {
+  String id;
+  String name;
+  String description;
+  String theme;
+  String colorHex;
+  int streak;
+  int dailyTimeSpent;
+  String? lastWorkedDate;
+  List<Task> tasks;
 
-const XpHistoryGraph({
-super.key,
-required this.selectedSkillId,
-required this.skillColor,
-});
+  Project({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.theme,
+    this.colorHex = "FF00BFFF", // Default to fortnite blue
+    this.streak = 0,
+    this.dailyTimeSpent = 0,
+    this.lastWorkedDate,
+    List<Task>? tasks,
+  }) : tasks = tasks ?? [];
 
-List<FlSpot> _getChartData(GameProvider gameProvider) {
-List<Map<String, dynamic>> xpEvents = [];
-final now = DateTime.now();
-final twentyFourHoursAgo = now.subtract(const Duration(hours: 24));
+  factory Project.fromTemplate(ProjectTemplate template) {
+    return Project(
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      theme: template.theme,
+      colorHex: template.colorHex,
+    );
+  }
 
-final todayStr = DateFormat('yyyy-MM-dd').format(now);
-final yesterdayStr = DateFormat('yyyy-MM-dd').format(now.subtract(const Duration(days: 1)));
+  factory Project.fromJson(Map<String, dynamic> json) {
+    return Project(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String,
+      theme: json['theme'] as String,
+      colorHex: json['colorHex'] as String? ?? "FF00BFFF",
+      streak: json['streak'] as int? ?? 0,
+      dailyTimeSpent: json['dailyTimeSpent'] as int? ?? 0,
+      lastWorkedDate: json['lastWorkedDate'] as String?,
+      tasks: (json['tasks'] as List<dynamic>?)
+              ?.map((tJson) => Task.fromJson(tJson as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
 
-final relevantDates = [todayStr, yesterdayStr];
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'theme': theme,
+      'colorHex': colorHex,
+      'streak': streak,
+      'dailyTimeSpent': dailyTimeSpent,
+      'lastWorkedDate': lastWorkedDate,
+      'tasks': tasks.map((t) => t.toJson()).toList(),
+    };
+  }
 
-for (var dateStr in relevantDates) {
-  final dayData = gameProvider.completedByDay[dateStr];
-  if (dayData != null) {
-    final checkpoints = dayData['checkpointsCompleted'] as List<dynamic>? ?? [];
-    for (var cpLog in checkpoints) {
-      final logMap = cpLog as Map<String, dynamic>;
-      final timestamp = DateTime.tryParse(logMap['completionTimestamp'] as String? ?? '');
-      if (timestamp != null && timestamp.isAfter(twentyFourHoursAgo)) {
-        final double xpForSkill = (logMap['skillXp'] as Map<String, dynamic>?)?[selectedSkillId]?.toDouble() ?? 0.0;
-        if (xpForSkill > 0) {
-          xpEvents.add({'timestamp': timestamp, 'xp': xpForSkill});
-        }
-      }
+  Color get color {
+    try {
+      return Color(int.parse("0xFF$colorHex"));
+    } catch (e) {
+      return AppTheme.fortniteBlue; // Fallback color
     }
   }
 }
 
-if (xpEvents.isEmpty) {
-  return [];
+class Task {
+  String id;
+  String name;
+  bool completed;
+  int currentTimeSpent; // Storing as minutes
+  String? completedDate;
+  bool isCountable;
+  int targetCount;
+  int currentCount;
+  List<Checkpoint> checkpoints;
+  Map<String, double> subskillXp;
+
+  Task({
+    required this.id,
+    required this.name,
+    this.completed = false,
+    this.currentTimeSpent = 0,
+    this.completedDate,
+    this.isCountable = false,
+    this.targetCount = 0,
+    this.currentCount = 0,
+    List<Checkpoint>? checkpoints,
+    Map<String, double>? subskillXp,
+  })  : checkpoints = checkpoints ?? [],
+        subskillXp = subskillXp ?? {};
+
+  factory Task.fromJson(Map<String, dynamic> json) {
+    final checkpointsData = json['checkpoints'] ?? json['subSubTasks'];
+    
+    Map<String, double> finalSubskillXp = {};
+    if (json['subskillXp'] != null) {
+      finalSubskillXp = (json['subskillXp'] as Map<String, dynamic>?)
+              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ??
+          {};
+    } else if (json['skillXp'] != null) {
+      // Legacy data migration
+      final legacySkillXp = json['skillXp'] as Map<String, dynamic>;
+      legacySkillXp.forEach((skillId, xpValue) {
+        final subskillId = '${skillId}_general';
+        finalSubskillXp[subskillId] = (xpValue as num).toDouble();
+      });
+    }
+
+    return Task(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      completed: json['completed'] as bool? ?? false,
+      currentTimeSpent: json['currentTimeSpent'] as int? ?? 0,
+      completedDate: json['completedDate'] as String?,
+      isCountable: json['isCountable'] as bool? ?? false,
+      targetCount: json['targetCount'] as int? ?? 0,
+      currentCount: json['currentCount'] as int? ?? 0,
+      checkpoints: (checkpointsData as List<dynamic>?)
+              ?.map((cpJson) =>
+                  Checkpoint.fromJson(cpJson as Map<String, dynamic>))
+              .toList() ??
+          [],
+      subskillXp: finalSubskillXp,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'completed': completed,
+      'currentTimeSpent': currentTimeSpent,
+      'completedDate': completedDate,
+      'isCountable': isCountable,
+      'targetCount': targetCount,
+      'currentCount': currentCount,
+      'checkpoints': checkpoints.map((cp) => cp.toJson()).toList(),
+      'subskillXp': subskillXp,
+    };
+  }
 }
 
-xpEvents.sort((a, b) => (a['timestamp'] as DateTime).compareTo(b['timestamp'] as DateTime));
+class Checkpoint {
+  String id;
+  String name;
+  bool completed;
+  bool isCountable;
+  int targetCount;
+  int currentCount;
+  String? completionTimestamp;
+  Map<String, double> subskillXp;
 
-List<FlSpot> spots = [];
-double cumulativeXp = 0;
-for (var event in xpEvents) {
-  cumulativeXp += (event['xp'] as double);
-  double hoursAgo = now.difference(event['timestamp'] as DateTime).inMinutes / 60.0;
-  spots.add(FlSpot(24 - hoursAgo, cumulativeXp));
+  Checkpoint({
+    required this.id,
+    required this.name,
+    this.completed = false,
+    this.isCountable = false,
+    this.targetCount = 0,
+    this.currentCount = 0,
+    this.completionTimestamp,
+    Map<String, double>? subskillXp,
+  }) : subskillXp = subskillXp ?? {};
+
+  factory Checkpoint.fromJson(Map<String, dynamic> json) {
+     Map<String, double> finalSubskillXp = {};
+    if (json['subskillXp'] != null) {
+      finalSubskillXp = (json['subskillXp'] as Map<String, dynamic>?)
+              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ??
+          {};
+    } else if (json['skillXp'] != null) {
+      // Legacy data migration
+      final legacySkillXp = json['skillXp'] as Map<String, dynamic>;
+      legacySkillXp.forEach((skillId, xpValue) {
+        final subskillId = '${skillId}_general';
+        finalSubskillXp[subskillId] = (xpValue as num).toDouble();
+      });
+    }
+
+    return Checkpoint(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      completed: json['completed'] as bool? ?? false,
+      isCountable: json['isCountable'] as bool? ?? false,
+      targetCount: json['targetCount'] as int? ?? 0,
+      currentCount: json['currentCount'] as int? ?? 0,
+      completionTimestamp: json['completionTimestamp'] as String?,
+      subskillXp: finalSubskillXp,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'completed': completed,
+      'isCountable': isCountable,
+      'targetCount': targetCount,
+      'currentCount': currentCount,
+      'completionTimestamp': completionTimestamp,
+      'subskillXp': subskillXp,
+    };
+  }
 }
 
-return spots;
+class GameSettings {
+  bool descriptionsVisible;
+  int wakeupTimeHour;
+  int wakeupTimeMinute;
+  bool tutorialShown;
 
+  GameSettings({
+    this.descriptionsVisible = true,
+    this.wakeupTimeHour = 7,
+    this.wakeupTimeMinute = 0,
+    this.tutorialShown = false,
+  });
 
+  factory GameSettings.fromJson(Map<String, dynamic> json) {
+    return GameSettings(
+      descriptionsVisible: json['descriptionsVisible'] as bool? ?? true,
+      wakeupTimeHour: json['wakeupTimeHour'] as int? ?? 7,
+      wakeupTimeMinute: json['wakeupTimeMinute'] as int? ?? 0,
+      tutorialShown: json['tutorialShown'] as bool? ?? false,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'descriptionsVisible': descriptionsVisible,
+      'wakeupTimeHour': wakeupTimeHour,
+      'wakeupTimeMinute': wakeupTimeMinute,
+      'tutorialShown': tutorialShown,
+    };
+  }
 }
 
-@override
-Widget build(BuildContext context) {
-final gameProvider = context.watch<GameProvider>();
-final List<FlSpot> spots = _getChartData(gameProvider);
-final theme = Theme.of(context);
+class ActiveTimerInfo {
+  DateTime startTime;
+  double accumulatedDisplayTime; // In seconds
+  bool isRunning;
+  String type; // 'task'
+  String projectId;
 
-if (spots.isEmpty) {
-  return Container(
-    height: 150,
-    padding: const EdgeInsets.all(16),
-    child: Center(
-      child: Text(
-        'No XP gained for this skill in the last 24 hours. Complete checkpoints to see progress!',
-        textAlign: TextAlign.center,
-        style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextSecondary, fontStyle: FontStyle.italic),
-      ),
-    ),
-  );
+  ActiveTimerInfo({
+    required this.startTime,
+    this.accumulatedDisplayTime = 0,
+    required this.isRunning,
+    required this.type,
+    required this.projectId,
+  });
+
+  factory ActiveTimerInfo.fromJson(Map<String, dynamic> json) {
+    return ActiveTimerInfo(
+      startTime: DateTime.parse(json['startTime'] as String),
+      accumulatedDisplayTime:
+          (json['accumulatedDisplayTime'] as num? ?? 0).toDouble(),
+      isRunning: json['isRunning'] as bool? ?? false,
+      type: json['type'] as String? ?? 'task',
+      // Legacy support for 'mainTaskId'
+      projectId: json['projectId'] as String? ?? json['mainTaskId'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'startTime': startTime.toIso8601String(),
+      'accumulatedDisplayTime': accumulatedDisplayTime,
+      'isRunning': isRunning,
+      'type': type,
+      'projectId': projectId,
+    };
+  }
 }
 
-double maxY = spots.map((spot) => spot.y).reduce((a, b) => a > b ? a : b);
-maxY = (maxY * 1.2).ceilToDouble();
-if (maxY < 10) {
-  maxY = 10;
+class ProjectTemplate {
+  final String id;
+  final String name;
+  final String description;
+  final String theme;
+  final String colorHex;
+
+  ProjectTemplate({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.theme,
+    this.colorHex = "FF00BFFF", // Default Blue
+  });
 }
 
-return SizedBox(
-  height: 150,
-  child: LineChart(
-    LineChartData(
-      minX: 0,
-      maxX: 24,
-      minY: 0,
-      maxY: maxY,
-      gridData: FlGridData(
-        show: true,
-        drawVerticalLine: true,
-        horizontalInterval: (maxY / 4).clamp(1, 1000),
-        verticalInterval: 6,
-        getDrawingHorizontalLine: (value) => FlLine(color: AppTheme.fnBorderColor.withAlpha((255 * 0.1).round()), strokeWidth: 0.8),
-        getDrawingVerticalLine: (value) => FlLine(color: AppTheme.fnBorderColor.withAlpha((255 * 0.1).round()), strokeWidth: 0.8),
-      ),
-      titlesData: FlTitlesData(
-        leftTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            interval: (maxY / 4).clamp(1, 1000),
-            reservedSize: 30,
-            getTitlesWidget: (value, meta) {
-              return Text(value.toInt().toString(), style: const TextStyle(color: AppTheme.fnTextSecondary, fontSize: 10));
-            },
-          ),
-        ),
-        bottomTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            reservedSize: 30,
-            interval: 6,
-            getTitlesWidget: (value, meta) {
-              String text;
-              if (value == 0) {
-                text = '24h ago';
-              } else if (value == 24) {
-                text = 'Now';
-              } else {
-                text = '${(24 - value).toInt()}h ago';
-              }
-              return Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(text, style: const TextStyle(color: AppTheme.fnTextSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
-              );
-            },
-          ),
-        ),
-        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      ),
-      borderData: FlBorderData(show: true, border: Border.all(color: AppTheme.fnBorderColor.withAlpha((255 * 0.2).round()))),
-      lineBarsData: [
-        LineChartBarData(
-          spots: spots,
-          isCurved: true,
-          curveSmoothness: 0.35,
-          color: skillColor,
-          barWidth: 3,
-          isStrokeCapRound: true,
-          dotData: const FlDotData(show: false),
-          belowBarData: BarAreaData(show: true, color: skillColor.withAlpha((255 * 0.2).round())),
-        ),
-      ],
-      lineTouchData: LineTouchData(
-        touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (touchedSpot) => AppTheme.fnBgMedium,
-          getTooltipItems: (List<LineBarSpot> touchedSpots) {
-             return touchedSpots.map((spot) {
-              return LineTooltipItem(
-                '+${spot.y.toStringAsFixed(1)} XP',
-                TextStyle(color: skillColor, fontWeight: FontWeight.bold),
-              );
-            }).toList();
+class EmotionLog {
+  final DateTime timestamp;
+  final double rating; // 1-5
+
+  EmotionLog({required this.timestamp, required this.rating});
+
+  factory EmotionLog.fromJson(Map<String, dynamic> json) {
+    return EmotionLog(
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      rating: (json['rating'] as num? ?? 0.0).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'timestamp': timestamp.toIso8601String(),
+      'rating': rating,
+    };
+  }
+}
+
+// Chatbot models
+enum MessageSender { user, bot }
+
+class ChatbotMessage {
+  final String id;
+  final String text;
+  final MessageSender sender;
+  final DateTime timestamp;
+
+  ChatbotMessage({
+    required this.id,
+    required this.text,
+    required this.sender,
+    required this.timestamp,
+  });
+
+  factory ChatbotMessage.fromJson(Map<String, dynamic> json) {
+    return ChatbotMessage(
+      id: json['id'] as String,
+      text: json['text'] as String,
+      sender: MessageSender.values
+          .firstWhere((e) => e.toString() == json['sender'] as String),
+      timestamp: DateTime.parse(json['timestamp'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'text': text,
+      'sender': sender.toString(),
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+}
+
+class ChatbotMemory {
+  List<ChatbotMessage> conversationHistory;
+  List<String> userRememberedItems;
+
+  ChatbotMemory({
+    List<ChatbotMessage>? conversationHistory,
+    List<String>? userRememberedItems,
+  })  : conversationHistory = conversationHistory ?? [],
+        userRememberedItems = userRememberedItems ?? [];
+
+  factory ChatbotMemory.fromJson(Map<String, dynamic> json) {
+    return ChatbotMemory(
+      conversationHistory: (json['conversationHistory'] as List<dynamic>?)
+              ?.map((msgJson) =>
+                  ChatbotMessage.fromJson(msgJson as Map<String, dynamic>))
+              .toList() ??
+          [],
+      userRememberedItems: (json['userRememberedItems'] as List<dynamic>?)
+              ?.map((item) => item as String)
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'conversationHistory':
+          conversationHistory.map((msg) => msg.toJson()).toList(),
+      'userRememberedItems': userRememberedItems,
+    };
+  }
+}
+
+class Subskill {
+  String id;
+  String name;
+  double xp;
+  String parentSkillId;
+
+  Subskill({
+    required this.id,
+    required this.name,
+    this.xp = 0,
+    required this.parentSkillId,
+  });
+
+  int get level {
+    int newLevel = 1;
+    while (xp >= helper.skillXpForLevel(newLevel + 1)) {
+      newLevel++;
+    }
+    return newLevel;
+  }
+
+  factory Subskill.fromJson(Map<String, dynamic> json) {
+    return Subskill(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      xp: (json['xp'] as num? ?? 0).toDouble(),
+      parentSkillId: json['parentSkillId'] as String? ?? '', // Legacy safety
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'xp': xp,
+      'parentSkillId': parentSkillId,
+    };
+  }
+}
+
+class Skill {
+  String id; // Will match Project theme
+  String name;
+  String description;
+  String iconName;
+  List<Subskill> subskills;
+
+  Skill({
+    required this.id,
+    required this.name,
+    this.description = '',
+    this.iconName = 'default',
+    List<Subskill>? subskills,
+  }) : subskills = subskills ?? [];
+
+  double get xp => subskills.fold(0.0, (prev, s) => prev + s.xp);
+
+  int get level {
+    int currentLevel = 1;
+    while (xp >= helper.skillXpForLevel(currentLevel + 1)) {
+      currentLevel++;
+    }
+    return currentLevel;
+  }
+
+  factory Skill.fromJson(Map<String, dynamic> json) {
+    List<Subskill> loadedSubskills = (json['subskills'] as List<dynamic>?)
+            ?.map((sJson) => Subskill.fromJson(sJson as Map<String, dynamic>))
+            .toList() ??
+        [];
+    
+    // Legacy migration: if skill has XP but no subskills, create a 'General' one.
+    if (json.containsKey('xp') && (json['xp'] as num) > 0 && loadedSubskills.isEmpty) {
+      final subskillId = '${json['id']}_general';
+      loadedSubskills.add(Subskill(
+        id: subskillId,
+        name: 'General',
+        parentSkillId: json['id'] as String,
+        xp: (json['xp'] as num).toDouble(),
+      ));
+    }
+
+    return Skill(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String? ?? '',
+      iconName: json['iconName'] as String? ?? 'default',
+      subskills: loadedSubskills,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'iconName': iconName,
+      'subskills': subskills.map((s) => s.toJson()).toList(),
+    };
+  }
+}
+--- END OF FILE lib/src/models/game_models.dart ---
+--- START OF FILE lib/src/providers/game_provider.dart ---
+ 
+import 'package:arcane/src/services/notification_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'package:arcane/src/services/firebase_service.dart' as fb_service;
+import 'package:arcane/src/services/storage_service.dart';
+import 'package:arcane/src/utils/constants.dart';
+import 'package:arcane/src/utils/helpers.dart' as helper;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:collection/collection.dart';
+import 'dart:async';
+import 'dart:convert'; // For jsonEncode
+import 'package:flutter/material.dart'; // For TimeOfDay
+
+import 'package:arcane/src/models/game_models.dart';
+
+import 'actions/task_actions.dart';
+import 'actions/ai_generation_actions.dart';
+import 'actions/timer_actions.dart';
+import 'package:arcane/src/services/ai_service.dart'; // For chatbot AI service
+
+class GameProvider with ChangeNotifier {
+  final StorageService _storageService = StorageService();
+  final AIService _aiService = AIService();
+  final NotificationService _notificationService = NotificationService();
+  Timer? _periodicUiTimer;
+  Timer? _debounceSaveTimer;
+  StreamSubscription? _gameStateSubscription;
+
+  User? _currentUser;
+  User? get currentUser => _currentUser;
+  bool _authLoading = true;
+  bool get authLoading => _authLoading;
+  bool _isDataLoadingAfterLogin = false;
+  bool get isDataLoadingAfterLogin => _isDataLoadingAfterLogin;
+  bool _isUsernameMissing = false;
+  bool get isUsernameMissing => _isUsernameMissing;
+
+  String? _lastLoginDate;
+  double _coins = 100;
+  double _xp = 0;
+  int _playerLevel = 1;
+  double _playerEnergy = baseMaxPlayerEnergy;
+  List<Project> _projects =
+      initialProjectTemplates.map((t) => Project.fromTemplate(t)).toList();
+  Map<String, dynamic> _completedByDay = {};
+  List<String> _gameLog = [];
+  List<Skill> _skills = [];
+
+  GameSettings _settings = GameSettings();
+  String? _selectedProjectId =
+      initialProjectTemplates.isNotEmpty ? initialProjectTemplates[0].id : null;
+  int _apiKeyIndex = 0;
+  Map<String, ActiveTimerInfo> _activeTimers = {};
+
+  bool _isManuallySaving = false;
+  bool get isManuallySaving => _isManuallySaving;
+  bool _isManuallyLoading = false;
+  bool get isManuallyLoading => _isManuallyLoading;
+  DateTime? _lastSuccessfulSaveTimestamp;
+  DateTime? get lastSuccessfulSaveTimestamp => _lastSuccessfulSaveTimestamp;
+
+  bool _isGeneratingGlobalContent = false;
+  bool get isGeneratingContent => _isGeneratingGlobalContent;
+  bool _isGeneratingSubquestsForTask = false;
+  bool get isGeneratingSubquests => _isGeneratingSubquestsForTask;
+
+  double _aiGenerationProgress = 0.0;
+  double get aiGenerationProgress => _aiGenerationProgress;
+  String _aiGenerationStatusMessage = "";
+  String get aiGenerationStatusMessage => _aiGenerationStatusMessage;
+
+  String? get lastLoginDate => _lastLoginDate;
+  double get coins => _coins;
+  double get xp => _xp;
+  int get playerLevel => _playerLevel;
+  double get playerEnergy => _playerEnergy;
+  List<Project> get projects => _projects;
+  Map<String, dynamic> get completedByDay => _completedByDay;
+  List<String> get gameLog => _gameLog;
+  List<Skill> get skills => _skills;
+
+  GameSettings get settings => _settings;
+  String? get selectedProjectId => _selectedProjectId;
+  int get apiKeyIndex => _apiKeyIndex;
+  Map<String, ActiveTimerInfo> get activeTimers => _activeTimers;
+
+  double get calculatedMaxEnergy =>
+      baseMaxPlayerEnergy + (_playerLevel - 1) * playerEnergyPerLevelVitality;
+  double get xpNeededForNextLevel =>
+      helper.xpToNext(_playerLevel, xpPerLevelBase, xpLevelMultiplier);
+  double get currentLevelXPStart =>
+      helper.xpForLevel(_playerLevel, xpPerLevelBase, xpLevelMultiplier);
+  double get currentLevelXPProgress => _xp - currentLevelXPStart;
+  double get xpProgressPercent => xpNeededForNextLevel > 0
+      ? (currentLevelXPProgress / xpNeededForNextLevel).clamp(0.0, 1.0) * 100
+      : 0;
+
+  TimeOfDay get wakeupTime =>
+      TimeOfDay(hour: _settings.wakeupTimeHour, minute: _settings.wakeupTimeMinute);
+
+  ChatbotMemory _chatbotMemory = ChatbotMemory();
+  ChatbotMemory get chatbotMemory => _chatbotMemory;
+  bool _isChatbotMemoryInitialized = false;
+
+  DateTime? _breakEndTime;
+  DateTime? get breakEndTime => _breakEndTime;
+  Timer? _breakTimer;
+  int? _breakOriginalDurationMinutes;
+  int? get breakOriginalDurationMinutes => _breakOriginalDurationMinutes;
+
+  late final TaskActions _taskActions;
+  late final AIGenerationActions _aiGenerationActions;
+  late final TimerActions _timerActions;
+
+  GameProvider() {
+    _taskActions = TaskActions(this);
+    _aiGenerationActions = AIGenerationActions(this);
+    _timerActions = TimerActions(this);
+    _initialize();
+  }
+
+  @override
+  void dispose() {
+    _periodicUiTimer?.cancel();
+    _debounceSaveTimer?.cancel();
+    _gameStateSubscription?.cancel();
+    _breakTimer?.cancel();
+    super.dispose();
+  }
+
+  void _initialize() {
+    fb_service.authStateChanges.listen(_onAuthStateChanged);
+    _periodicUiTimer?.cancel();
+    _periodicUiTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_activeTimers.values.any((info) => info.isRunning)) {
+        notifyListeners();
+      }
+    });
+  }
+
+  Future<void> _onAuthStateChanged(User? user) async {
+    _authLoading = true;
+    notifyListeners();
+
+    _gameStateSubscription?.cancel();
+
+    if (user != null) {
+      _currentUser = user;
+      _isDataLoadingAfterLogin = true;
+      notifyListeners();
+
+      _gameStateSubscription =
+          _storageService.getUserDataStream(user.uid).listen((snapshot) {
+        if (snapshot.metadata.hasPendingWrites) {
+          return;
+        }
+
+        if (snapshot.exists) {
+          _loadStateFromMap(snapshot.data()!);
+          _handleDailyReset();
+          _isChatbotMemoryInitialized = false;
+          initializeChatbotMemory();
+        } else {
+          _resetToInitialState().then((_) async {
+            _lastLoginDate = helper.getTodayDateString();
+            await _performActualSave();
+            _handleDailyReset();
+            _isChatbotMemoryInitialized = false;
+            initializeChatbotMemory();
+          });
+        }
+        
+        _isDataLoadingAfterLogin = false;
+        _isUsernameMissing = (_currentUser?.displayName == null || _currentUser!.displayName!.trim().isEmpty);
+        notifyListeners();
+      }, onError: (error) {
+         _isDataLoadingAfterLogin = false;
+      });
+    } else {
+      _currentUser = null;
+      await _resetToInitialState();
+      _isDataLoadingAfterLogin = false;
+      _isChatbotMemoryInitialized = false;
+    }
+
+    _authLoading = false;
+    notifyListeners();
+  }
+
+  Map<String, dynamic> _gameStateToMap() {
+    return {
+      'lastLoginDate': _lastLoginDate,
+      'coins': _coins,
+      'xp': _xp,
+      'playerLevel': _playerLevel,
+      'playerEnergy': _playerEnergy,
+      'projects': _projects.map((p) => p.toJson()).toList(),
+      'completedByDay': _completedByDay,
+      'gameLog': _gameLog,
+      'skills': _skills.map((s) => s.toJson()).toList(),
+      'settings': settings.toJson(),
+      'selectedProjectId': _selectedProjectId,
+      'apiKeyIndex': _apiKeyIndex,
+      'activeTimers':
+          _activeTimers.map((key, value) => MapEntry(key, value.toJson())),
+      'lastSuccessfulSaveTimestamp':
+          _lastSuccessfulSaveTimestamp?.toIso8601String(),
+      'chatbotMemory': _chatbotMemory.toJson(),
+    };
+  }
+
+  void _loadStateFromMap(Map<String, dynamic> data) {
+    _lastLoginDate = data['lastLoginDate'] as String?;
+    _coins = (data['coins'] as num? ?? 100).toDouble();
+    _xp = (data['xp'] as num? ?? 0).toDouble();
+    _playerLevel = data['playerLevel'] as int? ?? 1;
+    _playerEnergy = (data['playerEnergy'] as num? ?? baseMaxPlayerEnergy).toDouble();
+
+    // Legacy support for 'mainTasks'
+    final projectsData = data['projects'] ?? data['mainTasks'];
+    _projects = (projectsData as List<dynamic>?)
+            ?.map((pJson) => Project.fromJson(pJson as Map<String, dynamic>))
+            .toList() ??
+        initialProjectTemplates.map((t) => Project.fromTemplate(t)).toList();
+
+    _completedByDay = data['completedByDay'] as Map<String, dynamic>? ?? {};
+    _gameLog = (data['gameLog'] as List<dynamic>?)?.map((entry) => entry as String).toList() ?? [];
+    _skills = (data['skills'] as List<dynamic>?)?.map((sJson) => Skill.fromJson(sJson as Map<String, dynamic>)).toList() ?? [];
+    _settings = data['settings'] != null ? GameSettings.fromJson(data['settings'] as Map<String, dynamic>) : GameSettings();
+
+    // Legacy support for 'selectedTaskId'
+    _selectedProjectId = data['selectedProjectId'] as String? ?? data['selectedTaskId'] as String? ?? (_projects.isNotEmpty ? _projects[0].id : null);
+    _apiKeyIndex = data['apiKeyIndex'] as int? ?? 0;
+    _activeTimers = (data['activeTimers'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key, ActiveTimerInfo.fromJson(value as Map<String, dynamic>))) ?? {};
+
+    final timestampString = data['lastSuccessfulSaveTimestamp'] as String?;
+    _lastSuccessfulSaveTimestamp = timestampString != null ? DateTime.tryParse(timestampString) : null;
+    _chatbotMemory = data['chatbotMemory'] != null ? ChatbotMemory.fromJson(data['chatbotMemory'] as Map<String, dynamic>) : ChatbotMemory();
+    _isChatbotMemoryInitialized = true;
+
+    _ensureSkillsList();
+    _runDataMigration();
+    _recalculatePlayerLevel();
+  }
+
+  void _runDataMigration() {
+    bool needsSave = false;
+    for (final project in _projects) {
+      for (final task in project.tasks) {
+        // Find legacy skillXp stored in subskillXp map (keys are skill IDs, not subskill IDs)
+        final legacyKeys = task.subskillXp.keys.where((key) => _skills.any((s) => s.id == key)).toList();
+        if (legacyKeys.isNotEmpty) {
+          needsSave = true;
+          for (final legacyKey in legacyKeys) {
+            final xpValue = task.subskillXp[legacyKey]!;
+            task.subskillXp.remove(legacyKey);
+
+            final subskillId = '${legacyKey}_general';
+            task.subskillXp[subskillId] = (task.subskillXp[subskillId] ?? 0) + xpValue;
+
+            // Ensure the 'General' subskill exists in the main skill list
+            final parentSkill = _skills.firstWhereOrNull((s) => s.id == legacyKey);
+            if (parentSkill != null && !parentSkill.subskills.any((ss) => ss.id == subskillId)) {
+              parentSkill.subskills.add(Subskill(id: subskillId, name: 'General', parentSkillId: legacyKey));
+            }
           }
-        )
-      )
-    ),
-  ),
-);
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-IGNORE_WHEN_COPYING_END
+        }
+      }
+    }
+    if (needsSave) {
+      _scheduleSave(immediate: true);
+    }
+  }
 
+
+  Future<void> _resetToInitialState() async {
+    _lastLoginDate = null;
+    _coins = 100;
+    _xp = 0;
+    _playerLevel = 1;
+    _playerEnergy = baseMaxPlayerEnergy;
+    _projects = initialProjectTemplates.map((t) => Project.fromTemplate(t)).toList();
+    _completedByDay = {};
+    _gameLog = [];
+    _skills = [];
+    _settings = GameSettings();
+    _selectedProjectId = _projects.isNotEmpty ? _projects[0].id : null;
+    _apiKeyIndex = 0;
+    _activeTimers = {};
+    _isUsernameMissing = false;
+    _lastSuccessfulSaveTimestamp = null;
+    _chatbotMemory = ChatbotMemory();
+    _isChatbotMemoryInitialized = true;
+    _ensureSkillsList();
+    _scheduleSave();
+  }
+
+  void _scheduleSave({bool immediate = false}) {
+    if (_debounceSaveTimer?.isActive ?? false) _debounceSaveTimer!.cancel();
+    final saveDuration = immediate ? Duration.zero : const Duration(milliseconds: 750);
+    _debounceSaveTimer = Timer(saveDuration, _performActualSave);
+  }
+
+  Future<void> _performActualSave() async {
+    if (_currentUser != null && !_isManuallySaving) {
+      final success = await _storageService.setUserData(_currentUser!.uid, _gameStateToMap());
+      if (success) {
+        _lastSuccessfulSaveTimestamp = DateTime.now();
+        notifyListeners();
+      } else {
+        setProviderState(
+            gameLog: [
+              ..._gameLog,
+              "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentRed)}\">Error: Failed to save to cloud!</span>"
+            ],
+            doNotify: true);
+      }
+    }
+  }
+
+  Future<void> manuallySaveToCloud() async {
+    if (_currentUser == null) throw Exception("Not logged in.");
+    _isManuallySaving = true;
+    notifyListeners();
+    try {
+      await _performActualSave();
+    } finally {
+      _isManuallySaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> manuallyLoadFromCloud() async {
+    if (_currentUser == null) throw Exception("Not logged in.");
+    _isManuallyLoading = true;
+    notifyListeners();
+    try {
+      final data = await _storageService.getUserData(_currentUser!.uid);
+      if (data != null) {
+        _loadStateFromMap(data);
+        _handleDailyReset();
+        _isUsernameMissing = (_currentUser?.displayName == null || _currentUser!.displayName!.trim().isEmpty);
+        _isChatbotMemoryInitialized = false;
+        initializeChatbotMemory();
+      } else {
+        throw Exception("No data found on cloud.");
+      }
+    } finally {
+      _isManuallyLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loginUser(String email, String password) async {
+    await fb_service.signInWithEmail(email, password);
+  }
+
+  Future<void> signupUser(String email, String password, String username) async {
+    _authLoading = true;
+    notifyListeners();
+    try {
+      UserCredential userCredential = await fb_service.firebaseAuthInstance.createUserWithEmailAndPassword(email: email, password: password);
+      _currentUser = userCredential.user;
+      if (_currentUser != null) {
+        await _currentUser!.updateDisplayName(username);
+        await _currentUser!.reload();
+        _currentUser = fb_service.firebaseAuthInstance.currentUser;
+        await _resetToInitialState();
+      } else {
+        throw Exception("Signup successful but user object is null.");
+      }
+    } catch (e) {
+      _currentUser = null;
+      rethrow;
+    } finally {
+      _authLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> logoutUser() async {
+    await _performActualSave();
+    await fb_service.signOut();
+  }
+
+  Future<void> changePasswordHandler(String newPassword) async {
+    if (_currentUser != null) {
+      await fb_service.changePassword(newPassword);
+      _scheduleSave();
+    } else {
+      throw Exception("No user is currently signed in.");
+    }
+  }
+
+  Future<void> updateUserDisplayName(String newUsername) async {
+    if (_currentUser != null) {
+      await _currentUser!.updateDisplayName(newUsername);
+      await _currentUser!.reload();
+      _currentUser = fb_service.firebaseAuthInstance.currentUser;
+      _isUsernameMissing = false;
+      _scheduleSave();
+      notifyListeners();
+    }
+  }
+
+  void setSelectedProjectId(String? projectId, {bool immediateSave = false}) {
+    if (_selectedProjectId != projectId) {
+      _selectedProjectId = projectId;
+      _scheduleSave(immediate: immediateSave);
+      notifyListeners();
+    }
+  }
+
+  void setSettings(GameSettings newSettings) {
+    _settings = newSettings;
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  void completeTutorial() {
+    _settings.tutorialShown = true;
+    setSettings(_settings);
+  }
+
+  Project? getSelectedProject() {
+    if (_selectedProjectId == null) return _projects.firstOrNull;
+    return _projects.firstWhereOrNull((p) => p.id == _selectedProjectId) ?? _projects.firstOrNull;
+  }
+
+  void _recalculatePlayerLevel() {
+    int newLevel = 1;
+    double xpAtStartOfLvl = 0;
+    while (true) {
+      final double xpNeeded = helper.xpToNext(newLevel, xpPerLevelBase, xpLevelMultiplier);
+      if (_xp >= xpAtStartOfLvl + xpNeeded) {
+        xpAtStartOfLvl += xpNeeded;
+        newLevel++;
+      } else {
+        break;
+      }
+    }
+    if (_playerLevel != newLevel) {
+      final oldLevel = _playerLevel;
+      _playerLevel = newLevel;
+      if (_playerLevel > oldLevel) {
+        _handleLevelUpEffect();
+      } else {
+        _scheduleSave();
+        notifyListeners();
+      }
+    }
+  }
+
+  void _handleLevelUpEffect() {
+    if (_currentUser == null) return;
+    _playerEnergy = calculatedMaxEnergy;
+    _gameLog = [
+      ..._gameLog,
+      "<span style=\"color:#${helper.colorToHex(getSelectedProject()?.color ?? AppTheme.fortniteBlue)}\">Level up to $_playerLevel!</span>"
+    ];
+    _notificationService.showNotification('Level Up!', 'Congratulations! You reached level $_playerLevel.');
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  String _generateSummaryForOlderDays() {
+    if (_completedByDay.isEmpty) return "No activity logged before the last 7 days.";
+    List<String> olderDaysSummaryLines = ["Summary of activity older than 7 days:"];
+    int olderDaysActivityCount = 0;
+    DateTime today = DateTime.now();
+    List<String> sortedDates = _completedByDay.keys.toList()..sort();
+
+    for (String dateString in sortedDates) {
+      DateTime date = DateTime.parse(dateString);
+      if (today.difference(date).inDays >= 7) {
+        final dayData = _completedByDay[dateString] as Map<String, dynamic>;
+        final taskTimes = dayData['taskTimes'] as Map<String, dynamic>? ?? {};
+        int dailyTotalMinutes = taskTimes.values.fold<int>(0, (prev, time) => prev + (time as int));
+        int dailySubtasks = (dayData['subtasksCompleted'] as List?)?.length ?? 0;
+        int dailyCheckpoints = (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
+        int dailyEmotions = (dayData['emotionLogs'] as List?)?.length ?? 0;
+        if (dailyTotalMinutes > 0 || dailySubtasks > 0 || dailyCheckpoints > 0 || dailyEmotions > 0) {
+          olderDaysActivityCount++;
+          String activityLine = "On $dateString: ${dailyTotalMinutes}m logged";
+          if (dailySubtasks > 0) activityLine += ", $dailySubtasks tasks completed";
+          if (dailyCheckpoints > 0) activityLine += ", $dailyCheckpoints checkpoints cleared";
+          if (dailyEmotions > 0) activityLine += ", $dailyEmotions emotion logs";
+          olderDaysSummaryLines.add("$activityLine.");
+        }
+      }
+    }
+    if (olderDaysActivityCount == 0) return "No significant activity logged before the last 7 days.";
+    if (olderDaysSummaryLines.length > 21) return "${olderDaysSummaryLines.sublist(0, 21).join("\n")}\n... (older entries truncated)";
+    return olderDaysSummaryLines.join("\n");
+  }
+
+  Future<void> _handleDailyReset() async {
+    if (_currentUser == null) return;
+    final today = helper.getTodayDateString();
+    if (_lastLoginDate != today) {
+      _projects = _projects.map((project) {
+        int newStreak = project.streak;
+        if (_lastLoginDate != null) {
+          final yesterday = DateTime.now().subtract(const Duration(days: 1));
+          final yesterdayStr = DateFormat('yyyy-MM-dd').format(yesterday);
+          if (project.dailyTimeSpent < dailyTaskGoalMinutes &&
+              project.lastWorkedDate != null &&
+              project.lastWorkedDate != today &&
+              project.lastWorkedDate != yesterdayStr) {
+            newStreak = 0;
+          }
+        }
+        project.dailyTimeSpent = 0;
+        project.streak = newStreak;
+        return project;
+      }).toList();
+      _playerEnergy = calculatedMaxEnergy;
+      _lastLoginDate = today;
+      _scheduleSave();
+      scheduleEmotionReminders();
+      notifyListeners();
+    }
+  }
+
+  Future<void> clearAllGameData() async {
+    if (_currentUser == null) return;
+    await _storageService.deleteUserData(_currentUser!.uid);
+    await _resetToInitialState();
+    await _performActualSave();
+    notifyListeners();
+  }
+
+  Future<void> resetPlayerLevelAndProgress() async {
+    if (_currentUser == null) return;
+    _playerLevel = 1;
+    _xp = 0;
+    _playerEnergy = calculatedMaxEnergy;
+    _gameLog = [..._gameLog, "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentOrange)}\">Player level and progress have been reset.</span>"];
+    setProviderState(doNotify: true);
+  }
+
+  Future<void> resetAllSkills() async {
+    if (_currentUser == null) return;
+    final newSkills = _skills.map((skill) {
+      skill.subskills.forEach((subskill) => subskill.xp = 0);
+      return skill;
+    }).toList();
+    setProviderState(
+      skills: newSkills,
+      gameLog: [..._gameLog, "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentOrange)}\">All skill progress has been reset.</span>"],
+      doNotify: true,
+    );
+  }
+
+  Future<void> editSkill(String skillId, {String? newName, String? newIconName}) async {
+    final newSkills = _skills.map((skill) {
+      if (skill.id == skillId) {
+        return Skill(
+          id: skill.id,
+          name: newName ?? skill.name,
+          iconName: newIconName ?? skill.iconName,
+          subskills: skill.subskills,
+          description: skill.description,
+        );
+      }
+      return skill;
+    }).toList();
+    setProviderState(
+      skills: newSkills,
+      gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Skill '${newName ?? '...'}' updated.</span>"],
+      doNotify: true,
+    );
+  }
+
+  Future<void> resetAndRecalculateSkillsFromLog() async {
+    final Map<String, double> recalculatedXp = {};
+    _completedByDay.forEach((date, dayData) {
+      final List<dynamic> logs = [
+        ...(dayData['subtasksCompleted'] as List<dynamic>? ?? []),
+        ...(dayData['checkpointsCompleted'] as List<dynamic>? ?? []),
+      ];
+      for (var log in logs) {
+        if (log is Map<String, dynamic> && (log.containsKey('subskillXp') || log.containsKey('skillXp'))) {
+          final skillXpMap = (log['subskillXp'] ?? log['skillXp']) as Map<String, dynamic>? ?? {};
+          skillXpMap.forEach((skillId, xpValue) {
+            if (xpValue is num) {
+              recalculatedXp[skillId] = (recalculatedXp[skillId] ?? 0) + xpValue;
+            }
+          });
+        }
+      }
+    });
+
+    for (var skill in _skills) {
+      for (var subskill in skill.subskills) {
+        subskill.xp = recalculatedXp[subskill.id] ?? 0;
+      }
+    }
+    
+    setProviderState(
+      skills: _skills,
+      gameLog: [..._gameLog, "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentGreen)}\">Skills recalculated from historical logs.</span>"],
+      doNotify: true,
+    );
+  }
+
+  List<EmotionLog> getEmotionLogsForDate(String date) {
+    final dayData = _completedByDay[date] as Map<String, dynamic>?;
+    if (dayData == null || dayData['emotionLogs'] == null) return [];
+    return (dayData['emotionLogs'] as List<dynamic>).map((logJson) => EmotionLog.fromJson(logJson as Map<String, dynamic>)).toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  }
+
+  void logEmotion(String date, double rating, [DateTime? customTimestamp]) {
+    final timestamp = customTimestamp ?? DateTime.now();
+    final emotionLog = EmotionLog(timestamp: timestamp, rating: rating);
+    final newCompletedByDay = Map<String, dynamic>.from(_completedByDay);
+    final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ?? {'taskTimes': <String, int>{}, 'subtasksCompleted': <Map<String, dynamic>>[], 'checkpointsCompleted': <Map<String, dynamic>>[], 'emotionLogs': <Map<String, dynamic>>[]});
+    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+    emotionLogsList.add(emotionLog.toJson());
+    emotionLogsList.sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
+    dayData['emotionLogs'] = emotionLogsList;
+    newCompletedByDay[date] = dayData;
+    setProviderState(
+        completedByDay: newCompletedByDay,
+        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>Emotion logged: ${rating.toStringAsFixed(1)}/5 for $date.</span>"],
+        doNotify: true);
+  }
+
+  void deleteLatestEmotionLog(String date) {
+    final currentLogs = getEmotionLogsForDate(date);
+    if (currentLogs.isEmpty) return;
+    final newCompletedByDay = Map<String, dynamic>.from(_completedByDay);
+    final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ?? {});
+    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+    if (emotionLogsList.isNotEmpty) emotionLogsList.removeLast();
+    dayData['emotionLogs'] = emotionLogsList;
+    newCompletedByDay[date] = dayData;
+    setProviderState(
+        completedByDay: newCompletedByDay,
+        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Latest emotion log for $date deleted.</span>"],
+        doNotify: true);
+  }
+
+  void setWakeupTime(TimeOfDay newTime) {
+    _settings.wakeupTimeHour = newTime.hour;
+    _settings.wakeupTimeMinute = newTime.minute;
+    setSettings(_settings);
+    scheduleEmotionReminders();
+  }
+
+  List<DateTime> calculateNotificationTimes() {
+    final now = DateTime.now();
+    final wakeupDateTime = DateTime(now.year, now.month, now.day, wakeupTime.hour, wakeupTime.minute);
+    const int loggingDurationMinutes = 16 * 60, numberOfLogs = 10;
+    final int intervalMinutes = (loggingDurationMinutes / (numberOfLogs - 1)).floor();
+    List<DateTime> times = [];
+    DateTime currentTime = wakeupDateTime;
+    for (int i = 0; i < numberOfLogs; i++) {
+      times.add(currentTime);
+      currentTime = currentTime.add(Duration(minutes: intervalMinutes));
+    }
+    if (now.day == wakeupDateTime.day) return times.where((t) => t.isAfter(now)).toList();
+    return times;
+  }
+
+  void scheduleEmotionReminders() {
+    if (kDebugMode) {
+      print("[GameProvider] Conceptual: Would schedule notifications for: ${calculateNotificationTimes().map((t) => DateFormat('HH:mm').format(t)).join(', ')}");
+    }
+  }
+
+  void initializeChatbotMemory() {
+    if (_isChatbotMemoryInitialized) return;
+    if (_chatbotMemory.conversationHistory.isEmpty) {
+      _chatbotMemory.conversationHistory.add(ChatbotMessage(
+          id: 'init_${DateTime.now().millisecondsSinceEpoch}', text: "Hello! I am Arcane Advisor. How can I assist you?",
+          sender: MessageSender.bot, timestamp: DateTime.now()));
+    }
+    _isChatbotMemoryInitialized = true;
+    notifyListeners();
+  }
+
+  Future<void> sendMessageToChatbot(String userMessageText) async {
+    if (!_isChatbotMemoryInitialized) initializeChatbotMemory();
+    final userMessage = ChatbotMessage(id: 'user_${DateTime.now().millisecondsSinceEpoch}', text: userMessageText, sender: MessageSender.user, timestamp: DateTime.now());
+    _chatbotMemory.conversationHistory.add(userMessage);
+    if (_chatbotMemory.conversationHistory.length > 20) {
+      _chatbotMemory.conversationHistory.removeAt(0);
+    }
+    if (userMessageText.toLowerCase().startsWith("remember:")) {
+      final itemToRemember = userMessageText.substring("remember:".length).trim();
+      if (itemToRemember.isNotEmpty) {
+        _chatbotMemory.userRememberedItems.add(itemToRemember);
+        if (_chatbotMemory.userRememberedItems.length > 10) {
+          _chatbotMemory.userRememberedItems.removeAt(0);
+        }
+        final botResponse = ChatbotMessage(id: 'bot_${DateTime.now().millisecondsSinceEpoch}', text: "Okay, I will remember: \"$itemToRemember\"", sender: MessageSender.bot, timestamp: DateTime.now());
+        _chatbotMemory.conversationHistory.add(botResponse);
+        setProviderState(chatbotMemory: _chatbotMemory);
+        return;
+      }
+    }
+    if (userMessageText.toLowerCase().startsWith("forget last") || userMessageText.toLowerCase().startsWith("forget everything")) {
+      bool forgetEverything = userMessageText.toLowerCase().startsWith("forget everything");
+      String responseText;
+      if (forgetEverything) {
+        _chatbotMemory.userRememberedItems.clear();
+        responseText = "Okay, I've cleared all remembered items.";
+      } else if (_chatbotMemory.userRememberedItems.isNotEmpty) {
+        String forgottenItem = _chatbotMemory.userRememberedItems.removeLast();
+        responseText = "Okay, I've forgotten: \"$forgottenItem\"";
+      } else {
+        responseText = "I don't have any items to forget.";
+      }
+      final botResponse = ChatbotMessage(id: 'bot_${DateTime.now().millisecondsSinceEpoch}', text: responseText, sender: MessageSender.bot, timestamp: DateTime.now());
+      _chatbotMemory.conversationHistory.add(botResponse);
+      setProviderState(chatbotMemory: _chatbotMemory);
+      return;
+    }
+    notifyListeners();
+    Map<String, dynamic> completedByDayLast7DaysData = {};
+    DateTime today = DateTime.now();
+    _completedByDay.forEach((dateString, data) {
+      DateTime date = DateTime.parse(dateString);
+      if (today.difference(date).inDays < 7) {
+        completedByDayLast7DaysData[dateString] = data;
+      }
+    });
+    String completedByDayJsonForAI = jsonEncode(completedByDayLast7DaysData);
+    String olderDaysSummaryForAI = _generateSummaryForOlderDays();
+    try {
+      final botResponseText = await _aiService.getChatbotResponse(memory: _chatbotMemory, userMessage: userMessageText,
+        completedByDayJsonLast7Days: completedByDayJsonForAI, olderDaysSummary: olderDaysSummaryForAI,
+        currentApiKeyIndex: _apiKeyIndex, onNewApiKeyIndex: (newIndex) => _apiKeyIndex = newIndex, onLog: (logMsg) => _gameLog.add(logMsg));
+      final botMessage = ChatbotMessage(id: 'bot_${DateTime.now().millisecondsSinceEpoch}', text: botResponseText, sender: MessageSender.bot, timestamp: DateTime.now());
+      _chatbotMemory.conversationHistory.add(botMessage);
+    } catch (e) {
+      final errorMessage = ChatbotMessage(id: 'error_${DateTime.now().millisecondsSinceEpoch}', text: "I'm having trouble connecting. Please try again later.", sender: MessageSender.bot, timestamp: DateTime.now());
+      _chatbotMemory.conversationHistory.add(errorMessage);
+    }
+    setProviderState(chatbotMemory: _chatbotMemory);
+  }
+
+  Future<void> triggerAIEnhanceTask(Project project, Task taskToEnhance, String userInput) =>
+    _aiGenerationActions.triggerAIEnhanceTask(project, taskToEnhance, userInput);
+
+  Future<void> triggerAIGenerateTasks(Project project, String userInput) =>
+    _aiGenerationActions.triggerAIGenerateTasks(project, userInput);
+
+  void addProject({required String name, required String description, required String theme, required String colorHex}) =>
+      _taskActions.addProject(name: name, description: description, theme: theme, colorHex: colorHex);
+  void editProject(String projectId, {required String name, required String description, required String theme, required String colorHex}) =>
+      _taskActions.editProject(projectId, name: name, description: description, theme: theme, colorHex: colorHex);
+  void deleteProject(String projectId) => _taskActions.deleteProject(projectId);
+  void logToDailySummary(String type, Map<String, dynamic> data) =>
+      _taskActions.logToDailySummary(type, data);
+  String addTask(String projectId, Map<String, dynamic> taskData) => _taskActions.addTask(projectId, taskData);
+  void updateTask(String projectId, String taskId, Map<String, dynamic> updates) => _taskActions.updateTask(projectId, taskId, updates);
+  void replaceTask(String projectId, String oldTaskId, Task newTask) => _taskActions.replaceTask(projectId, oldTaskId, newTask);
+  bool completeTask(String projectId, String taskId) => _taskActions.completeTask(projectId, taskId);
+  void deleteTask(String projectId, String taskId) => _taskActions.deleteTask(projectId, taskId);
+  void duplicateCompletedTask(String projectId, String taskId) => _taskActions.duplicateCompletedTask(projectId, taskId);
+  void addCheckpoint(String projectId, String parentTaskId, Map<String, dynamic> checkpointData) =>
+      _taskActions.addCheckpoint(projectId, parentTaskId, checkpointData);
+  void duplicateCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
+      _taskActions.duplicateCheckpoint(projectId, parentTaskId, checkpointId);
+  void updateCheckpoint(String projectId, String parentTaskId, String checkpointId, Map<String, dynamic> updates) =>
+      _taskActions.updateCheckpoint(projectId, parentTaskId, checkpointId, updates);
+  void completeCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
+      _taskActions.completeCheckpoint(projectId, parentTaskId, checkpointId);
+  void deleteCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
+      _taskActions.deleteCheckpoint(projectId, parentTaskId, checkpointId);
+
+  void startTimer(String id, String type, String projectId) => _timerActions.startTimer(id, type, projectId);
+  void pauseTimer(String id) => _timerActions.pauseTimer(id);
+  void logTimerAndReset(String id) => _timerActions.logTimerAndReset(id);
+
+  void _ensureSkillsList() {
+    for (var project in _projects) {
+      if (!_skills.any((s) => s.id == project.theme)) {
+        _skills.add(Skill(
+          id: project.theme,
+          name: project.theme.replaceAll('_', ' ').split(' ').map((word) => word[0].toUpperCase() + word.substring(1)).join(' '),
+          description: "Skill related to ${project.name}.",
+          iconName: themeToIconName[project.theme] ?? 'default',
+        ));
+      }
+    }
+  }
+
+  void addSubskillXp(String subskillId, double amount) {
+    final subskill = _skills.expand((s) => s.subskills).firstWhereOrNull((ss) => ss.id == subskillId);
+    if (subskill != null) {
+      subskill.xp += amount;
+      setProviderState(skills: _skills);
+    }
+  }
+
+  void addNewSubskills(List<dynamic> newSubskillsData) {
+    final updatedSkills = List<Skill>.from(_skills);
+    bool wasChanged = false;
+
+    for (final subskillData in newSubskillsData) {
+      if (subskillData is Map<String, dynamic>) {
+        final parentId = subskillData['parentSkillId'] as String;
+        final subskillName = subskillData['name'] as String;
+
+        final parentSkill = updatedSkills.firstWhereOrNull((s) => s.id == parentId);
+        if (parentSkill != null) {
+          final subskillId = '${parentId}_${subskillName.toLowerCase().replaceAll(' ', '_')}';
+          if (!parentSkill.subskills.any((ss) => ss.id == subskillId)) {
+            final newSubskill = Subskill(id: subskillId, name: subskillName, parentSkillId: parentId);
+            parentSkill.subskills.add(newSubskill);
+            wasChanged = true;
+            _gameLog.add("<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>New subskill unlocked: $subskillName for ${parentSkill.name}</span>");
+          }
+        }
+      }
+    }
+
+    if (wasChanged) {
+      setProviderState(skills: updatedSkills, gameLog: _gameLog);
+    }
+  }
+
+  void deleteSubskill(String subskillIdToDelete) {
+    final newProjects = List<Project>.from(_projects.map((p) {
+      p.tasks = p.tasks.map((t) {
+        t.subskillXp.remove(subskillIdToDelete);
+        t.checkpoints = t.checkpoints.map((cp) {
+          cp.subskillXp.remove(subskillIdToDelete);
+          return cp;
+        }).toList();
+        return t;
+      }).toList();
+      return p;
+    }));
+
+    final newSkills = List<Skill>.from(_skills.map((s) {
+      s.subskills.removeWhere((ss) => ss.id == subskillIdToDelete);
+      return s;
+    }));
+
+    setProviderState(
+      projects: newProjects,
+      skills: newSkills,
+      immediateSave: true,
+    );
+  }
+  
+  void takeBreak(int minutes) {
+    double energyCost = minutes.toDouble();
+    if (_playerEnergy >= energyCost) {
+      _playerEnergy -= energyCost;
+      _breakOriginalDurationMinutes = minutes;
+      _breakEndTime = DateTime.now().add(Duration(minutes: minutes));
+      _breakTimer?.cancel();
+      _breakTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (_breakEndTime == null || DateTime.now().isAfter(_breakEndTime!)) {
+          _breakTimer?.cancel();
+          _breakEndTime = null;
+          _breakOriginalDurationMinutes = null;
+          _notificationService.showNotification('Break Over!', 'Time to get back to the mission.');
+           setProviderState(gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Break finished. Time to get back to the mission.</span>"], doNotify: true);
+        } else {
+          notifyListeners();
+        }
+      });
+      setProviderState(
+        playerEnergy: _playerEnergy,
+        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>Took a $minutes minute break.</span>"],
+        doNotify: true,
+      );
+    } else {
+        setProviderState(gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Not enough energy for a $minutes minute break.</span>"]);
+    }
+  }
+
+  void cancelBreak() {
+    if (_breakEndTime == null || _breakOriginalDurationMinutes == null) return;
+    final double energyCost = _breakOriginalDurationMinutes!.toDouble();
+    final double energyRefund = energyCost / 2;
+    _breakTimer?.cancel();
+    _breakEndTime = null;
+    _breakOriginalDurationMinutes = null;
+    setProviderState(
+      playerEnergy: (_playerEnergy + energyRefund).clamp(0, calculatedMaxEnergy),
+      gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Break cancelled. Regained ${energyRefund.toStringAsFixed(0)} energy.</span>"],
+      doNotify: true,
+    );
+  }
+
+  void refillEnergyWithCoins(int energyAmount) {
+    double totalCost = energyAmount * coinsPerEnergy;
+    if (_coins >= totalCost) {
+      setProviderState(
+        coins: _coins - totalCost,
+        playerEnergy: (_playerEnergy + energyAmount).clamp(0, calculatedMaxEnergy),
+        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Purchased $energyAmount energy for ${totalCost.toStringAsFixed(0)} coins.</span>"],
+      );
+    } else {
+       setProviderState(gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Not enough coins to purchase $energyAmount energy.</span>"]);
+    }
+  }
+
+  void setProviderState({
+    String? lastLoginDate, double? coins, double? xp, double? playerEnergy,
+    List<Project>? projects, Map<String, dynamic>? completedByDay, List<String>? gameLog,
+    List<Skill>? skills, Map<String, ActiveTimerInfo>? activeTimers,
+    DateTime? lastSuccessfulSaveTimestamp, bool? isUsernameMissing, ChatbotMemory? chatbotMemory,
+    bool doNotify = true, bool immediateSave = false,
+  }) {
+    bool changed = false;
+    if (lastLoginDate != null && _lastLoginDate != lastLoginDate) { _lastLoginDate = lastLoginDate; changed = true; }
+    if (coins != null && _coins != coins) { _coins = coins; changed = true; }
+    if (xp != null && _xp != xp) { _xp = xp; _recalculatePlayerLevel(); changed = true; }
+    if (playerEnergy != null && _playerEnergy != playerEnergy) { _playerEnergy = playerEnergy.clamp(0, calculatedMaxEnergy); changed = true; }
+    if (projects != null && !listEquals(_projects, projects)) { _projects = List.from(projects); _ensureSkillsList(); changed = true; }
+    if (completedByDay != null && !mapEquals(_completedByDay, completedByDay)) { _completedByDay = Map.from(completedByDay); changed = true; }
+    if (gameLog != null && !listEquals(_gameLog, gameLog)) { _gameLog = List.from(gameLog); changed = true; }
+    if (skills != null && !listEquals(_skills, skills)) { _skills = List.from(skills); changed = true; }
+    if (activeTimers != null && !mapEquals(_activeTimers, activeTimers)) { _activeTimers = Map.from(activeTimers); changed = true; }
+    if (lastSuccessfulSaveTimestamp != null && _lastSuccessfulSaveTimestamp != lastSuccessfulSaveTimestamp) { _lastSuccessfulSaveTimestamp = lastSuccessfulSaveTimestamp; changed = true; }
+    if (isUsernameMissing != null && _isUsernameMissing != isUsernameMissing) { _isUsernameMissing = isUsernameMissing; changed = true; }
+    if (chatbotMemory != null && _chatbotMemory != chatbotMemory) { _chatbotMemory = chatbotMemory; changed = true; }
+    if (changed) {
+      _scheduleSave(immediate: immediateSave);
+      if (doNotify) notifyListeners();
+    }
+  }
+
+  void setProviderAIGlobalLoading(bool isLoading, {double progress = 0.0, String statusMessage = ""}) {
+    bool changed = false;
+    if (_isGeneratingGlobalContent != isLoading) { _isGeneratingGlobalContent = isLoading; changed = true; }
+    if (_aiGenerationProgress != progress) { _aiGenerationProgress = progress; changed = true; }
+    if (_aiGenerationStatusMessage != statusMessage) { _aiGenerationStatusMessage = statusMessage; changed = true; }
+    if (changed) notifyListeners();
+  }
+
+  void setProviderAISubquestLoading(bool isLoading) {
+    if (_isGeneratingSubquestsForTask != isLoading) {
+      _isGeneratingSubquestsForTask = isLoading;
+      notifyListeners();
+    }
+  }
+
+  void setProviderApiKeyIndex(int index) {
+    if (_apiKeyIndex != index) {
+      _apiKeyIndex = index;
+    }
+  }
 }
+ 
+--- END OF FILE lib/src/providers/game_provider.dart ---
+--- START OF FILE lib/src/providers/actions/ai_generation_actions.dart ---
+// lib/src/providers/actions/ai_generation_actions.dart
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/services/ai_service.dart';
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:flutter/foundation.dart'; // For kDebugMode
+import 'package:collection/collection.dart'; // For whereNotNull
+
+class AIGenerationActions {
+  final GameProvider _provider;
+  final AIService _aiService = AIService();
+
+  AIGenerationActions(this._provider);
+
+  void _logToGame(String logMessage, {bool isError = false}) {
+    final color = isError
+        ? AppTheme.fnAccentRed.value.toRadixString(16).substring(2)
+        : AppTheme.fnTextSecondary.value.toRadixString(16).substring(2);
+    final finalMessage = "<span style=\"color:#$color;\">$logMessage</span>";
+
+    if (kDebugMode) print("[AIActions]: $logMessage");
+    _provider.setProviderState(
+        gameLog: [..._provider.gameLog, finalMessage], doNotify: true);
+  }
+
+  Future<void> triggerAIGenerateTasks(
+      Project project, String userInput) async {
+    if (_provider.isGeneratingContent) return;
+
+    _provider.setProviderAIGlobalLoading(true,
+        statusMessage: 'Generating new tasks...');
+    _logToGame("AI is generating new tasks for project '${project.name}'...");
+
+    try {
+      final List<Map<String, dynamic>> tasksData =
+          await _aiService.generateTasksFromPlan(
+        project: project,
+        userInput: userInput,
+        currentApiKeyIndex: _provider.apiKeyIndex,
+        onNewApiKeyIndex: (newIndex) => _provider.setProviderApiKeyIndex(newIndex),
+        onLog: (msg) => _logToGame(msg),
+      );
+
+      int tasksAdded = 0;
+      for (final taskData in tasksData) {
+        _provider.addTask(project.id, taskData);
+        tasksAdded++;
+      }
+
+      _logToGame(
+          "AI successfully generated $tasksAdded new tasks for '${project.name}'.",
+          isError: false);
+    } catch (e) {
+      _logToGame("AI task generation failed: ${e.toString()}", isError: true);
+    } finally {
+      _provider.setProviderAIGlobalLoading(false);
+    }
+  }
+
+  Future<void> triggerAIEnhanceTask(
+    Project project,
+    Task taskToEnhance,
+    String userInput,
+  ) async {
+    if (_provider.isGeneratingSubquests) return;
+
+    _provider.setProviderAISubquestLoading(true);
+    _logToGame(
+        "<span style=\"color:${(project.color).value.toRadixString(16).substring(2)};\">AI is enhancing task '${taskToEnhance.name}'...</span>");
+
+    try {
+      final Map<String, dynamic> enhancementData =
+          await _aiService.enhanceTaskWithAI(
+        project: project,
+        task: taskToEnhance,
+        userInput: userInput,
+        currentApiKeyIndex: _provider.apiKeyIndex,
+        onNewApiKeyIndex: (newIndex) => _provider.setProviderApiKeyIndex(newIndex),
+        onLog: _logToGame,
+        allSkills: _provider.skills,
+      );
+
+      // Handle new subskills first
+      final List<dynamic> newSubskillsData = enhancementData['newSubskills'] as List<dynamic>? ?? [];
+      if (newSubskillsData.isNotEmpty) {
+        _provider.addNewSubskills(newSubskillsData);
+      }
+
+      final Map<String, double> newSubskillXp = (enhancementData['subskillXp'] as Map<String, dynamic>?)
+              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ??
+          {};
+
+      final List<Checkpoint> newCheckpoints =
+          (enhancementData['checkpoints'] as List<dynamic>? ?? [])
+              .map((cpData) => cpData is Map<String, dynamic>
+                  ? Checkpoint.fromJson(cpData)
+                  : null)
+              .whereNotNull()
+              .toList();
+
+      // Merge the results with the existing task
+      final enhancedTask = Task(
+        id: taskToEnhance.id,
+        name: taskToEnhance.name, // Name is preserved
+        completed: taskToEnhance.completed,
+        isCountable: taskToEnhance.isCountable, // Countability is preserved
+        targetCount: taskToEnhance.targetCount,
+        currentTimeSpent: taskToEnhance.currentTimeSpent,
+        currentCount: taskToEnhance.currentCount,
+        subskillXp: newSubskillXp,
+        checkpoints: newCheckpoints,
+      );
+
+      _provider.replaceTask(project.id, taskToEnhance.id, enhancedTask);
+      _logToGame(
+          "<span style=\"color:${AppTheme.fnAccentGreen.value.toRadixString(16).substring(2)};\">Successfully enhanced task '${enhancedTask.name}'.</span>");
+    } catch (e, stackTrace) {
+      final errorMessage = e.toString();
+      if(kDebugMode) print(stackTrace);
+      _logToGame(
+          "<span style=\"color:${AppTheme.fnAccentRed.value.toRadixString(16).substring(2)};\">AI enhancement for '${taskToEnhance.name}' failed: $errorMessage</span>");
+    } finally {
+      _provider.setProviderAISubquestLoading(false);
+    }
+  }
 }
---- END OF FILE lib/src/widgets/components/xp_history_graph.dart ---
---- START OF FILE lib/src/widgets/dialogs/project_edit_dialog.dart ---
-// lib/src/widgets/dialogs/project_edit_dialog.dart
+--- END OF FILE lib/src/providers/actions/ai_generation_actions.dart ---
+--- START OF FILE lib/src/providers/actions/task_actions.dart ---
+ 
+// lib/src/providers/actions/task_actions.dart
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/utils/constants.dart';
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/utils/helpers.dart';
+import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
+
+class TaskActions {
+  final GameProvider _provider;
+
+  TaskActions(this._provider);
+
+  void addProject(
+      {required String name,
+      required String description,
+      required String theme,
+      required String colorHex}) {
+    final newProject = Project(
+      id: 'proj_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      description: description,
+      theme: theme,
+      colorHex: colorHex,
+    );
+    _provider.setProviderState(projects: [..._provider.projects, newProject]);
+  }
+
+  void editProject(String projectId,
+      {required String name,
+      required String description,
+      required String theme,
+      required String colorHex}) {
+    final newProjects = _provider.projects.map((project) {
+      if (project.id == projectId) {
+        return Project(
+          id: project.id,
+          name: name,
+          description: description,
+          theme: theme,
+          colorHex: colorHex,
+          streak: project.streak,
+          dailyTimeSpent: project.dailyTimeSpent,
+          lastWorkedDate: project.lastWorkedDate,
+          tasks: project.tasks,
+        );
+      }
+      return project;
+    }).toList();
+    _provider.setProviderState(projects: newProjects);
+  }
+  
+  void deleteProject(String projectId) {
+    final newProjects = List<Project>.from(_provider.projects);
+    final projectToDelete = newProjects.firstWhereOrNull((p) => p.id == projectId);
+    if (projectToDelete == null) return;
+
+    newProjects.removeWhere((p) => p.id == projectId);
+
+    String? newSelectedId = _provider.selectedProjectId;
+    if (_provider.selectedProjectId == projectId) {
+      newSelectedId = newProjects.isNotEmpty ? newProjects.first.id : null;
+    }
+    
+    final themeOfDeletedProject = projectToDelete.theme;
+    final isThemeStillInUse = newProjects.any((p) => p.theme == themeOfDeletedProject);
+    
+    List<Skill> newSkills = List<Skill>.from(_provider.skills);
+    if (!isThemeStillInUse) {
+      newSkills.removeWhere((s) => s.id == themeOfDeletedProject);
+    }
+    
+    _provider.setProviderState(
+      projects: newProjects,
+      skills: newSkills,
+      immediateSave: true,
+    );
+    // setSelectedProjectId will trigger its own notify and save
+    _provider.setSelectedProjectId(newSelectedId);
+  }
+
+
+  void logToDailySummary(String type, Map<String, dynamic> data) {
+    final today = getTodayDateString();
+    final newCompletedByDay = Map<String, dynamic>.from(_provider.completedByDay);
+    final dayData = Map<String, dynamic>.from(newCompletedByDay[today] ??
+        {'taskTimes': <String, int>{}, 'subtasksCompleted': <Map<String, dynamic>>[], 'checkpointsCompleted': <Map<String, dynamic>>[], 'emotionLogs': <Map<String, dynamic>>[]});
+
+    if (type == 'taskTime') {
+      final taskTimes = Map<String, int>.from(dayData['taskTimes'] as Map? ?? {});
+      taskTimes[data['projectId'] as String] = (taskTimes[data['projectId'] as String] ?? 0) + (data['time'] as int);
+      dayData['taskTimes'] = taskTimes;
+    } else if (type == 'taskCompleted') {
+      final tasksCompleted = List<Map<String, dynamic>>.from(dayData['subtasksCompleted'] as List? ?? []);
+      tasksCompleted.add(data);
+      dayData['subtasksCompleted'] = tasksCompleted;
+    } else if (type == 'checkpointCompleted') {
+      final checkpointsCompleted = List<Map<String, dynamic>>.from(dayData['checkpointsCompleted'] as List? ?? []);
+      if (!data.containsKey('completionTimestamp')) {
+          data['completionTimestamp'] = DateTime.now().toIso8601String();
+      }
+      checkpointsCompleted.add(data);
+      dayData['checkpointsCompleted'] = checkpointsCompleted;
+    }
+
+    newCompletedByDay[today] = dayData;
+    _provider.setProviderState(completedByDay: newCompletedByDay);
+  }
+
+  String addTask(String projectId, Map<String, dynamic> taskData) {
+    final newTask = Task(
+      id: 'task_${DateTime.now().millisecondsSinceEpoch}_${(_provider.projects.fold<int>(0, (prev, p) => prev + p.tasks.length) + 1)}',
+      name: taskData['name'] as String,
+      isCountable: taskData['isCountable'] as bool? ?? false,
+      targetCount: taskData['isCountable'] as bool? ?? false ? (taskData['targetCount'] as int? ?? 1) : 0,
+      checkpoints: (taskData['checkpointsData'] as List<Map<String, dynamic>>?)?.map((cpData) => Checkpoint(
+            id: 'cp_${DateTime.now().millisecondsSinceEpoch}_${(_provider.projects.fold<int>(0, (prev, p) => prev + p.tasks.fold<int>(0, (pSt, st) => pSt + st.checkpoints.length)) + 1)}_${cpData['name']?.hashCode ?? 0}',
+            name: cpData['name'] as String,
+            isCountable: cpData['isCountable'] as bool? ?? false,
+            targetCount: cpData['isCountable'] as bool? ?? false ? (cpData['targetCount'] as int? ?? 1) : 0,
+      )).toList() ?? [],
+    );
+
+    final newProjects = _provider.projects.map((project) {
+      if (project.id == projectId) {
+        project.tasks.add(newTask);
+      }
+      return project;
+    }).toList();
+    _provider.setProviderState(projects: newProjects);
+    return newTask.id;
+  }
+
+  void updateTask(String projectId, String taskId, Map<String, dynamic> updates) {
+    Project? projectToUpdate = _provider.projects.firstWhereOrNull((p) => p.id == projectId);
+    if (projectToUpdate == null) return;
+    Task? taskToUpdate = projectToUpdate.tasks.firstWhereOrNull((t) => t.id == taskId);
+    if (taskToUpdate == null) return;
+
+    final int oldTaskTime = taskToUpdate.currentTimeSpent;
+
+    if (updates.containsKey('name')) taskToUpdate.name = updates['name'] as String;
+    if (updates.containsKey('isCountable')) taskToUpdate.isCountable = updates['isCountable'] as bool;
+    if (updates.containsKey('targetCount')) taskToUpdate.targetCount = updates['targetCount'] as int;
+    if (updates.containsKey('currentCount')) taskToUpdate.currentCount = (updates['currentCount'] as int).clamp(0, taskToUpdate.targetCount);
+    if (updates.containsKey('currentTimeSpent')) taskToUpdate.currentTimeSpent = updates['currentTimeSpent'] as int;
+
+    int timeDifference = 0;
+    if (updates.containsKey('currentTimeSpent')) timeDifference = taskToUpdate.currentTimeSpent - oldTaskTime;
+
+    if (timeDifference != 0) {
+      projectToUpdate.dailyTimeSpent = (projectToUpdate.dailyTimeSpent) + timeDifference;
+      projectToUpdate.lastWorkedDate = getTodayDateString();
+      logToDailySummary('taskTime', {'projectId': projectId, 'time': timeDifference});
+      if (timeDifference > 0) {
+        _provider.setProviderState(playerEnergy: (_provider.playerEnergy + timeDifference * energyRegenPerMinuteTasked).clamp(0, _provider.calculatedMaxEnergy));
+      }
+    }
+
+    if (projectToUpdate.dailyTimeSpent - timeDifference < dailyTaskGoalMinutes && projectToUpdate.dailyTimeSpent >= dailyTaskGoalMinutes) {
+      projectToUpdate.streak++;
+    }
+
+    final newProjects = _provider.projects.map((p) => p.id == projectId ? projectToUpdate : p).toList();
+    _provider.setProviderState(projects: newProjects);
+  }
+
+  bool completeTask(String projectId, String taskId) {
+    Project? project = _provider.projects.firstWhereOrNull((p) => p.id == projectId);
+    if (project == null) return false;
+    Task? task = project.tasks.firstWhereOrNull((t) => t.id == taskId);
+    if (task == null || task.completed) return false;
+
+    // Validation checks
+    if (task.isCountable && task.currentCount < task.targetCount) {
+      return false;
+    }
+    if (task.checkpoints.isNotEmpty && !task.checkpoints.every((cp) => cp.completed)) {
+      return false;
+    }
+
+    ActiveTimerInfo? timerForTask = _provider.activeTimers[taskId];
+    Task updatedTaskForRewards = task;
+
+    if (timerForTask != null) {
+      double totalSecondsToLog = timerForTask.accumulatedDisplayTime;
+      if (timerForTask.isRunning) totalSecondsToLog += (DateTime.now().difference(timerForTask.startTime).inMilliseconds) / 1000;
+      final int elapsedMinutes = (totalSecondsToLog / 60).round();
+      if (elapsedMinutes > 0) {
+        updateTask(projectId, taskId, {'currentTimeSpent': task.currentTimeSpent + elapsedMinutes});
+        final Project? refetchedProject = _provider.projects.firstWhereOrNull((p) => p.id == projectId);
+        if (refetchedProject != null) {
+          updatedTaskForRewards = refetchedProject.tasks.firstWhereOrNull((t) => t.id == taskId) ?? task;
+        }
+      }
+      final newActiveTimers = Map<String, ActiveTimerInfo>.from(_provider.activeTimers)..remove(taskId);
+      _provider.setProviderState(activeTimers: newActiveTimers);
+    }
+
+    double proportionalXp = updatedTaskForRewards.isCountable ? updatedTaskForRewards.targetCount * xpPerCountUnitSubtask : updatedTaskForRewards.currentTimeSpent * xpPerMinuteSubtask;
+    double proportionalCoins = updatedTaskForRewards.isCountable ? updatedTaskForRewards.targetCount * coinsPerCountUnitSubtask : updatedTaskForRewards.currentTimeSpent * coinsPerMinuteSubtask;
+    final double baseCompletionXp = subtaskCompletionXpBase + _provider.playerLevel + project.streak;
+    final double baseCompletionCoins = subtaskCompletionCoinBase + (_provider.playerLevel * 0.5) + (project.streak * 0.2);
+    final int finalXpReward = (baseCompletionXp + proportionalXp).floor();
+    final int finalCoinReward = (baseCompletionCoins + proportionalCoins).floor();
+
+    final newProjects = _provider.projects.map((p) {
+      if (p.id == projectId) {
+        p.tasks = p.tasks.map((t) {
+          if (t.id == taskId) {
+            t.completed = true; 
+            t.completedDate = getTodayDateString();
+          }
+          return t;
+        }).toList();
+      }
+      return p;
+    }).toList();
+
+    _provider.setProviderState(projects: newProjects, xp: _provider.xp + finalXpReward, coins: _provider.coins + finalCoinReward);
+    updatedTaskForRewards.subskillXp.forEach((subskillId, xpAmount) => _provider.addSubskillXp(subskillId, xpAmount));
+    logToDailySummary('taskCompleted', {'projectId': project.id, 'name': updatedTaskForRewards.name, 'timeLogged': updatedTaskForRewards.currentTimeSpent,
+      'isCountable': updatedTaskForRewards.isCountable, 'currentCount': updatedTaskForRewards.currentCount, 'targetCount': updatedTaskForRewards.targetCount, 'subskillXp': updatedTaskForRewards.subskillXp});
+    return true;
+  }
+
+  void deleteTask(String projectId, String taskId) {
+    final newProjects = _provider.projects.map((project) {
+      if (project.id == projectId) {
+        project.tasks.removeWhere((t) => t.id == taskId);
+      }
+      return project;
+    }).toList();
+    final newActiveTimers = Map<String, ActiveTimerInfo>.from(_provider.activeTimers)..remove(taskId);
+    _provider.setProviderState(projects: newProjects, activeTimers: newActiveTimers, immediateSave: true);
+  }
+
+  void replaceTask(String projectId, String oldTaskId, Task newTask) {
+    final newProjects = _provider.projects.map((project) {
+      if (project.id == projectId) {
+        final taskIndex = project.tasks.indexWhere((t) => t.id == oldTaskId);
+        if (taskIndex != -1) project.tasks[taskIndex] = newTask;
+      }
+      return project;
+    }).toList();
+    _provider.setProviderState(projects: newProjects);
+  }
+
+  void duplicateCompletedTask(String projectId, String taskId) {
+    Project? projectToUpdate = _provider.projects.firstWhereOrNull((p) => p.id == projectId);
+    if (projectToUpdate == null) return;
+    Task? taskToDuplicate = projectToUpdate.tasks.firstWhereOrNull((t) => t.id == taskId);
+    if (taskToDuplicate == null || !taskToDuplicate.completed) return;
+
+    final newTask = Task(
+      id: 'task_${DateTime.now().millisecondsSinceEpoch}_${(projectToUpdate.tasks.length + 1)}',
+      name: taskToDuplicate.name, completed: false, currentTimeSpent: 0, completedDate: null,
+      isCountable: taskToDuplicate.isCountable, targetCount: taskToDuplicate.targetCount, currentCount: 0,
+      subskillXp: taskToDuplicate.subskillXp,
+      checkpoints: taskToDuplicate.checkpoints.map((cp) => Checkpoint(
+            id: 'cp_${DateTime.now().millisecondsSinceEpoch}_${(taskToDuplicate.checkpoints.length + 1)}_${cp.name.hashCode}',
+            name: cp.name, completed: false, isCountable: cp.isCountable, targetCount: cp.targetCount,
+            currentCount: 0, completionTimestamp: null, subskillXp: cp.subskillXp,
+      )).toList(),
+    );
+    projectToUpdate.tasks.add(newTask);
+    final newProjects = _provider.projects.map((p) => p.id == projectId ? projectToUpdate : p).toList();
+    _provider.setProviderState(projects: newProjects);
+  }
+
+  void addCheckpoint(String projectId, String parentTaskId, Map<String, dynamic> checkpointData) {
+    final newCheckpoint = Checkpoint(
+      id: 'cp_${DateTime.now().millisecondsSinceEpoch}_${checkpointData['name']?.hashCode ?? 0}',
+      name: checkpointData['name'] as String,
+      isCountable: checkpointData['isCountable'] as bool? ?? false,
+      targetCount: checkpointData['isCountable'] as bool? ?? false ? (checkpointData['targetCount'] as int? ?? 1) : 0,
+    );
+
+    final newProjects = _provider.projects.map((project) {
+      if (project.id == projectId) {
+        project.tasks.firstWhereOrNull((t) => t.id == parentTaskId)?.checkpoints.add(newCheckpoint);
+      }
+      return project;
+    }).toList();
+    _provider.setProviderState(projects: newProjects);
+  }
+
+  void updateCheckpoint(String projectId, String parentTaskId, String checkpointId, Map<String, dynamic> updates) {
+    final newProjects = _provider.projects.map((project) {
+      if (project.id == projectId) {
+        project.tasks.firstWhereOrNull((t) => t.id == parentTaskId)?.checkpoints = project.tasks
+            .firstWhere((t) => t.id == parentTaskId).checkpoints.map((cp) {
+          if (cp.id == checkpointId) {
+            cp.name = updates['name'] as String? ?? cp.name;
+            cp.completed = updates['completed'] as bool? ?? cp.completed;
+            cp.isCountable = updates['isCountable'] as bool? ?? cp.isCountable;
+            cp.targetCount = updates['targetCount'] as int? ?? cp.targetCount;
+            cp.currentCount = updates['currentCount'] as int? ?? cp.currentCount;
+            cp.completionTimestamp = updates['completionTimestamp'] as String? ?? cp.completionTimestamp;
+            cp.subskillXp = (updates['subskillXp'] as Map<String, double>?) ?? cp.subskillXp;
+            if (cp.isCountable) cp.currentCount = cp.currentCount.clamp(0, cp.targetCount);
+          }
+          return cp;
+        }).toList();
+      }
+      return project;
+    }).toList();
+    _provider.setProviderState(projects: newProjects);
+  }
+
+  void completeCheckpoint(String projectId, String parentTaskId, String checkpointId) {
+    double xpReward = 0; double coinReward = 0;
+    bool checkpointCompletedSuccessfully = false;
+    Checkpoint? completedCheckpointInstanceForLog;
+
+    Project? project = _provider.projects.firstWhereOrNull((p) => p.id == projectId);
+    Task? task = project?.tasks.firstWhereOrNull((t) => t.id == parentTaskId);
+    Checkpoint? checkpoint = task?.checkpoints.firstWhereOrNull((cp) => cp.id == checkpointId);
+
+    if (checkpoint == null || checkpoint.completed) return;
+    if (checkpoint.isCountable && checkpoint.currentCount < checkpoint.targetCount) return;
+
+    final double proportionalXp = checkpoint.isCountable ? checkpoint.targetCount * xpPerCountUnitSubSubtask : 0;
+    final double proportionalCoins = checkpoint.isCountable ? checkpoint.targetCount * coinsPerCountUnitSubSubtask : 0;
+    xpReward = (subSubtaskCompletionXpBase + proportionalXp).floorToDouble();
+    coinReward = (subSubtaskCompletionCoinBase + proportionalCoins).floorToDouble();
+    
+    checkpoint.completed = true;
+    checkpoint.completionTimestamp = DateTime.now().toIso8601String();
+    completedCheckpointInstanceForLog = checkpoint;
+    checkpointCompletedSuccessfully = true;
+
+    final newProjects = _provider.projects.map((p) => p.id == projectId ? project! : p).toList();
+
+    if (checkpointCompletedSuccessfully && completedCheckpointInstanceForLog != null) {
+      _provider.setProviderState(projects: newProjects, xp: _provider.xp + xpReward, coins: _provider.coins + coinReward);
+      completedCheckpointInstanceForLog.subskillXp.forEach((subskillId, xpAmount) => _provider.addSubskillXp(subskillId, xpAmount));
+      logToDailySummary('checkpointCompleted', {
+        'projectId': projectId, 'parentTaskId': parentTaskId, 'checkpointId': checkpointId, 'name': completedCheckpointInstanceForLog.name,
+        'isCountable': completedCheckpointInstanceForLog.isCountable, 'currentCount': completedCheckpointInstanceForLog.currentCount, 'targetCount': completedCheckpointInstanceForLog.targetCount,
+        'completionTimestamp': completedCheckpointInstanceForLog.completionTimestamp, 'subskillXp': completedCheckpointInstanceForLog.subskillXp,
+        'parentTaskName': task?.name ?? 'N/A', 'projectName': project?.name ?? 'N/A'
+      });
+    }
+  }
+
+  void deleteCheckpoint(String projectId, String parentTaskId, String checkpointId) {
+    final newProjects = _provider.projects.map((project) {
+      if (project.id == projectId) {
+        project.tasks.firstWhereOrNull((t) => t.id == parentTaskId)?.checkpoints.removeWhere((cp) => cp.id == checkpointId);
+      }
+      return project;
+    }).toList();
+    _provider.setProviderState(projects: newProjects, immediateSave: true);
+  }
+
+  void duplicateCheckpoint(String projectId, String parentTaskId, String checkpointId) {
+    Project? project = _provider.projects.firstWhereOrNull((p) => p.id == projectId);
+    if (project == null) return;
+    Task? task = project.tasks.firstWhereOrNull((t) => t.id == parentTaskId);
+    if (task == null) return;
+    Checkpoint? checkpointToDuplicate = task.checkpoints.firstWhereOrNull((cp) => cp.id == checkpointId);
+    if (checkpointToDuplicate == null) return;
+
+    final newCheckpoint = Checkpoint(
+      id: 'cp_${DateTime.now().millisecondsSinceEpoch}_${checkpointToDuplicate.name.hashCode}',
+      name: checkpointToDuplicate.name,
+      completed: false,
+      isCountable: checkpointToDuplicate.isCountable,
+      targetCount: checkpointToDuplicate.targetCount,
+      currentCount: 0,
+      completionTimestamp: null,
+      subskillXp: checkpointToDuplicate.subskillXp,
+    );
+
+    final newProjects = _provider.projects.map((p) {
+      if (p.id == projectId) {
+        p.tasks.firstWhereOrNull((t) => t.id == parentTaskId)?.checkpoints.add(newCheckpoint);
+      }
+      return p;
+    }).toList();
+    _provider.setProviderState(projects: newProjects);
+  }
+}
+ 
+--- END OF FILE lib/src/providers/actions/task_actions.dart ---
+--- START OF FILE lib/src/services/ai_service.dart ---
+import 'dart:convert';
+import 'package:google_generative_ai/google_generative_ai.dart' as genai;
+import 'package:arcane/src/config/api_keys.dart';
+import 'package:flutter/foundation.dart';
+import 'package:arcane/src/models/game_models.dart';
+
+class AIService {
+  Future<Map<String, dynamic>> _makeAICall({
+    required String prompt,
+    required int currentApiKeyIndex,
+    required Function(int) onNewApiKeyIndex,
+    required Function(String) onLog,
+  }) async {
+    if (geminiApiKeys.isEmpty || geminiApiKeys.every((key) => key.startsWith('YOUR_GEMINI_API_KEY'))) {
+      throw Exception("No valid Gemini API keys found.");
+    }
+    if (geminiModelName.isEmpty) {
+      throw Exception("GEMINI_MODEL_NAME not configured.");
+    }
+
+    if (kDebugMode) print("[AIService] AI Prompt:\n$prompt");
+
+    for (int i = 0; i < geminiApiKeys.length; i++) {
+      final int keyAttemptIndex = (currentApiKeyIndex + i) % geminiApiKeys.length;
+      final String apiKey = geminiApiKeys[keyAttemptIndex];
+      if (apiKey.startsWith('YOUR_GEMINI_API_KEY')) continue;
+
+      try {
+        final model = genai.GenerativeModel(model: geminiModelName, apiKey: apiKey);
+        final response = await model.generateContent([genai.Content.text(prompt)]);
+        String? rawResponseText = response.text;
+
+        if (rawResponseText == null || rawResponseText.trim().isEmpty) throw Exception("AI response was empty.");
+        if (kDebugMode) print("[AIService] Raw AI Response (Key Index $keyAttemptIndex):\n$rawResponseText");
+        
+        String jsonString = rawResponseText.trim();
+        int jsonStart = jsonString.indexOf('{');
+        int jsonEnd = jsonString.lastIndexOf('}');
+        if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+          jsonString = jsonString.substring(jsonStart, jsonEnd + 1);
+        } else {
+          throw Exception("Could not extract JSON from AI response.");
+        }
+
+        final Map<String, dynamic> generatedData = jsonDecode(jsonString);
+        onNewApiKeyIndex(keyAttemptIndex);
+        return generatedData;
+      } catch (e) {
+        String errorDetail = e.toString();
+        if (kDebugMode) print("[AIService] Error with API key index $keyAttemptIndex: $errorDetail");
+        if (i == geminiApiKeys.length - 1) throw Exception("All API keys failed. Last error: $errorDetail");
+      }
+    }
+    throw Exception("All API keys failed or were invalid.");
+  }
+
+  Future<List<Map<String, dynamic>>> generateTasksFromPlan({
+    required Project project,
+    required String userInput,
+    required int currentApiKeyIndex,
+    required Function(int) onNewApiKeyIndex,
+    required Function(String) onLog,
+  }) async {
+    final String prompt = """
+You are an assistant for a gamified task management app. Your job is to break down a user's plan into a single comprehensive task with actionable checkpoints.
+
+**Context:**
+- Project: "${project.name}" (Theme/Skill: "${project.theme}")
+- User's Plan/Input:
+---
+$userInput
+---
+
+**Your Goal:**
+Generate ONE comprehensive task that encapsulates the user's plan, broken down into 3 to 7 specific checkpoints.
+
+**Output Requirements:**
+Provide the output as a single, valid JSON object. The JSON object MUST have a single key:
+- "tasks": An array containing exactly ONE task object. The task object MUST have:
+  - "name": string (A comprehensive task name that encompasses the overall goal, e.g., "Complete Chapter 1 Study Session", "Build Portfolio Website")
+  - "isCountable": boolean (Set to true if the overall task involves a clear quantity)
+  - "targetCount": number (If countable, the target number; otherwise, 0)
+  - "checkpoints": array of checkpoint objects. Each checkpoint object MUST have:
+    - "name": string (A specific, actionable checkpoint, e.g., "Read section 1.1", "Set up HTML structure")
+    - "isCountable": boolean (Set to true if this checkpoint involves a clear quantity)
+    - "targetCount": number (If countable, the target number; otherwise, 0)
+
+**Example JSON Output:**
+```json
+{
+  "tasks": [
+    {
+      "name": "Complete research paper draft",
+      "isCountable": false,
+      "targetCount": 0,
+      "checkpoints": [
+        {
+          "name": "Research and gather 10 sources",
+          "isCountable": true,
+          "targetCount": 10
+        },
+        {
+          "name": "Create detailed outline",
+          "isCountable": false,
+          "targetCount": 0
+        },
+        {
+          "name": "Write introduction section",
+          "isCountable": false,
+          "targetCount": 0
+        },
+        {
+          "name": "Write 1500 words for main body",
+          "isCountable": true,
+          "targetCount": 1500
+        },
+        {
+          "name": "Write conclusion and bibliography",
+          "isCountable": false,
+          "targetCount": 0
+        }
+      ]
+    }
+  ]
+}
+```
+
+Return ONLY the JSON object. Do not include markdown, comments, or any extra text.
+""";
+    try {
+      final Map<String, dynamic> generatedData = await _makeAICall(
+        prompt: prompt,
+        currentApiKeyIndex: currentApiKeyIndex,
+        onNewApiKeyIndex: onNewApiKeyIndex,
+        onLog: onLog,
+      );
+
+      if (generatedData.containsKey('tasks') && generatedData['tasks'] is List) {
+        return List<Map<String, dynamic>>.from(generatedData['tasks']);
+      } else {
+        throw Exception("AI response for task generation was malformed.");
+      }
+    } catch (e) {
+      onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for generateTasksFromPlan: ${e.toString()}</span>");
+      rethrow;
+    }
+  }
+
+
+  Future<Map<String, dynamic>> enhanceTaskWithAI({
+    required Project project,
+    required Task task,
+    required String userInput,
+    required int currentApiKeyIndex,
+    required Function(int) onNewApiKeyIndex,
+    required Function(String) onLog,
+    required List<Skill> allSkills,
+  }) async {
+    final String taskStr = jsonEncode(task);
+    final String allSkillsStr = jsonEncode(allSkills);
+
+    final String prompt = """
+You are an assistant for a gamified task management app. Your job is to enhance an existing task by breaking it down into checkpoints and assigning XP to subskills.
+
+**Context:**
+- Project: "${project.name}" (Associated Skill/Theme: "${project.theme}")
+- Task to Enhance: ${taskStr}
+- User's Instructions: "$userInput"
+- Existing Skills and Subskills in the system:
+${allSkillsStr}
+
+**Your Goal:**
+1.  Generate a new list of 2 to 5 specific checkpoints for the task.
+2.  Define XP rewards for completing the overall task, distributed among relevant **subskills**.
+3.  For each checkpoint, also assign smaller XP rewards to relevant **subskills**.
+4.  If a relevant subskill doesn't exist under the project's theme ("${project.theme}"), you can create a new one.
+
+**Output Requirements:**
+Provide a single, valid JSON object. The JSON object MUST have these keys:
+- "subskillXp": A JSON object where keys are **subskill IDs** and values are the XP amount (number) for completing the **entire task**.
+  - Subskill IDs MUST follow the format `parentSkillId_subskillNameInLowercase`.
+  - Example: `{"${project.theme}_research": 5.0, "${project.theme}_writing": 10.0}`.
+- "checkpoints": An array of checkpoint objects. Each checkpoint MUST have:
+  - "id": A placeholder string like "new_cp_1".
+  - "name": A small, concrete action (e.g., "Read pages 1-10").
+  - "isCountable": boolean.
+  - "targetCount": number (if countable, otherwise 0).
+  - "subskillXp": A JSON object where keys are **subskill IDs** and values are XP amounts for this specific checkpoint. XP should be smaller than the parent task's XP.
+- "newSubskills": An array of new subskill objects to be created, if any. Each object must have:
+  - "name": string.
+  - "parentSkillId": string (This MUST be "${project.theme}").
+
+**Example JSON Output:**
+```json
+{
+  "subskillXp": {
+    "knowledge_research": 5.0,
+    "knowledge_drafting": 10.0
+  },
+  "checkpoints": [
+    {
+      "id": "new_cp_1",
+      "name": "Research and gather 10 sources",
+      "isCountable": true,
+      "targetCount": 10,
+      "subskillXp": { "knowledge_research": 3.0 }
+    },
+    {
+      "id": "new_cp_2",
+      "name": "Write 1500 words for main body",
+      "isCountable": true,
+      "targetCount": 1500,
+      "subskillXp": { "knowledge_drafting": 6.0 }
+    }
+  ],
+  "newSubskills": [
+    {
+      "name": "Research",
+      "parentSkillId": "knowledge"
+    },
+    {
+      "name": "Drafting",
+      "parentSkillId": "knowledge"
+    }
+  ]
+}
+```
+
+Return ONLY the JSON object. Do not include markdown, comments, or any extra text.
+""";
+    try {
+      final Map<String, dynamic> enhancedData = await _makeAICall(
+        prompt: prompt,
+        currentApiKeyIndex: currentApiKeyIndex,
+        onNewApiKeyIndex: onNewApiKeyIndex,
+        onLog: onLog,
+      );
+
+      if (enhancedData.containsKey('checkpoints') && enhancedData['checkpoints'] is List) {
+        return enhancedData;
+      } else {
+        throw Exception("AI response for enhancement was malformed. Missing 'checkpoints' list.");
+      }
+    } catch (e) {
+      onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for enhanceTaskWithAI: ${e.toString()}</span>");
+      rethrow;
+    }
+  }
+
+  Future<String> getChatbotResponse({
+    required ChatbotMemory memory,
+    required String userMessage,
+    required String completedByDayJsonLast7Days,
+    required String olderDaysSummary,
+    required int currentApiKeyIndex,
+    required Function(int) onNewApiKeyIndex,
+    required Function(String) onLog,
+  }) async {
+    final conversationHistoryString = memory.conversationHistory.map((msg) => "${msg.sender == MessageSender.user ? 'User' : 'Bot'}: ${msg.text}").join('\n');
+    
+    final String prompt = """
+You are Arcane Advisor, a helpful AI assistant in a gamified productivity app.
+Your knowledge includes:
+1.  Conversation History:
+$conversationHistoryString
+2.  Logbook Data (Last 7 Days):
+$completedByDayJsonLast7Days
+3.  Older Logbook Summary:
+$olderDaysSummary
+4.  User's Remembered Items:
+${memory.userRememberedItems.isNotEmpty ? memory.userRememberedItems.join('\n') : "None."}
+
+User's message: "$userMessage"
+
+Based on this, provide a concise, helpful, and encouraging response.
+If asked to "Remember X", acknowledge it. If asked to "Forget", acknowledge it. The system handles the memory.
+Analyze progress, summaries, emotion trends, or completions using the provided data.
+Keep responses short and conversational. Do not use markdown.
+"""
+        .trim();
+
+    try {
+      if (geminiApiKeys.isEmpty || geminiApiKeys.every((key) => key.startsWith('YOUR_GEMINI_API_KEY'))) {
+        throw Exception("No valid Gemini API keys found.");
+      }
+      if (geminiModelName.isEmpty) {
+        throw Exception("GEMINI_MODEL_NAME not configured.");
+      }
+      
+      if (kDebugMode) print("[AIService - Chatbot] Prompt:\n$prompt");
+
+      for (int i = 0; i < geminiApiKeys.length; i++) {
+        final int keyAttemptIndex = (currentApiKeyIndex + i) % geminiApiKeys.length;
+        final String apiKey = geminiApiKeys[keyAttemptIndex];
+        if (apiKey.startsWith('YOUR_GEMINI_API_KEY')) continue;
+
+        try {
+          final model = genai.GenerativeModel(model: 'gemini-2.0-flash-lite', apiKey: apiKey);
+          final response = await model.generateContent([genai.Content.text(prompt)]);
+          String? rawResponseText = response.text;
+          if (rawResponseText == null || rawResponseText.trim().isEmpty) throw Exception("Chatbot AI response was empty.");
+          
+          if (kDebugMode) print("[AIService - Chatbot] Raw AI Response (Key Index $keyAttemptIndex):\n$rawResponseText");
+          onNewApiKeyIndex(keyAttemptIndex);
+          return rawResponseText.trim();
+        } catch (e) {
+          String errorDetail = e.toString();
+          if (e is genai.GenerativeAIException && e.message.contains("USER_LOCATION_INVALID")) errorDetail = "Geographic location restriction.";
+          else if (errorDetail.contains("API key not valid")) errorDetail = "Invalid API key.";
+          else if (errorDetail.contains("quota")) errorDetail = "API quota exceeded.";
+          else if (errorDetail.contains("Candidate was blocked due to SAFETY")) errorDetail = "Response blocked due to safety settings.";
+          
+          if (kDebugMode) print("[AIService - Chatbot] Error with API key index $keyAttemptIndex: $errorDetail");
+          if (i == geminiApiKeys.length - 1) return "I'm having trouble connecting. Please try again later. (Error: $errorDetail)";
+        }
+      }
+    } catch (e) {
+       return "I'm currently unable to process requests due to a configuration issue.";
+    }
+    return "I seem to be experiencing technical difficulties. Please check back soon.";
+  }
+}
+--- END OF FILE lib/src/services/ai_service.dart ---
+--- START OF FILE lib/src/widgets/components/checkpoint_list.dart ---
+ 
+// lib/src/widgets/components/checkpoint_list.dart
 import 'package:arcane/src/models/game_models.dart';
 import 'package:arcane/src/providers/game_provider.dart';
 import 'package:arcane/src/theme/app_theme.dart';
-import 'package:arcane/src/widgets/components/project_color_picker.dart';
+import 'package:arcane/src/widgets/ui/rhombus_checkbox.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:provider/provider.dart';
 
-class ProjectEditDialog extends StatefulWidget {
-final Project? project;
+class CheckpointList extends StatefulWidget {
+  final Project project;
+  final Task task;
 
-const ProjectEditDialog({super.key, this.project});
+  const CheckpointList({
+    super.key,
+    required this.project,
+    required this.task,
+  });
 
-bool get isEditMode => project != null;
-
-@override
-State<ProjectEditDialog> createState() => _ProjectEditDialogState();
+  @override
+  State<CheckpointList> createState() => _CheckpointListState();
 }
 
-class _ProjectEditDialogState extends State<ProjectEditDialog> {
-final _formKey = GlobalKey<FormState>();
-late TextEditingController _nameController;
-late TextEditingController _descController;
-late TextEditingController _themeController;
-late String _selectedColorHex;
+class _CheckpointListState extends State<CheckpointList> {
+  late Map<String, TextEditingController> _localCountControllers;
 
-@override
-void initState() {
-super.initState();
-_nameController = TextEditingController(text: widget.project?.name ?? '');
-_descController = TextEditingController(text: widget.project?.description ?? '');
-_themeController = TextEditingController(text: widget.project?.theme ?? '');
-_selectedColorHex = widget.project?.colorHex ?? '00BFFF'; // Default to fortnite blue
-}
+  @override
+  void initState() {
+    super.initState();
+    _initializeControllers();
+  }
 
-@override
-void dispose() {
-_nameController.dispose();
-_descController.dispose();
-_themeController.dispose();
-super.dispose();
-}
+  @override
+  void didUpdateWidget(CheckpointList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!const DeepCollectionEquality.unordered()
+        .equals(widget.task.checkpoints, oldWidget.task.checkpoints)) {
+      _syncControllers();
+    }
+  }
 
-void _handleSaveChanges() {
-if (!_formKey.currentState!.validate()) {
-return;
-}
+  void _initializeControllers() {
+    _localCountControllers = {
+      for (var cp in widget.task.checkpoints)
+        cp.id: TextEditingController(text: cp.currentCount.toString())
+    };
+  }
 
-final gameProvider = Provider.of<GameProvider>(context, listen: false);
-final themeText = _themeController.text.trim().toLowerCase().replaceAll(' ', '_');
+  void _syncControllers() {
+    final newCheckpointIds = widget.task.checkpoints.map((cp) => cp.id).toSet();
 
-if (widget.isEditMode) {
-  gameProvider.editProject(
-    widget.project!.id,
-    name: _nameController.text,
-    description: _descController.text,
-    theme: themeText,
-    colorHex: _selectedColorHex,
-  );
-} else {
-  gameProvider.addProject(
-    name: _nameController.text,
-    description: _descController.text,
-    theme: themeText.isNotEmpty ? themeText : 'general', // Default to general if empty
-    colorHex: _selectedColorHex,
-  );
-}
-Navigator.of(context).pop();
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-IGNORE_WHEN_COPYING_END
+    // Remove controllers for deleted checkpoints
+    final oldControllerIds = _localCountControllers.keys.toList();
+    for (final oldId in oldControllerIds) {
+      if (!newCheckpointIds.contains(oldId)) {
+        _localCountControllers[oldId]?.dispose();
+        _localCountControllers.remove(oldId);
+      }
+    }
 
-}
+    // Add new or update existing controllers
+    for (var cp in widget.task.checkpoints) {
+      if (_localCountControllers.containsKey(cp.id)) {
+        final controller = _localCountControllers[cp.id]!;
+        if (controller.text != cp.currentCount.toString() &&
+            !controller.selection.isValid) {
+          controller.text = cp.currentCount.toString();
+        }
+      } else {
+        _localCountControllers[cp.id] =
+            TextEditingController(text: cp.currentCount.toString());
+      }
+    }
+  }
 
-void _handleDelete() {
-final gameProvider = Provider.of<GameProvider>(context, listen: false);
-showDialog(
-context: context,
-builder: (ctx) => AlertDialog(
-title: Text('Delete Project?', style: TextStyle(color: AppTheme.fnAccentRed)),
-content: Text('Are you sure you want to delete "${widget.project!.name}"? This action cannot be undone.'),
-actions: [
-TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-ElevatedButton(
-onPressed: () {
-gameProvider.deleteProject(widget.project!.id);
-Navigator.of(ctx).pop(); // Close confirmation dialog
-Navigator.of(context).pop(); // Close edit dialog
-},
-style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fnAccentRed),
-child: const Text('Delete'),
-),
-],
-),
-);
-}
+  @override
+  void dispose() {
+    _localCountControllers.values.forEach((controller) => controller.dispose());
+    super.dispose();
+  }
 
-@override
-Widget build(BuildContext context) {
-return AlertDialog(
-backgroundColor: AppTheme.fnBgMedium,
-title: Text(widget.isEditMode ? 'Edit Project' : 'Add New Project'),
-content: Form(
-key: _formKey,
-child: SingleChildScrollView(
-child: Column(
-mainAxisSize: MainAxisSize.min,
-crossAxisAlignment: CrossAxisAlignment.start,
-children: [
-TextFormField(
-controller: _nameController,
-decoration: const InputDecoration(labelText: 'Project Name'),
-validator: (value) => value!.trim().isEmpty ? 'Project name cannot be empty.' : null,
-),
-const SizedBox(height: 16),
-TextFormField(
-controller: _descController,
-decoration: const InputDecoration(labelText: 'Description'),
-maxLines: 2,
-),
-const SizedBox(height: 16),
-TextFormField(
-controller: _themeController,
-decoration: const InputDecoration(
-labelText: 'Theme / Skill Name',
-hintText: 'e.g., fitness, programming, learning_spanish'
-),
-validator: (value) => value!.trim().isEmpty ? 'Theme cannot be empty.' : null,
-),
-const SizedBox(height: 24),
-Text("Select Project Color:", style: Theme.of(context).textTheme.labelMedium),
-const SizedBox(height: 12),
-ProjectColorPicker(
-selectedColorHex: _selectedColorHex,
-onColorSelected: (newColorHex) {
-setState(() {
-_selectedColorHex = newColorHex;
-});
-},
-),
-],
-),
-),
-),
-actionsAlignment: MainAxisAlignment.spaceBetween,
-actions: <Widget>[
-if (widget.isEditMode)
-IconButton(
-icon: Icon(MdiIcons.deleteForeverOutline, color: AppTheme.fnAccentRed),
-onPressed: _handleDelete,
-tooltip: 'Delete Project',
-),
-Row(
-mainAxisSize: MainAxisSize.min,
-children: [
-TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(context).pop()),
-const SizedBox(width: 8),
-ElevatedButton(
-child: Text(widget.isEditMode ? 'Save Changes' : 'Add Project'),
-onPressed: _handleSaveChanges,
-),
-],
-),
-],
-);
+  void _handleCheckboxChange(BuildContext context, GameProvider gp,
+      Project project, Task parentTask, Checkpoint checkpoint) {
+    if (checkpoint.isCountable) {
+      final currentCount =
+          int.tryParse(_localCountControllers[checkpoint.id]?.text ?? '0') ??
+              checkpoint.currentCount;
+      if (currentCount < checkpoint.targetCount) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'Please complete the target count (${checkpoint.targetCount}) for this step before marking as done.'),
+              backgroundColor: AppTheme.fnAccentRed),
+        );
+        return;
+      }
+    }
+    gp.completeCheckpoint(project.id, parentTask.id, checkpoint.id);
+  }
+
+  void _handleCountBlur(BuildContext context, GameProvider gp, Project project,
+      Task parentTask, Checkpoint checkpoint) {
+    if (checkpoint.isCountable) {
+      final newCount =
+          int.tryParse(_localCountControllers[checkpoint.id]?.text ?? '0') ??
+              checkpoint.currentCount;
+      if (newCount != checkpoint.currentCount) {
+        gp.updateCheckpoint(project.id, parentTask.id, checkpoint.id,
+            {'currentCount': newCount.clamp(0, checkpoint.targetCount)});
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final gameProvider = context.read<GameProvider>();
+    final completedCheckpoints =
+        widget.task.checkpoints.where((cp) => cp.completed).length;
+    final totalCheckpoints = widget.task.checkpoints.length;
+    final checkpointProgress =
+        totalCheckpoints > 0 ? (completedCheckpoints / totalCheckpoints) : 0.0;
+
+    final sortedCheckpoints = List<Checkpoint>.from(widget.task.checkpoints)
+      ..sort((a, b) => a.completed == b.completed ? 0 : (a.completed ? 1 : -1));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Checkpoints:',
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color:
+                        AppTheme.fnTextSecondary.withAlpha((255 * 0.8).round()),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 4,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: checkpointProgress,
+                    backgroundColor:
+                        AppTheme.fnBorderColor.withAlpha((255 * 0.3).round()),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppTheme.fortnitePurple),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sortedCheckpoints.length,
+            itemBuilder: (sctx, sIndex) {
+              final cp = sortedCheckpoints[sIndex];
+              final subskillXpChips = cp.subskillXp.entries.map((entry) {
+                final subskillId = entry.key;
+                final subskill = gameProvider.skills
+                    .expand((s) => s.subskills)
+                    .firstWhereOrNull((ss) => ss.id == subskillId);
+
+                if (subskill == null) return const SizedBox.shrink();
+
+                final parentSkill = gameProvider.skills.firstWhereOrNull(
+                    (s) => s.id == subskill.parentSkillId);
+                final projectForColor = gameProvider.projects.firstWhere(
+                    (p) => p.theme == parentSkill?.id,
+                    orElse: () => Project(
+                        id: '',
+                        name: '',
+                        description: '',
+                        theme: '',
+                        colorHex: 'FF00BFFF'));
+                final skillColor = projectForColor.color;
+
+                return Chip(
+                  label: Text(
+                      '+${entry.value.toStringAsFixed(1)} ${subskill.name} XP'),
+                  avatar: Icon(MdiIcons.starFourPointsOutline,
+                      size: 10, color: skillColor),
+                  backgroundColor: skillColor.withAlpha((255 * 0.1).round()),
+                  labelStyle: TextStyle(
+                      fontSize: 9,
+                      color: skillColor.withAlpha((255 * 0.9).round())),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4.0, left: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: RhombusCheckbox(
+                              checked: cp.completed,
+                              onChanged: cp.completed
+                                  ? null
+                                  : (bool? val) => _handleCheckboxChange(context,
+                                      gameProvider, widget.project, widget.task, cp),
+                              disabled: cp.completed,
+                              size: CheckboxSize.small,
+                            )),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: Text(
+                                '${cp.name}${cp.isCountable && !cp.completed ? ' (${_localCountControllers[cp.id]?.text ?? cp.currentCount}/${cp.targetCount})' : (cp.isCountable && cp.completed ? ' (${cp.currentCount}/${cp.targetCount})' : '')}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  decoration: cp.completed
+                                      ? TextDecoration.lineThrough
+                                      : TextDecoration.none,
+                                  color: cp.completed
+                                      ? AppTheme.fnTextSecondary
+                                          .withAlpha((255 * 0.6).round())
+                                      : AppTheme.fnTextSecondary,
+                                ))),
+                        if (cp.isCountable && !cp.completed)
+                          SizedBox(
+                            width: 35,
+                            height: 22,
+                            child: TextField(
+                              controller: _localCountControllers[cp.id],
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 10,
+                                  color: AppTheme.fnTextPrimary),
+                              decoration: const InputDecoration(
+                                  contentPadding:
+                                      EdgeInsets.symmetric(vertical: 1),
+                                  border: InputBorder.none,
+                                  filled: false),
+                              onEditingComplete: () => _handleCountBlur(
+                                  context,
+                                  gameProvider,
+                                  widget.project,
+                                  widget.task,
+                                  cp),
+                              onTapOutside: (_) => _handleCountBlur(
+                                  context,
+                                  gameProvider,
+                                  widget.project,
+                                  widget.task,
+                                  cp),
+                            ),
+                          ),
+                        if (cp.completed)
+                          IconButton(
+                            icon: Icon(MdiIcons.restore,
+                                color: AppTheme.fnTextSecondary.withAlpha(179),
+                                size: 16),
+                            tooltip: 'Repeat Checkpoint',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => gameProvider.duplicateCheckpoint(
+                                widget.project.id, widget.task.id, cp.id),
+                          )
+                        else
+                          IconButton(
+                              icon: Icon(MdiIcons.deleteOutline,
+                                  color: AppTheme.fnAccentRed
+                                      .withAlpha((255 * 0.7).round()),
+                                  size: 16),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => gameProvider.deleteCheckpoint(
+                                  widget.project.id, widget.task.id, cp.id)),
+                      ],
+                    ),
+                    if (subskillXpChips.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 28.0, top: 4),
+                        child: Wrap(
+                            spacing: 4, runSpacing: 4, children: subskillXpChips),
+                      ),
+                    ]
+                  ],
+                ),
+              );
+            }),
+      ],
+    );
+  }
 }
-}
---- END OF FILE lib/src/widgets/dialogs/project_edit_dialog.dart ---
---- START OF FILE lib/src/widgets/views/daily_summary_widgets/emotion_trend_chart.dart ---
-// lib/src/widgets/views/daily_summary_widgets/emotion_trend_chart.dart
+ 
+--- END OF FILE lib/src/widgets/components/checkpoint_list.dart ---
+--- START OF FILE lib/src/widgets/components/skill_card.dart ---
+// lib/src/widgets/components/skill_card.dart
 import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/utils/helpers.dart' as helper;
+import 'package:arcane/src/widgets/components/subskill_list_item.dart';
+import 'package:flutter/material.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+
+class SkillCard extends StatelessWidget {
+  final Skill skill;
+  final Color skillColor;
+  final bool isSelected;
+  final VoidCallback onSelect;
+  final Function(String) onSubskillSelect;
+
+  const SkillCard({
+    super.key,
+    required this.skill,
+    required this.skillColor,
+    required this.isSelected,
+    required this.onSelect,
+    required this.onSubskillSelect,
+  });
+
+  IconData _getIconData(String? iconName) {
+    return MdiIcons.fromString(iconName ?? 'star-shooting-outline') ?? MdiIcons.starShootingOutline;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final double currentLevelXpStart = helper.skillXpForLevel(skill.level);
+    final double xpNeededForNext = helper.skillXpToNext(skill.level);
+    final double currentLevelProgress = skill.xp - currentLevelXpStart;
+    final double progressPercent = xpNeededForNext > 0 ? (currentLevelProgress / xpNeededForNext).clamp(0.0, 1.0) : 0.0;
+
+    return Card(
+      color: isSelected ? skillColor.withAlpha((255 * 0.25).round()) : AppTheme.fnBgMedium,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: isSelected ? BorderSide(color: skillColor, width: 1.5) : BorderSide(color: AppTheme.fnBorderColor.withAlpha((255 * 0.5).round()), width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        key: ValueKey(skill.id), // Ensure state is preserved on rebuilds
+        onExpansionChanged: (expanded) {
+          if (expanded) {
+            onSelect();
+          }
+        },
+        initiallyExpanded: isSelected,
+        collapsedIconColor: skillColor,
+        iconColor: skillColor,
+        title: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(_getIconData(skill.iconName), color: skillColor, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(skill.name, style: theme.textTheme.titleLarge?.copyWith(color: AppTheme.fnTextPrimary, fontWeight: FontWeight.bold, fontSize: 16))),
+                  Text('LVL ${skill.level}', style: theme.textTheme.titleMedium?.copyWith(fontFamily: AppTheme.fontDisplay, color: skillColor, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 8,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progressPercent,
+                    backgroundColor: AppTheme.fnBorderColor.withAlpha((255 * 0.2).round()),
+                    valueColor: AlwaysStoppedAnimation<Color>(skillColor.withAlpha((255 * 0.8).round())),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('XP: ${currentLevelProgress.toStringAsFixed(1)} / ${xpNeededForNext.toStringAsFixed(1)}', style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fnTextSecondary, fontSize: 11)),
+                  Text('Total: ${skill.xp.toStringAsFixed(1)} XP', style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.fnTextSecondary.withAlpha((255 * 0.7).round()), fontSize: 10)),
+                ],
+              )
+            ],
+          ),
+        ),
+        children: [
+          Container(
+            color: AppTheme.fnBgDark.withAlpha(100),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              children: [
+                 if (skill.subskills.isEmpty)
+                   Padding(
+                     padding: const EdgeInsets.symmetric(vertical: 16.0),
+                     child: Text('No subskills yet. Enhance tasks to unlock them!', style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: AppTheme.fnTextSecondary)),
+                   )
+                 else
+                  ...skill.subskills
+                      .map((subskill) => SubskillListItem(
+                            subskill: subskill,
+                            skillColor: skillColor,
+                            onSelect: () => onSubskillSelect(subskill.id),
+                          ))
+                      .toList()
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+--- END OF FILE lib/src/widgets/components/skill_card.dart ---
+--- START OF FILE lib/src/widgets/components/skill_xp_pie_chart.dart ---
+// lib/src/widgets/components/skill_xp_pie_chart.dart
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class SkillXpPieChart extends StatefulWidget {
+  const SkillXpPieChart({super.key});
+
+  @override
+  State<SkillXpPieChart> createState() => _SkillXpPieChartState();
+}
+
+class _SkillXpPieChartState extends State<SkillXpPieChart> {
+  int _touchedPieIndex = -1;
+
+  @override
+  Widget build(BuildContext context) {
+    final gameProvider = context.watch<GameProvider>();
+    final theme = Theme.of(context);
+
+    final List<PieChartSectionData> pieChartSections = [];
+    final double totalXp = gameProvider.skills.fold(0.0, (sum, skill) => sum + skill.xp);
+
+    if (totalXp == 0) {
+      return const SizedBox.shrink(); // Don't show chart if no XP
+    }
+
+    for (int i = 0; i < gameProvider.skills.length; i++) {
+      final skill = gameProvider.skills[i];
+      if (skill.xp <= 0) continue;
+
+      final isTouched = i == _touchedPieIndex;
+      final projectForColor = gameProvider.projects.firstWhere(
+        (project) => project.theme == skill.id,
+        orElse: () => Project(id: '', name: '', description: '', theme: '', colorHex: 'FF8A2BE2'),
+      );
+      final skillColor = projectForColor.color;
+      final percentage = (skill.xp / totalXp) * 100;
+
+      pieChartSections.add(PieChartSectionData(
+        color: skillColor,
+        value: skill.xp,
+        title: '${percentage.toStringAsFixed(0)}%',
+        radius: isTouched ? 45.0 : 35.0,
+        titleStyle: TextStyle(
+          fontSize: isTouched ? 12.0 : 10.0,
+          fontWeight: FontWeight.bold,
+          color: AppTheme.fnBgDark,
+          fontFamily: AppTheme.fontDisplay,
+          shadows: const [Shadow(color: Colors.black38, blurRadius: 2)],
+        ),
+      ));
+    }
+
+    return Column(
+      children: [
+        Text("Total XP Distribution", style: theme.textTheme.titleMedium),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 120,
+          child: PieChart(
+            PieChartData(
+              pieTouchData: PieTouchData(
+                touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                  setState(() {
+                    if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
+                      _touchedPieIndex = -1;
+                      return;
+                    }
+                    _touchedPieIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                  });
+                },
+              ),
+              borderData: FlBorderData(show: false),
+              sectionsSpace: 2,
+              centerSpaceRadius: 30,
+              sections: pieChartSections,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+--- END OF FILE lib/src/widgets/components/skill_xp_pie_chart.dart ---
+--- START OF FILE lib/src/widgets/components/subskill_list_item.dart ---
+// lib/src/widgets/components/subskill_list_item.dart
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/utils/helpers.dart' as helper;
+import 'package:flutter/material.dart';
+
+class SubskillListItem extends StatelessWidget {
+  final Subskill subskill;
+  final Color skillColor;
+  final VoidCallback onSelect;
+
+  const SubskillListItem({
+    super.key,
+    required this.subskill,
+    required this.skillColor,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final double currentLevelXpStart = helper.skillXpForLevel(subskill.level);
+    final double xpNeededForNext = helper.skillXpToNext(subskill.level);
+    final double currentLevelProgress = subskill.xp - currentLevelXpStart;
+    final double progressPercent = xpNeededForNext > 0 ? (currentLevelProgress / xpNeededForNext).clamp(0.0, 1.0) : 0.0;
+
+    return InkWell(
+      onTap: onSelect,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    subskill.name,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.fnTextSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Lvl ${subskill.level}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: skillColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 4,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: progressPercent,
+                  backgroundColor: AppTheme.fnBorderColor.withAlpha(50),
+                  valueColor: AlwaysStoppedAnimation<Color>(skillColor.withAlpha(150)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  '${currentLevelProgress.toStringAsFixed(1)} / ${xpNeededForNext.toStringAsFixed(1)} XP',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppTheme.fnTextSecondary.withAlpha(150),
+                    fontSize: 9,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+--- END OF FILE lib/src/widgets/components/subskill_list_item.dart ---
+--- START OF FILE lib/src/widgets/components/xp_history_graph.dart ---
+// lib/src/widgets/components/xp_history_graph.dart
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/providers/game_provider.dart';
 import 'package:arcane/src/theme/app_theme.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:collection/collection.dart';
 
-class EmotionTrendChart extends StatelessWidget {
-final List<EmotionLog> logs;
-final ThemeData theme;
-final Color dynamicAccent;
+class XpHistoryGraph extends StatelessWidget {
+  final String selectedSubskillId;
+  final Color skillColor;
 
-const EmotionTrendChart({
-super.key,
-required this.logs,
-required this.theme,
-required this.dynamicAccent,
-});
+  const XpHistoryGraph({
+    super.key,
+    required this.selectedSubskillId,
+    required this.skillColor,
+  });
 
-String _getEmotionLabel(int primaryRatingCategory) {
-if (primaryRatingCategory >= 5) return "Great";
-switch (primaryRatingCategory) {
-case 1: return "Awful";
-case 2: return "Bad";
-case 3: return "Okay";
-case 4: return "Good";
-default: return "Okay";
-}
-}
+  List<FlSpot> _getChartData(GameProvider gameProvider) {
+    List<Map<String, dynamic>> xpEvents = [];
+    final now = DateTime.now();
+    final twentyFourHoursAgo = now.subtract(const Duration(hours: 24));
 
-@override
-Widget build(BuildContext context) {
-if (logs.length < 2) {
-return SizedBox(
-height: 200,
-child: Center(child: Text("Need at least 2 logs for a trend line.", textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextSecondary, fontStyle: FontStyle.italic))),
-);
-}
-List<FlSpot> spots = logs.map((log) {
-final DateTime logDayMidnight = DateTime(log.timestamp.year, log.timestamp.month, log.timestamp.day);
-double xValue = log.timestamp.toLocal().difference(logDayMidnight).inMinutes / 60.0;
-return FlSpot(xValue, log.rating.toDouble());
-}).toList();
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+    final yesterdayStr = DateFormat('yyyy-MM-dd').format(now.subtract(const Duration(days: 1)));
 
-double dataMinX = spots.map((s) => s.x).reduce((a, b) => a < b ? a : b);
-double dataMaxX = spots.map((s) => s.x).reduce((a, b) => a > b ? a : b);
-double minX, maxX;
+    final relevantDates = [todayStr, yesterdayStr];
 
-if (dataMaxX == dataMinX) {
-  minX = (dataMinX - 1.0).clamp(0.0, 23.0);
-  maxX = (dataMaxX + 1.0).clamp(minX + 0.1, 23.99);
-} else {
-  double range = dataMaxX - dataMinX;
-  minX = (dataMinX - range * 0.05).clamp(0.0, 23.49);
-  maxX = (dataMaxX + range * 0.05).clamp(minX + 0.1, 23.99);
-}
+    for (var dateStr in relevantDates) {
+      final dayData = gameProvider.completedByDay[dateStr];
+      if (dayData != null) {
+        final checkpoints = dayData['checkpointsCompleted'] as List<dynamic>? ?? [];
+        for (var cpLog in checkpoints) {
+          final logMap = cpLog as Map<String, dynamic>;
+          final timestamp = DateTime.tryParse(logMap['completionTimestamp'] as String? ?? '');
+          if (timestamp != null && timestamp.isAfter(twentyFourHoursAgo)) {
+            final double xpForSkill = (logMap['subskillXp'] as Map<String, dynamic>?)?[selectedSubskillId]?.toDouble() ?? 0.0;
+            if (xpForSkill > 0) {
+              xpEvents.add({'timestamp': timestamp, 'xp': xpForSkill});
+            }
+          }
+        }
+      }
+    }
 
-if (maxX - minX < 0.2) {
-  double midDataX = (dataMinX + dataMaxX) / 2.0;
-  minX = (midDataX - 0.5).clamp(0.0, 23.0);
-  maxX = (midDataX + 0.5).clamp(minX + 0.1, 23.99);
-  if (maxX <= minX) { minX = 0.0; maxX = 23.99; }
-}
+    if (xpEvents.isEmpty) {
+      return [];
+    }
 
-return SizedBox(
-  height: 200,
-  child: LineChart(
-    LineChartData(
-      minX: minX, maxX: maxX, minY: 0.5, maxY: 6.5,
-      gridData: FlGridData(
-        show: true, drawVerticalLine: true,
-        horizontalInterval: 1, verticalInterval: ((maxX - minX) / 5).clamp(0.2, 6.0),
-        getDrawingHorizontalLine: (value) => FlLine(color: AppTheme.fnBorderColor.withAlpha((255 * 0.1).round()), strokeWidth: 0.8),
-        getDrawingVerticalLine: (value) => FlLine(color: AppTheme.fnBorderColor.withAlpha((255 * 0.1).round()), strokeWidth: 0.8),
-      ),
-      titlesData: FlTitlesData(
-        leftTitles: AxisTitles(sideTitles: SideTitles(
-            showTitles: true, interval: 1, reservedSize: 30,
-            getTitlesWidget: (value, meta) {
-              if (value >= 1 && value <= 6 && value == value.truncateToDouble()) return Text(value.toInt().toString(), style: const TextStyle(color: AppTheme.fnTextSecondary, fontSize: 10));
-              return const Text('');
-            },
-        )),
-        bottomTitles: AxisTitles(sideTitles: SideTitles(
-            showTitles: true, reservedSize: 30, interval: ((maxX - minX) / 4).ceilToDouble().clamp(0.5, 6.0),
-            getTitlesWidget: (value, meta) {
-              final hour = value.truncate().clamp(0, 23);
-              final minute = ((value - hour) * 60).round().clamp(0, 59);
-              return Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(DateFormat('HH:mm').format(DateTime(2000, 1, 1, hour, minute)), style: const TextStyle(color: AppTheme.fnTextSecondary, fontSize: 10, fontWeight: FontWeight.bold)));
-            },
-        )),
-        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      ),
-      borderData: FlBorderData(show: true, border: Border.all(color: AppTheme.fnBorderColor.withAlpha((255 * 0.2).round()))),
-      lineBarsData: [
-        LineChartBarData(
-          spots: spots,
-          isCurved: true,
-          curveSmoothness: 0.35,
-          color: dynamicAccent,
-          barWidth: 3,
-          isStrokeCapRound: true,
-          dotData: FlDotData(show: true, getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(radius: 4, color: dynamicAccent.withAlpha((255 * 0.8).round()), strokeWidth: 1.5, strokeColor: AppTheme.fnBgMedium)),
-          belowBarData: BarAreaData(show: true, color: dynamicAccent.withAlpha((255 * 0.1).round())),
+    xpEvents.sort((a, b) => (a['timestamp'] as DateTime).compareTo(b['timestamp'] as DateTime));
+
+    List<FlSpot> spots = [];
+    double cumulativeXp = 0;
+    for (var event in xpEvents) {
+      cumulativeXp += (event['xp'] as double);
+      double hoursAgo = now.difference(event['timestamp'] as DateTime).inMinutes / 60.0;
+      spots.add(FlSpot(24 - hoursAgo, cumulativeXp));
+    }
+
+    return spots;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gameProvider = context.watch<GameProvider>();
+    final List<FlSpot> spots = _getChartData(gameProvider);
+    final theme = Theme.of(context);
+    final subskill = gameProvider.skills.expand((s) => s.subskills).firstWhereOrNull((ss) => ss.id == selectedSubskillId);
+
+    if (spots.isEmpty) {
+      return Container(
+        height: 150,
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Text(
+            'No XP gained for this subskill in the last 24 hours. Complete checkpoints to see progress!',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextSecondary, fontStyle: FontStyle.italic),
+          ),
+        ),
+      );
+    }
+    
+    double maxY = spots.map((spot) => spot.y).reduce((a, b) => a > b ? a : b);
+    maxY = (maxY * 1.2).ceilToDouble();
+    if (maxY < 10) {
+      maxY = 10;
+    }
+
+    return Column(
+      children: [
+        Text("Last 24h XP Gain: ${subskill?.name ?? '...'}",
+            style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 150,
+          child: LineChart(
+            LineChartData(
+              minX: 0,
+              maxX: 24,
+              minY: 0,
+              maxY: maxY,
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: true,
+                horizontalInterval: (maxY / 4).clamp(1, 1000),
+                verticalInterval: 6,
+                getDrawingHorizontalLine: (value) => FlLine(color: AppTheme.fnBorderColor.withAlpha((255 * 0.1).round()), strokeWidth: 0.8),
+                getDrawingVerticalLine: (value) => FlLine(color: AppTheme.fnBorderColor.withAlpha((255 * 0.1).round()), strokeWidth: 0.8),
+              ),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: (maxY / 4).clamp(1, 1000),
+                    reservedSize: 30,
+                    getTitlesWidget: (value, meta) {
+                      return Text(value.toInt().toString(), style: const TextStyle(color: AppTheme.fnTextSecondary, fontSize: 10));
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    interval: 6,
+                    getTitlesWidget: (value, meta) {
+                      String text;
+                      if (value == 0) {
+                        text = '24h ago';
+                      } else if (value == 24) {
+                        text = 'Now';
+                      } else {
+                        text = '${(24 - value).toInt()}h ago';
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(text, style: const TextStyle(color: AppTheme.fnTextSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+                      );
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: true, border: Border.all(color: AppTheme.fnBorderColor.withAlpha((255 * 0.2).round()))),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: false,
+                  color: skillColor,
+                  barWidth: 3,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(show: true, color: skillColor.withAlpha((255 * 0.2).round())),
+                ),
+              ],
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (touchedSpot) => AppTheme.fnBgMedium,
+                  getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                     return touchedSpots.map((spot) {
+                      return LineTooltipItem(
+                        '+${spot.y.toStringAsFixed(1)} XP',
+                        TextStyle(color: skillColor, fontWeight: FontWeight.bold),
+                      );
+                    }).toList();
+                  }
+                )
+              )
+            ),
+          ),
         ),
       ],
-      lineTouchData: LineTouchData(
-        touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (touchedSpot) => AppTheme.fnBgMedium,
-          getTooltipItems: (List<LineBarSpot> touchedSpots) {
-            return touchedSpots.map((spot) {
-                  final logEntry = logs[spot.spotIndex];
-                  return LineTooltipItem('${_getEmotionLabel(spot.y.truncate())} (${spot.y.toStringAsFixed(2)}) at ${DateFormat('HH:mm').format(logEntry.timestamp.toLocal())}', TextStyle(color: dynamicAccent, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontDisplay));
-                }).toList();
-          },
+    );
+  }
+}
+--- END OF FILE lib/src/widgets/components/xp_history_graph.dart ---
+--- START OF FILE lib/src/widgets/task_card.dart ---
+ 
+// lib/src/widgets/task_card.dart
+import 'dart:async';
+
+import 'package:arcane/src/widgets/components/checkpoint_list.dart';
+import 'package:arcane/src/widgets/components/task_progress_bar.dart';
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/utils/helpers.dart' as helper;
+
+class TaskCard extends StatefulWidget {
+  final Project project;
+  final Task task;
+
+  const TaskCard({
+    super.key,
+    required this.project,
+    required this.task,
+  });
+
+  @override
+  State<TaskCard> createState() => _TaskCardState();
+}
+
+class _TaskCardState extends State<TaskCard> {
+  late GameProvider gameProvider;
+  Timer? _timerDisplayUpdater;
+  final _newCheckpointNameController = TextEditingController();
+  bool _isEditingTime = false;
+  late TextEditingController _timeController;
+  final FocusNode _timeFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    gameProvider = Provider.of<GameProvider>(context, listen: false);
+    _timeController = TextEditingController(text: widget.task.currentTimeSpent.toString());
+    _startTimerDisplayUpdater();
+  }
+
+  @override
+  void didUpdateWidget(TaskCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.task.id != oldWidget.task.id) {
+      _timeController.text = widget.task.currentTimeSpent.toString();
+    } else {
+      if (widget.task.currentTimeSpent.toString() != _timeController.text && !_timeFocusNode.hasFocus) {
+        _timeController.text = widget.task.currentTimeSpent.toString();
+      }
+    }
+    
+    _timerDisplayUpdater?.cancel();
+    _startTimerDisplayUpdater();
+  }
+
+  @override
+  void dispose() {
+    _newCheckpointNameController.dispose();
+    _timeController.dispose();
+    _timeFocusNode.dispose();
+    _timerDisplayUpdater?.cancel();
+    super.dispose();
+  }
+
+  void _startTimerDisplayUpdater() {
+    final timerState = gameProvider.activeTimers[widget.task.id];
+    if (timerState != null && timerState.isRunning) {
+      _timerDisplayUpdater = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        if (mounted) {
+          setState(() {});
+        } else {
+          timer.cancel();
+        }
+      });
+    }
+  }
+
+  void _showAIEnhanceDialog(BuildContext context, GameProvider gameProvider,
+      Project project, Task task) {
+    final aiInputController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppTheme.fnBgMedium,
+          title:  Row(children: [
+            Icon(MdiIcons.autoFix, color: AppTheme.fortnitePurple),
+            const SizedBox(width: 8),
+            const Text("Enhance Task", style: TextStyle(color: AppTheme.fortnitePurple)),
+          ]),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    "AI will analyze '${task.name}' and generate smaller, actionable checkpoints for it.",
+                    style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: aiInputController,
+                  decoration: const InputDecoration(
+                    labelText: 'Instructions (Optional)',
+                    hintText: 'e.g., "Focus on research steps"',
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton.icon(
+              icon: gameProvider.isGeneratingSubquests ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) :  Icon(MdiIcons.creation, size: 16),
+              label: const Text("Enhance"),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fortnitePurple),
+              onPressed: gameProvider.isGeneratingSubquests ? null : () {
+                gameProvider.triggerAIEnhanceTask(project, task, aiInputController.text);
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _handleAddCheckpoint() {
+    final name = _newCheckpointNameController.text.trim();
+    if (name.isNotEmpty) {
+      gameProvider.addCheckpoint(widget.project.id, widget.task.id, {'name': name});
+      _newCheckpointNameController.clear();
+      FocusScope.of(context).unfocus();
+    }
+  }
+
+  void _handlePlayPauseTimer() {
+    final timerState = gameProvider.activeTimers[widget.task.id];
+    if (timerState?.isRunning ?? false) {
+      gameProvider.pauseTimer(widget.task.id);
+      gameProvider.logTimerAndReset(widget.task.id);
+      _timerDisplayUpdater?.cancel();
+    } else {
+      gameProvider.startTimer(widget.task.id, 'task', widget.project.id);
+      _startTimerDisplayUpdater();
+    }
+    setState(() {});
+  }
+  
+  void _handleSaveTime() {
+    if (_isEditingTime) {
+      final newTime = int.tryParse(_timeController.text);
+      if (newTime != null && newTime != widget.task.currentTimeSpent) {
+        gameProvider.updateTask(widget.project.id, widget.task.id, {'currentTimeSpent': newTime});
+      }
+    }
+    if(mounted) {
+      setState(() => _isEditingTime = false);
+      FocusScope.of(context).unfocus();
+    }
+  }
+
+  void _toggleTimeEdit() {
+    if (_isEditingTime) {
+      _handleSaveTime();
+    } else {
+      if (mounted) {
+        setState(() {
+          _isEditingTime = true;
+          _timeFocusNode.requestFocus();
+        });
+      }
+    }
+  }
+
+  void _handleCompleteTask() {
+    final success = gameProvider.completeTask(widget.project.id, widget.task.id);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Cannot complete. Ensure countable tasks are at target and any sub-checkpoints are done.'),
+            backgroundColor: AppTheme.fnAccentRed),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final task = widget.task;
+    final timerState = gameProvider.activeTimers[task.id];
+    final isTimerRunning = timerState?.isRunning ?? false;
+
+    double currentSessionSeconds = 0;
+    if (timerState != null) {
+      currentSessionSeconds = timerState.accumulatedDisplayTime;
+      if (isTimerRunning) {
+        currentSessionSeconds += DateTime.now().difference(timerState.startTime).inSeconds;
+      }
+    }
+
+    final subskillChips = task.subskillXp.entries.map((entry) {
+      final subskillId = entry.key;
+      final subskill = gameProvider.skills.expand((s) => s.subskills).firstWhereOrNull((ss) => ss.id == subskillId);
+      
+      if (subskill == null) return const SizedBox.shrink();
+
+      final parentSkill = gameProvider.skills.firstWhereOrNull((s) => s.id == subskill.parentSkillId);
+      final projectForColor = gameProvider.projects.firstWhere(
+        (p) => p.theme == parentSkill?.id,
+        orElse: () => Project(id: '', name: '', description: '', theme: '', colorHex: 'FF00BFFF')
+      );
+      final skillColor = projectForColor.color;
+
+      return Chip(
+        avatar: Icon(MdiIcons.starFourPointsOutline, color: skillColor, size: 14),
+        label: Text('+${entry.value.toStringAsFixed(1)} ${subskill.name} XP'),
+        backgroundColor: skillColor.withAlpha((255 * 0.15).round()),
+        labelStyle: TextStyle(color: skillColor, fontSize: 11, fontWeight: FontWeight.w500),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      );
+    }).toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(task.name, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600))),
+                IconButton(
+                  icon:  Icon(MdiIcons.checkCircleOutline, size: 18),
+                  onPressed: _handleCompleteTask,
+                  tooltip: "Complete Task",
+                  style: IconButton.styleFrom(backgroundColor: AppTheme.fnAccentGreen.withAlpha((255 * 0.2).round()), foregroundColor: AppTheme.fnAccentGreen, fixedSize: const Size(32,32)),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon:  Icon(MdiIcons.autoFix, size: 18),
+                  onPressed: () => _showAIEnhanceDialog(context, gameProvider, widget.project, task),
+                  tooltip: "Enhance with AI",
+                  style: IconButton.styleFrom(backgroundColor: AppTheme.fortnitePurple.withAlpha((255 * 0.2).round()), foregroundColor: AppTheme.fortnitePurple, fixedSize: const Size(32,32)),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  onPressed: () => gameProvider.deleteTask(widget.project.id, task.id),
+                  tooltip: "Delete Task",
+                  style: IconButton.styleFrom(backgroundColor: AppTheme.fnAccentRed.withAlpha((255 * 0.2).round()), foregroundColor: AppTheme.fnAccentRed, fixedSize: const Size(32,32)),
+                ),
+              ],
+            ),
+            TaskProgressBar(task: task),
+            const SizedBox(height: 16),
+            if (subskillChips.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: subskillChips),
+            if (subskillChips.isNotEmpty) const SizedBox(height: 16),
+            
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.fnBgMedium.withAlpha((255 * 0.5).round()),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.fnBorderColor.withAlpha((255 * 0.5).round()))
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Text("Logged (m):", style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextSecondary)),
+                      const SizedBox(width: 12),
+                       if (_isEditingTime)
+                        Expanded(
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 50, height: 32,
+                                child: TextField(
+                                  controller: _timeController, focusNode: _timeFocusNode,
+                                  keyboardType: TextInputType.number, textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextPrimary),
+                                  decoration: const InputDecoration(contentPadding: EdgeInsets.zero, border: OutlineInputBorder()),
+                                  onEditingComplete: _handleSaveTime,
+                                  onTapOutside: (_) => _handleSaveTime(),
+                                ),
+                              ),
+                              IconButton(icon: const Icon(Icons.check, size: 20), onPressed: _handleSaveTime, color: AppTheme.fnAccentGreen),
+                            ],
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Text(widget.task.currentTimeSpent.toString(), style: theme.textTheme.bodyLarge),
+                              IconButton(icon: const Icon(Icons.edit_outlined, size: 16), onPressed: _toggleTimeEdit, color: AppTheme.fnTextSecondary),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                   const SizedBox(height: 8),
+                  Divider(color: AppTheme.fnBorderColor.withAlpha((255 * 0.2).round())),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                       Text("Session:", style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.fnTextSecondary)),
+                       const Spacer(),
+                       Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.fnBgDark,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: widget.project.color.withAlpha(isTimerRunning ? (255 * 0.5).round() : (255 * 0.2).round()))
+                        ),
+                        child: Text(
+                          helper.formatTime(currentSessionSeconds),
+                          style: theme.textTheme.bodyLarge?.copyWith(fontFamily: 'Courier New', fontWeight: FontWeight.bold, color: widget.project.color)
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(isTimerRunning ? Icons.pause : Icons.play_arrow, size: 24),
+                        onPressed: _handlePlayPauseTimer,
+                        style: IconButton.styleFrom(backgroundColor: widget.project.color, foregroundColor: ThemeData.estimateBrightnessForColor(widget.project.color) == Brightness.dark ? Colors.white : AppTheme.fnBgDark, fixedSize: const Size(40,40), shape: const CircleBorder()),
+                      )
+                    ],
+                  )
+                ],
+              )
+            ),
+            const SizedBox(height: 24),
+            
+            CheckpointList(
+              project: widget.project,
+              task: task,
+            ),
+            
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newCheckpointNameController,
+                      decoration: const InputDecoration(hintText: 'Add a checkpoint...'),
+                      onSubmitted: (_) => _handleAddCheckpoint(),
+                    ),
+                  ),
+                  IconButton(icon: const Icon(Icons.add_circle_outline, size: 24), onPressed: _handleAddCheckpoint, color: widget.project.color)
+                ],
+              ),
+            )
+          ],
         ),
       ),
-    ),
-  ),
-);
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-IGNORE_WHEN_COPYING_END
+    );
+  }
+}
+ 
+--- END OF FILE lib/src/widgets/task_card.dart ---
+--- START OF FILE lib/src/widgets/views/skills_view.dart ---
+// lib/src/widgets/views/skills_view.dart
+import 'package:arcane/src/widgets/components/skill_card.dart';
+import 'package:arcane/src/widgets/components/skill_xp_pie_chart.dart';
+import 'package:arcane/src/widgets/components/xp_history_graph.dart';
+import 'package:flutter/material.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/models/game_models.dart';
+import 'package:provider/provider.dart';
+import 'package:collection/collection.dart';
 
+class SkillsView extends StatefulWidget {
+  const SkillsView({super.key});
+
+  @override
+  State<SkillsView> createState() => _SkillsViewState();
 }
+
+class _SkillsViewState extends State<SkillsView> {
+  String? _selectedSkillIdForCards;
+  String? _selectedSubskillIdForGraph;
+
+  @override
+  void initState() {
+    super.initState();
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
+    _initializeSelection(gameProvider);
+  }
+  
+  void _initializeSelection(GameProvider gameProvider) {
+    if (gameProvider.skills.isNotEmpty) {
+      _selectedSkillIdForCards = gameProvider.skills.first.id;
+      if (gameProvider.skills.first.subskills.isNotEmpty) {
+        _selectedSubskillIdForGraph = gameProvider.skills.first.subskills.first.id;
+      }
+    }
+  }
+
+  void _updateSelection(GameProvider gameProvider) {
+    if (_selectedSkillIdForCards == null && gameProvider.skills.isNotEmpty) {
+       _selectedSkillIdForCards = gameProvider.skills.first.id;
+    } else if (_selectedSkillIdForCards != null && !gameProvider.skills.any((s) => s.id == _selectedSkillIdForCards)) {
+       _selectedSkillIdForCards = gameProvider.skills.isNotEmpty ? gameProvider.skills.first.id : null;
+    }
+
+    final selectedSkill = gameProvider.skills.firstWhereOrNull((s) => s.id == _selectedSkillIdForCards);
+    if (_selectedSubskillIdForGraph == null && selectedSkill?.subskills.isNotEmpty == true) {
+      _selectedSubskillIdForGraph = selectedSkill!.subskills.first.id;
+    } else if (_selectedSubskillIdForGraph != null && selectedSkill?.subskills.any((ss) => ss.id == _selectedSubskillIdForGraph) != true) {
+       _selectedSubskillIdForGraph = selectedSkill?.subskills.isNotEmpty == true ? selectedSkill.subskills.first.id : null;
+    }
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<GameProvider>(
+      builder: (context, gameProvider, child) {
+        final theme = Theme.of(context);
+        final skills = gameProvider.skills;
+
+        if (skills.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'No skills acquired yet. Complete tasks to develop new skills.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.fnTextSecondary,
+                    fontStyle: FontStyle.italic),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+
+        // Ensure selections are valid after a rebuild (e.g., a skill was deleted)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+            _updateSelection(gameProvider);
+        });
+
+        final selectedSkill = _selectedSkillIdForCards != null
+            ? skills.firstWhereOrNull((s) => s.id == _selectedSkillIdForCards)
+            : null;
+
+        final skillColorForGraph = selectedSkill != null
+            ? gameProvider.projects.firstWhere(
+                (project) => project.theme == selectedSkill.id,
+                orElse: () => Project(id: '', name: '', description: '', theme: '', colorHex: 'FF8A2BE2'),
+              ).color
+            : AppTheme.fortnitePurple;
+            
+        return Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: SkillXpPieChart(),
+            ),
+            const Divider(height: 24),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                itemCount: skills.length + 1, // +1 for the graph
+                itemBuilder: (context, index) {
+                   if (index == skills.length) {
+                    // This is the last item, show the graph
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
+                      child: _selectedSubskillIdForGraph != null
+                          ? XpHistoryGraph(
+                              selectedSubskillId: _selectedSubskillIdForGraph!,
+                              skillColor: skillColorForGraph,
+                            )
+                          : const SizedBox(height: 150),
+                    );
+                  }
+                  final skill = skills[index];
+                  final projectForColor = gameProvider.projects.firstWhere(
+                    (project) => project.theme == skill.id,
+                    orElse: () => Project(id: '', name: '', description: '', theme: '', colorHex: 'FF8A2BE2'),
+                  );
+                  final skillColor = projectForColor.color;
+                  return SkillCard(
+                    skill: skill,
+                    skillColor: skillColor,
+                    isSelected: _selectedSkillIdForCards == skill.id,
+                    onSelect: () {
+                      setState(() {
+                        _selectedSkillIdForCards = skill.id;
+                        _selectedSubskillIdForGraph = skill.subskills.isNotEmpty ? skill.subskills.first.id : null;
+                      });
+                    },
+                    onSubskillSelect: (subskillId) {
+                       setState(() => _selectedSubskillIdForGraph = subskillId);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
---- END OF FILE lib/src/widgets/views/daily_summary_widgets/emotion_trend_chart.dart ---
+--- END OF FILE lib/src/widgets/views/skills_view.dart ---
+--- START OF FILE lib/src/widgets/views/settings_sections/skill_management_settings.dart ---
+// lib/src/widgets/views/settings_sections/skill_management_settings.dart
+import 'package:arcane/src/models/game_models.dart';
+import 'package:arcane/src/providers/game_provider.dart';
+import 'package:arcane/src/theme/app_theme.dart';
+import 'package:arcane/src/utils/constants.dart';
+import 'package:arcane/src/widgets/views/settings_sections/settings_section_card.dart';
+import 'package:flutter/material.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:provider/provider.dart';
+
+class SkillManagementSettings extends StatefulWidget {
+  const SkillManagementSettings({super.key});
+
+  @override
+  State<SkillManagementSettings> createState() => _SkillManagementSettingsState();
+}
+
+class _SkillManagementSettingsState extends State<SkillManagementSettings> {
+  void _showEditSkillDialog(BuildContext context, GameProvider gameProvider, Skill skill) {
+    final nameController = TextEditingController(text: skill.name);
+    String selectedIconName = skill.iconName;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text('Edit Skill: ${skill.name}'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Skill Name'),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text('Select Icon'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: themeToIconName.entries.map((entry) {
+                        bool isSelected = selectedIconName == entry.key;
+                        return GestureDetector(
+                          onTap: () => setDialogState(() => selectedIconName = entry.key),
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: isSelected ? Theme.of(context).primaryColor : AppTheme.fnBgLight,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected ? Theme.of(context).primaryColor : AppTheme.fnBorderColor,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Icon(MdiIcons.fromString(entry.value), color: isSelected ? Colors.white : AppTheme.fnTextSecondary),
+                          ),
+                        );
+                      }).toList(),
+                    )
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () {
+                    gameProvider.editSkill(skill.id, newName: nameController.text, newIconName: selectedIconName);
+                    Navigator.of(ctx).pop();
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmAndDeleteSubskill(BuildContext context, GameProvider gameProvider, Subskill subskill) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Subskill?', style: TextStyle(color: AppTheme.fnAccentRed)),
+        content: Text('Are you sure you want to delete the "${subskill.name}" subskill? This will remove its XP from all tasks and cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              gameProvider.deleteSubskill(subskill.id);
+              Navigator.of(ctx).pop();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fnAccentRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<GameProvider>(
+      builder: (context, gameProvider, child) {
+        return SettingsSectionCard(
+          icon: MdiIcons.schoolOutline,
+          title: 'Skill System',
+          children: [
+            Text(
+              'Manually edit skill names and icons, or remove unwanted subskills. You can also recalculate all skill XP from your entire completion history to fix any inconsistencies.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.fnTextSecondary, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            ...gameProvider.skills.map(
+              (skill) => ExpansionTile(
+                leading: Icon(MdiIcons.fromString(skill.iconName)),
+                title: Text(skill.name),
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  onPressed: () => _showEditSkillDialog(context, gameProvider, skill),
+                ),
+                children: skill.subskills
+                    .map((subskill) => ListTile(
+                          title: Text(subskill.name, style: Theme.of(context).textTheme.bodySmall),
+                          trailing: IconButton(
+                            icon:  Icon(MdiIcons.deleteOutline, size: 20),
+                            color: AppTheme.fnAccentRed.withOpacity(0.8),
+                            onPressed: () => _confirmAndDeleteSubskill(context, gameProvider, subskill),
+                          ),
+                          dense: true,
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon:  Icon(MdiIcons.restart, size: 18),
+              label: const Text('RECALCULATE ALL SKILL XP'),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title:  Row(children: [
+                      Icon(MdiIcons.alertOutline, color: AppTheme.fnAccentOrange),
+                      const SizedBox(width: 10),
+                      const Text('Confirm')
+                    ]),
+                    content: const Text('Are you sure you want to reset and recalculate all skills from your logs? This cannot be undone.'),
+                    actionsAlignment: MainAxisAlignment.spaceBetween,
+                    actions: [
+                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL')),
+                      ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fnAccentOrange), child: const Text('CONFIRM')),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await gameProvider.resetAndRecalculateSkillsFromLog();
+                   if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skills recalculated successfully.'), backgroundColor: AppTheme.fnAccentGreen));
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.fnAccentOrange, foregroundColor: AppTheme.fnTextPrimary, minimumSize: const Size(double.infinity, 44)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+--- END OF FILE lib/src/widgets/views/settings_sections/skill_management_settings.dart ---

@@ -35,18 +35,12 @@ class _TaskCardState extends State<TaskCard> {
   bool _isEditingTime = false;
   late TextEditingController _timeController;
   final FocusNode _timeFocusNode = FocusNode();
-  late Map<String, TextEditingController> _checkpointCountControllers;
-
 
   @override
   void initState() {
     super.initState();
     gameProvider = Provider.of<GameProvider>(context, listen: false);
     _timeController = TextEditingController(text: widget.task.currentTimeSpent.toString());
-    _checkpointCountControllers = {
-      for (var cp in widget.task.checkpoints)
-        cp.id: TextEditingController(text: cp.currentCount.toString())
-    };
     _startTimerDisplayUpdater();
   }
 
@@ -54,41 +48,10 @@ class _TaskCardState extends State<TaskCard> {
   void didUpdateWidget(TaskCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.task.id != oldWidget.task.id) {
-      // Task has completely changed, reset all controllers
       _timeController.text = widget.task.currentTimeSpent.toString();
-      _checkpointCountControllers.values.forEach((controller) => controller.dispose());
-      _checkpointCountControllers = {
-        for (var cp in widget.task.checkpoints)
-          cp.id: TextEditingController(text: cp.currentCount.toString())
-      };
     } else {
-      // Task is the same, just updating its properties
       if (widget.task.currentTimeSpent.toString() != _timeController.text && !_timeFocusNode.hasFocus) {
         _timeController.text = widget.task.currentTimeSpent.toString();
-      }
-
-      // Sync checkpoint controllers
-      final newCheckpointIds = widget.task.checkpoints.map((cp) => cp.id).toSet();
-      
-      // Remove controllers for deleted checkpoints
-      final oldCheckpointIds = _checkpointCountControllers.keys.toList();
-      for (final oldId in oldCheckpointIds) {
-          if (!newCheckpointIds.contains(oldId)) {
-              _checkpointCountControllers[oldId]?.dispose();
-              _checkpointCountControllers.remove(oldId);
-          }
-      }
-
-      // Add new or update existing controllers
-      for (var cp in widget.task.checkpoints) {
-        if (_checkpointCountControllers.containsKey(cp.id)) {
-          final controller = _checkpointCountControllers[cp.id]!;
-          if (controller.text != cp.currentCount.toString() && !controller.selection.isValid) {
-            controller.text = cp.currentCount.toString();
-          }
-        } else {
-          _checkpointCountControllers[cp.id] = TextEditingController(text: cp.currentCount.toString());
-        }
       }
     }
     
@@ -101,7 +64,6 @@ class _TaskCardState extends State<TaskCard> {
     _newCheckpointNameController.dispose();
     _timeController.dispose();
     _timeFocusNode.dispose();
-    _checkpointCountControllers.values.forEach((controller) => controller.dispose());
     _timerDisplayUpdater?.cancel();
     super.dispose();
   }
@@ -248,18 +210,22 @@ class _TaskCardState extends State<TaskCard> {
       }
     }
 
-    final skillChips = task.skillXp.entries.map((entry) {
-      final skillId = entry.key;
-      final skill = gameProvider.skills.firstWhereOrNull((s) => s.id == skillId) ?? Skill(id: '', name: entry.key);
+    final subskillChips = task.subskillXp.entries.map((entry) {
+      final subskillId = entry.key;
+      final subskill = gameProvider.skills.expand((s) => s.subskills).firstWhereOrNull((ss) => ss.id == subskillId);
+      
+      if (subskill == null) return const SizedBox.shrink();
+
+      final parentSkill = gameProvider.skills.firstWhereOrNull((s) => s.id == subskill.parentSkillId);
       final projectForColor = gameProvider.projects.firstWhere(
-        (p) => p.theme == skillId,
+        (p) => p.theme == parentSkill?.id,
         orElse: () => Project(id: '', name: '', description: '', theme: '', colorHex: 'FF00BFFF')
       );
       final skillColor = projectForColor.color;
 
       return Chip(
         avatar: Icon(MdiIcons.starFourPointsOutline, color: skillColor, size: 14),
-        label: Text('+${entry.value.toStringAsFixed(1)} ${skill.name} XP'),
+        label: Text('+${entry.value.toStringAsFixed(1)} ${subskill.name} XP'),
         backgroundColor: skillColor.withAlpha((255 * 0.15).round()),
         labelStyle: TextStyle(color: skillColor, fontSize: 11, fontWeight: FontWeight.w500),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -299,8 +265,8 @@ class _TaskCardState extends State<TaskCard> {
             ),
             TaskProgressBar(task: task),
             const SizedBox(height: 16),
-            if (skillChips.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: skillChips),
-            if (skillChips.isNotEmpty) const SizedBox(height: 16),
+            if (subskillChips.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: subskillChips),
+            if (subskillChips.isNotEmpty) const SizedBox(height: 16),
             
             Container(
               padding: const EdgeInsets.all(16),
@@ -380,7 +346,6 @@ class _TaskCardState extends State<TaskCard> {
             CheckpointList(
               project: widget.project,
               task: task,
-              localCountControllers: _checkpointCountControllers,
             ),
             
             const SizedBox(height: 16),

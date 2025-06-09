@@ -154,30 +154,77 @@ Return ONLY the JSON object. Do not include markdown, comments, or any extra tex
     required int currentApiKeyIndex,
     required Function(int) onNewApiKeyIndex,
     required Function(String) onLog,
+    required List<Skill> allSkills,
   }) async {
     final String taskStr = jsonEncode(task);
+    final String allSkillsStr = jsonEncode(allSkills);
+
     final String prompt = """
-You are an assistant for a gamified task management app. Your task is to enhance an existing task by breaking it down into detailed, actionable checkpoints.
+You are an assistant for a gamified task management app. Your job is to enhance an existing task by breaking it down into checkpoints and assigning XP to subskills.
 
 **Context:**
-- Project: "${project.name}" (Theme/Skill: "${project.theme}")
-- Task to Enhance: \n "${taskStr} \n"
-- User's refinement instructions: "$userInput"
-- The Task Properties MUST NOT be changed, only add skills
+- Project: "${project.name}" (Associated Skill/Theme: "${project.theme}")
+- Task to Enhance: ${taskStr}
+- User's Instructions: "$userInput"
+- Existing Skills and Subskills in the system:
+${allSkillsStr}
 
 **Your Goal:**
-Generate a new list of 2 to 5 specific, small, and concrete checkpoints for the task. Also, define the skill XP for completing the overall task.
+1.  WIth no checkpoints, generate new checkpoints but if there is already checkpoints only assign skills, replace skills if needed
+2.  Define XP rewards for completing the overall task, distributed among relevant **subskills**.
+3.  For each checkpoint, also assign smaller XP rewards to relevant **subskills**.
+4.  If a relevant subskill doesn't exist under the project's theme ("${project.theme}"), you can create a new one.
 
 **Output Requirements:**
-Provide the output as a single, valid JSON object. The JSON object MUST have these keys:
-- "skillXp": object (e.g., `{"${project.theme}": 10.0, "another_skill": 5.0}`). The key MUST be a valid skill theme from the app. You can assign XP to multiple skills.
-- "checkpoints": array of checkpoint objects. Each checkpoint MUST have:
-  - "id": string (Use a placeholder like "new_cp_1", "new_cp_2")
-  - "name": string (A small, concrete action. e.g., "Read pages 1-10", "Draft outline", "Complete 3 practice problems", only if there is no exitsting checkpoints, if there is use their names, only add skills if they don't have, never create new checkpoints)
-  - "isCountable": boolean
-  - "targetCount": number (if countable, otherwise 0)
-  - "skillXp": object (e.g., `{"${project.theme}": 2.0}`). XP should be smaller than the parent task's XP.
+Provide a single, valid JSON object. The JSON object MUST have these keys:
+- "subskillXp": A JSON object where keys are **subskill IDs** and values are the XP amount (number) for completing the **entire task**.
+  - Subskill IDs MUST follow the format `parentSkillId_subskillNameInLowercase`.
+  - Example: `{"${project.theme}_research": 5.0, "${project.theme}_writing": 10.0}`.
+- "checkpoints": An array of checkpoint objects. Each checkpoint MUST have:
+  - "id": A placeholder string like "new_cp_1".
+  - "name": A small, concrete action (e.g., "Read pages 1-10").
+  - "isCountable": boolean.
+  - "targetCount": number (if countable, otherwise 0).
+  - "subskillXp": A JSON object where keys are **subskill IDs** and values are XP amounts for this specific checkpoint. XP should be smaller than the parent task's XP.
+- "newSubskills": An array of new subskill objects to be created, if any. Each object must have:
+  - "name": string.
+  - "parentSkillId": string (This MUST be "${project.theme}").
 
+**Example JSON Output:**
+```json
+{
+  "subskillXp": {
+    "knowledge_research": 5.0,
+    "knowledge_drafting": 10.0
+  },
+  "checkpoints": [
+    {
+      "id": "new_cp_1",
+      "name": "Research and gather 10 sources",
+      "isCountable": true,
+      "targetCount": 10,
+      "subskillXp": { "knowledge_research": 3.0 }
+    },
+    {
+      "id": "new_cp_2",
+      "name": "Write 1500 words for main body",
+      "isCountable": true,
+      "targetCount": 1500,
+      "subskillXp": { "knowledge_drafting": 6.0 }
+    }
+  ],
+  "newSubskills": [
+    {
+      "name": "Research",
+      "parentSkillId": "knowledge"
+    },
+    {
+      "name": "Drafting",
+      "parentSkillId": "knowledge"
+    }
+  ]
+}
+```
 
 Return ONLY the JSON object. Do not include markdown, comments, or any extra text.
 """;
@@ -189,10 +236,10 @@ Return ONLY the JSON object. Do not include markdown, comments, or any extra tex
         onLog: onLog,
       );
 
-      if (enhancedData['checkpoints'] is List) {
+      if (enhancedData.containsKey('checkpoints') && enhancedData['checkpoints'] is List) {
         return enhancedData;
       } else {
-        throw Exception("AI response for enhancement was malformed.");
+        throw Exception("AI response for enhancement was malformed. Missing 'checkpoints' list.");
       }
     } catch (e) {
       onLog("<span style=\"color:var(--fh-accent-red);\">AI Call failed for enhanceTaskWithAI: ${e.toString()}</span>");

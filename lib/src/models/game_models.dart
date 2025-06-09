@@ -1,4 +1,5 @@
 // lib/src/models/game_models.dart
+import 'package:arcane/src/utils/helpers.dart' as helper;
 import 'package:flutter/material.dart';
 import 'package:arcane/src/theme/app_theme.dart';
 
@@ -85,7 +86,7 @@ class Task {
   int targetCount;
   int currentCount;
   List<Checkpoint> checkpoints;
-  Map<String, double> skillXp;
+  Map<String, double> subskillXp;
 
   Task({
     required this.id,
@@ -97,13 +98,26 @@ class Task {
     this.targetCount = 0,
     this.currentCount = 0,
     List<Checkpoint>? checkpoints,
-    Map<String, double>? skillXp,
+    Map<String, double>? subskillXp,
   })  : checkpoints = checkpoints ?? [],
-        skillXp = skillXp ?? {};
+        subskillXp = subskillXp ?? {};
 
   factory Task.fromJson(Map<String, dynamic> json) {
-    // Legacy support for 'subSubTasks'
     final checkpointsData = json['checkpoints'] ?? json['subSubTasks'];
+    
+    Map<String, double> finalSubskillXp = {};
+    if (json['subskillXp'] != null) {
+      finalSubskillXp = (json['subskillXp'] as Map<String, dynamic>?)
+              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ??
+          {};
+    } else if (json['skillXp'] != null) {
+      // Legacy data migration
+      final legacySkillXp = json['skillXp'] as Map<String, dynamic>;
+      legacySkillXp.forEach((skillId, xpValue) {
+        final subskillId = '${skillId}_general';
+        finalSubskillXp[subskillId] = (xpValue as num).toDouble();
+      });
+    }
 
     return Task(
       id: json['id'] as String,
@@ -119,10 +133,7 @@ class Task {
                   Checkpoint.fromJson(cpJson as Map<String, dynamic>))
               .toList() ??
           [],
-      skillXp: (json['skillXp'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(key, (value as num).toDouble()),
-          ) ??
-          {},
+      subskillXp: finalSubskillXp,
     );
   }
 
@@ -137,7 +148,7 @@ class Task {
       'targetCount': targetCount,
       'currentCount': currentCount,
       'checkpoints': checkpoints.map((cp) => cp.toJson()).toList(),
-      'skillXp': skillXp,
+      'subskillXp': subskillXp,
     };
   }
 }
@@ -150,7 +161,7 @@ class Checkpoint {
   int targetCount;
   int currentCount;
   String? completionTimestamp;
-  Map<String, double> skillXp;
+  Map<String, double> subskillXp;
 
   Checkpoint({
     required this.id,
@@ -160,10 +171,24 @@ class Checkpoint {
     this.targetCount = 0,
     this.currentCount = 0,
     this.completionTimestamp,
-    Map<String, double>? skillXp,
-  }) : skillXp = skillXp ?? {};
+    Map<String, double>? subskillXp,
+  }) : subskillXp = subskillXp ?? {};
 
   factory Checkpoint.fromJson(Map<String, dynamic> json) {
+     Map<String, double> finalSubskillXp = {};
+    if (json['subskillXp'] != null) {
+      finalSubskillXp = (json['subskillXp'] as Map<String, dynamic>?)
+              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ??
+          {};
+    } else if (json['skillXp'] != null) {
+      // Legacy data migration
+      final legacySkillXp = json['skillXp'] as Map<String, dynamic>;
+      legacySkillXp.forEach((skillId, xpValue) {
+        final subskillId = '${skillId}_general';
+        finalSubskillXp[subskillId] = (xpValue as num).toDouble();
+      });
+    }
+
     return Checkpoint(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -172,10 +197,7 @@ class Checkpoint {
       targetCount: json['targetCount'] as int? ?? 0,
       currentCount: json['currentCount'] as int? ?? 0,
       completionTimestamp: json['completionTimestamp'] as String?,
-      skillXp: (json['skillXp'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(key, (value as num).toDouble()),
-          ) ??
-          {},
+      subskillXp: finalSubskillXp,
     );
   }
   Map<String, dynamic> toJson() {
@@ -187,7 +209,7 @@ class Checkpoint {
       'targetCount': targetCount,
       'currentCount': currentCount,
       'completionTimestamp': completionTimestamp,
-      'skillXp': skillXp,
+      'subskillXp': subskillXp,
     };
   }
 }
@@ -367,31 +389,33 @@ class ChatbotMemory {
   }
 }
 
-class Skill {
-  String id; // Will match Project theme
+class Subskill {
+  String id;
   String name;
   double xp;
-  int level;
-  String description;
-  String iconName;
+  String parentSkillId;
 
-  Skill({
+  Subskill({
     required this.id,
     required this.name,
     this.xp = 0,
-    this.level = 1,
-    this.description = '',
-    this.iconName = 'default',
+    required this.parentSkillId,
   });
 
-  factory Skill.fromJson(Map<String, dynamic> json) {
-    return Skill(
+  int get level {
+    int newLevel = 1;
+    while (xp >= helper.skillXpForLevel(newLevel + 1)) {
+      newLevel++;
+    }
+    return newLevel;
+  }
+
+  factory Subskill.fromJson(Map<String, dynamic> json) {
+    return Subskill(
       id: json['id'] as String,
       name: json['name'] as String,
       xp: (json['xp'] as num? ?? 0).toDouble(),
-      level: json['level'] as int? ?? 1,
-      description: json['description'] as String? ?? '',
-      iconName: json['iconName'] as String? ?? 'default',
+      parentSkillId: json['parentSkillId'] as String? ?? '', // Legacy safety
     );
   }
 
@@ -400,9 +424,69 @@ class Skill {
       'id': id,
       'name': name,
       'xp': xp,
-      'level': level,
+      'parentSkillId': parentSkillId,
+    };
+  }
+}
+
+class Skill {
+  String id; // Will match Project theme
+  String name;
+  String description;
+  String iconName;
+  List<Subskill> subskills;
+
+  Skill({
+    required this.id,
+    required this.name,
+    this.description = '',
+    this.iconName = 'default',
+    List<Subskill>? subskills,
+  }) : subskills = subskills ?? [];
+
+  double get xp => subskills.fold(0.0, (prev, s) => prev + s.xp);
+
+  int get level {
+    int currentLevel = 1;
+    while (xp >= helper.skillXpForLevel(currentLevel + 1)) {
+      currentLevel++;
+    }
+    return currentLevel;
+  }
+
+  factory Skill.fromJson(Map<String, dynamic> json) {
+    List<Subskill> loadedSubskills = (json['subskills'] as List<dynamic>?)
+            ?.map((sJson) => Subskill.fromJson(sJson as Map<String, dynamic>))
+            .toList() ??
+        [];
+    
+    // Legacy migration: if skill has XP but no subskills, create a 'General' one.
+    if (json.containsKey('xp') && (json['xp'] as num) > 0 && loadedSubskills.isEmpty) {
+      final subskillId = '${json['id']}_general';
+      loadedSubskills.add(Subskill(
+        id: subskillId,
+        name: 'General',
+        parentSkillId: json['id'] as String,
+        xp: (json['xp'] as num).toDouble(),
+      ));
+    }
+
+    return Skill(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String? ?? '',
+      iconName: json['iconName'] as String? ?? 'default',
+      subskills: loadedSubskills,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
       'description': description,
       'iconName': iconName,
+      'subskills': subskills.map((s) => s.toJson()).toList(),
     };
   }
 }

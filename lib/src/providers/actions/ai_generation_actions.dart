@@ -69,7 +69,6 @@ class AIGenerationActions {
         "<span style=\"color:${(project.color).value.toRadixString(16).substring(2)};\">AI is enhancing task '${taskToEnhance.name}'...</span>");
 
     try {
-      // The AI service now only returns the parts to be merged
       final Map<String, dynamic> enhancementData =
           await _aiService.enhanceTaskWithAI(
         project: project,
@@ -78,13 +77,18 @@ class AIGenerationActions {
         currentApiKeyIndex: _provider.apiKeyIndex,
         onNewApiKeyIndex: (newIndex) => _provider.setProviderApiKeyIndex(newIndex),
         onLog: _logToGame,
+        allSkills: _provider.skills,
       );
 
-      final Map<String, double> newSkillXp =
-          (enhancementData['skillXp'] as Map<String, dynamic>?)
-                  ?.map((key, value) =>
-                      MapEntry(key, (value as num).toDouble())) ??
-              {};
+      // Handle new subskills first
+      final List<dynamic> newSubskillsData = enhancementData['newSubskills'] as List<dynamic>? ?? [];
+      if (newSubskillsData.isNotEmpty) {
+        _provider.addNewSubskills(newSubskillsData);
+      }
+
+      final Map<String, double> newSubskillXp = (enhancementData['subskillXp'] as Map<String, dynamic>?)
+              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ??
+          {};
 
       final List<Checkpoint> newCheckpoints =
           (enhancementData['checkpoints'] as List<dynamic>? ?? [])
@@ -103,8 +107,8 @@ class AIGenerationActions {
         targetCount: taskToEnhance.targetCount,
         currentTimeSpent: taskToEnhance.currentTimeSpent,
         currentCount: taskToEnhance.currentCount,
-        skillXp: newSkillXp, // Overwrite with new skill XP map
-        checkpoints: newCheckpoints, // Overwrite with new checkpoints
+        subskillXp: newSubskillXp,
+        checkpoints: newCheckpoints,
       );
 
       _provider.replaceTask(project.id, taskToEnhance.id, enhancedTask);
@@ -112,6 +116,7 @@ class AIGenerationActions {
           "<span style=\"color:${AppTheme.fnAccentGreen.value.toRadixString(16).substring(2)};\">Successfully enhanced task '${enhancedTask.name}'.</span>");
     } catch (e, stackTrace) {
       final errorMessage = e.toString();
+      if(kDebugMode) print(stackTrace);
       _logToGame(
           "<span style=\"color:${AppTheme.fnAccentRed.value.toRadixString(16).substring(2)};\">AI enhancement for '${taskToEnhance.name}' failed: $errorMessage</span>");
     } finally {

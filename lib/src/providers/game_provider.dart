@@ -1,4 +1,3 @@
- 
 import 'package:arcane/src/services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -37,6 +36,8 @@ class GameProvider with ChangeNotifier {
   bool get isDataLoadingAfterLogin => _isDataLoadingAfterLogin;
   bool _isUsernameMissing = false;
   bool get isUsernameMissing => _isUsernameMissing;
+
+  NotificationService get notificationService => _notificationService;
 
   String? _lastLoginDate;
   double _coins = 100;
@@ -98,8 +99,8 @@ class GameProvider with ChangeNotifier {
       ? (currentLevelXPProgress / xpNeededForNextLevel).clamp(0.0, 1.0) * 100
       : 0;
 
-  TimeOfDay get wakeupTime =>
-      TimeOfDay(hour: _settings.wakeupTimeHour, minute: _settings.wakeupTimeMinute);
+  TimeOfDay get wakeupTime => TimeOfDay(
+      hour: _settings.wakeupTimeHour, minute: _settings.wakeupTimeMinute);
 
   ChatbotMemory _chatbotMemory = ChatbotMemory();
   ChatbotMemory get chatbotMemory => _chatbotMemory;
@@ -172,12 +173,13 @@ class GameProvider with ChangeNotifier {
             initializeChatbotMemory();
           });
         }
-        
+
         _isDataLoadingAfterLogin = false;
-        _isUsernameMissing = (_currentUser?.displayName == null || _currentUser!.displayName!.trim().isEmpty);
+        _isUsernameMissing = (_currentUser?.displayName == null ||
+            _currentUser!.displayName!.trim().isEmpty);
         notifyListeners();
       }, onError: (error) {
-         _isDataLoadingAfterLogin = false;
+        _isDataLoadingAfterLogin = false;
       });
     } else {
       _currentUser = null;
@@ -217,7 +219,8 @@ class GameProvider with ChangeNotifier {
     _coins = (data['coins'] as num? ?? 100).toDouble();
     _xp = (data['xp'] as num? ?? 0).toDouble();
     _playerLevel = data['playerLevel'] as int? ?? 1;
-    _playerEnergy = (data['playerEnergy'] as num? ?? baseMaxPlayerEnergy).toDouble();
+    _playerEnergy =
+        (data['playerEnergy'] as num? ?? baseMaxPlayerEnergy).toDouble();
 
     // Legacy support for 'mainTasks'
     final projectsData = data['projects'] ?? data['mainTasks'];
@@ -227,23 +230,74 @@ class GameProvider with ChangeNotifier {
         initialProjectTemplates.map((t) => Project.fromTemplate(t)).toList();
 
     _completedByDay = data['completedByDay'] as Map<String, dynamic>? ?? {};
-    _gameLog = (data['gameLog'] as List<dynamic>?)?.map((entry) => entry as String).toList() ?? [];
-    _skills = (data['skills'] as List<dynamic>?)?.map((sJson) => Skill.fromJson(sJson as Map<String, dynamic>)).toList() ?? [];
-    _settings = data['settings'] != null ? GameSettings.fromJson(data['settings'] as Map<String, dynamic>) : GameSettings();
+    _gameLog = (data['gameLog'] as List<dynamic>?)
+            ?.map((entry) => entry as String)
+            .toList() ??
+        [];
+    _skills = (data['skills'] as List<dynamic>?)
+            ?.map((sJson) => Skill.fromJson(sJson as Map<String, dynamic>))
+            .toList() ??
+        [];
+    _settings = data['settings'] != null
+        ? GameSettings.fromJson(data['settings'] as Map<String, dynamic>)
+        : GameSettings();
 
     // Legacy support for 'selectedTaskId'
-    _selectedProjectId = data['selectedProjectId'] as String? ?? data['selectedTaskId'] as String? ?? (_projects.isNotEmpty ? _projects[0].id : null);
+    _selectedProjectId = data['selectedProjectId'] as String? ??
+        data['selectedTaskId'] as String? ??
+        (_projects.isNotEmpty ? _projects[0].id : null);
     _apiKeyIndex = data['apiKeyIndex'] as int? ?? 0;
     _activeTimers = (data['activeTimers'] as Map<String, dynamic>?)?.map(
-            (key, value) => MapEntry(key, ActiveTimerInfo.fromJson(value as Map<String, dynamic>))) ?? {};
+            (key, value) => MapEntry(key,
+                ActiveTimerInfo.fromJson(value as Map<String, dynamic>))) ??
+        {};
 
     final timestampString = data['lastSuccessfulSaveTimestamp'] as String?;
-    _lastSuccessfulSaveTimestamp = timestampString != null ? DateTime.tryParse(timestampString) : null;
-    _chatbotMemory = data['chatbotMemory'] != null ? ChatbotMemory.fromJson(data['chatbotMemory'] as Map<String, dynamic>) : ChatbotMemory();
+    _lastSuccessfulSaveTimestamp =
+        timestampString != null ? DateTime.tryParse(timestampString) : null;
+    _chatbotMemory = data['chatbotMemory'] != null
+        ? ChatbotMemory.fromJson(data['chatbotMemory'] as Map<String, dynamic>)
+        : ChatbotMemory();
     _isChatbotMemoryInitialized = true;
 
     _ensureSkillsList();
+    _runDataMigration();
     _recalculatePlayerLevel();
+  }
+
+  void _runDataMigration() {
+    bool needsSave = false;
+    for (final project in _projects) {
+      for (final task in project.tasks) {
+        // Find legacy skillXp stored in subskillXp map (keys are skill IDs, not subskill IDs)
+        final legacyKeys = task.subskillXp.keys
+            .where((key) => _skills.any((s) => s.id == key))
+            .toList();
+        if (legacyKeys.isNotEmpty) {
+          needsSave = true;
+          for (final legacyKey in legacyKeys) {
+            final xpValue = task.subskillXp[legacyKey]!;
+            task.subskillXp.remove(legacyKey);
+
+            final subskillId = '${legacyKey}_general';
+            task.subskillXp[subskillId] =
+                (task.subskillXp[subskillId] ?? 0) + xpValue;
+
+            // Ensure the 'General' subskill exists in the main skill list
+            final parentSkill =
+                _skills.firstWhereOrNull((s) => s.id == legacyKey);
+            if (parentSkill != null &&
+                !parentSkill.subskills.any((ss) => ss.id == subskillId)) {
+              parentSkill.subskills.add(Subskill(
+                  id: subskillId, name: 'General', parentSkillId: legacyKey));
+            }
+          }
+        }
+      }
+    }
+    if (needsSave) {
+      _scheduleSave(immediate: true);
+    }
   }
 
   Future<void> _resetToInitialState() async {
@@ -252,7 +306,8 @@ class GameProvider with ChangeNotifier {
     _xp = 0;
     _playerLevel = 1;
     _playerEnergy = baseMaxPlayerEnergy;
-    _projects = initialProjectTemplates.map((t) => Project.fromTemplate(t)).toList();
+    _projects =
+        initialProjectTemplates.map((t) => Project.fromTemplate(t)).toList();
     _completedByDay = {};
     _gameLog = [];
     _skills = [];
@@ -270,23 +325,23 @@ class GameProvider with ChangeNotifier {
 
   void _scheduleSave({bool immediate = false}) {
     if (_debounceSaveTimer?.isActive ?? false) _debounceSaveTimer!.cancel();
-    final saveDuration = immediate ? Duration.zero : const Duration(milliseconds: 750);
+    final saveDuration =
+        immediate ? Duration.zero : const Duration(milliseconds: 750);
     _debounceSaveTimer = Timer(saveDuration, _performActualSave);
   }
 
   Future<void> _performActualSave() async {
     if (_currentUser != null && !_isManuallySaving) {
-      final success = await _storageService.setUserData(_currentUser!.uid, _gameStateToMap());
+      final success = await _storageService.setUserData(
+          _currentUser!.uid, _gameStateToMap());
       if (success) {
         _lastSuccessfulSaveTimestamp = DateTime.now();
         notifyListeners();
       } else {
-        setProviderState(
-            gameLog: [
-              ..._gameLog,
-              "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentRed)}\">Error: Failed to save to cloud!</span>"
-            ],
-            doNotify: true);
+        setProviderState(gameLog: [
+          ..._gameLog,
+          "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentRed)}\">Error: Failed to save to cloud!</span>"
+        ], doNotify: true);
       }
     }
   }
@@ -312,7 +367,8 @@ class GameProvider with ChangeNotifier {
       if (data != null) {
         _loadStateFromMap(data);
         _handleDailyReset();
-        _isUsernameMissing = (_currentUser?.displayName == null || _currentUser!.displayName!.trim().isEmpty);
+        _isUsernameMissing = (_currentUser?.displayName == null ||
+            _currentUser!.displayName!.trim().isEmpty);
         _isChatbotMemoryInitialized = false;
         initializeChatbotMemory();
       } else {
@@ -328,11 +384,13 @@ class GameProvider with ChangeNotifier {
     await fb_service.signInWithEmail(email, password);
   }
 
-  Future<void> signupUser(String email, String password, String username) async {
+  Future<void> signupUser(
+      String email, String password, String username) async {
     _authLoading = true;
     notifyListeners();
     try {
-      UserCredential userCredential = await fb_service.firebaseAuthInstance.createUserWithEmailAndPassword(email: email, password: password);
+      UserCredential userCredential = await fb_service.firebaseAuthInstance
+          .createUserWithEmailAndPassword(email: email, password: password);
       _currentUser = userCredential.user;
       if (_currentUser != null) {
         await _currentUser!.updateDisplayName(username);
@@ -397,14 +455,16 @@ class GameProvider with ChangeNotifier {
 
   Project? getSelectedProject() {
     if (_selectedProjectId == null) return _projects.firstOrNull;
-    return _projects.firstWhereOrNull((p) => p.id == _selectedProjectId) ?? _projects.firstOrNull;
+    return _projects.firstWhereOrNull((p) => p.id == _selectedProjectId) ??
+        _projects.firstOrNull;
   }
 
   void _recalculatePlayerLevel() {
     int newLevel = 1;
     double xpAtStartOfLvl = 0;
     while (true) {
-      final double xpNeeded = helper.xpToNext(newLevel, xpPerLevelBase, xpLevelMultiplier);
+      final double xpNeeded =
+          helper.xpToNext(newLevel, xpPerLevelBase, xpLevelMultiplier);
       if (_xp >= xpAtStartOfLvl + xpNeeded) {
         xpAtStartOfLvl += xpNeeded;
         newLevel++;
@@ -431,14 +491,18 @@ class GameProvider with ChangeNotifier {
       ..._gameLog,
       "<span style=\"color:#${helper.colorToHex(getSelectedProject()?.color ?? AppTheme.fortniteBlue)}\">Level up to $_playerLevel!</span>"
     ];
-    _notificationService.showNotification('Level Up!', 'Congratulations! You reached level $_playerLevel.');
+    _notificationService.showNotification(
+        'Level Up!', 'Congratulations! You reached level $_playerLevel.');
     _scheduleSave();
     notifyListeners();
   }
 
   String _generateSummaryForOlderDays() {
-    if (_completedByDay.isEmpty) return "No activity logged before the last 7 days.";
-    List<String> olderDaysSummaryLines = ["Summary of activity older than 7 days:"];
+    if (_completedByDay.isEmpty)
+      return "No activity logged before the last 7 days.";
+    List<String> olderDaysSummaryLines = [
+      "Summary of activity older than 7 days:"
+    ];
     int olderDaysActivityCount = 0;
     DateTime today = DateTime.now();
     List<String> sortedDates = _completedByDay.keys.toList()..sort();
@@ -448,22 +512,33 @@ class GameProvider with ChangeNotifier {
       if (today.difference(date).inDays >= 7) {
         final dayData = _completedByDay[dateString] as Map<String, dynamic>;
         final taskTimes = dayData['taskTimes'] as Map<String, dynamic>? ?? {};
-        int dailyTotalMinutes = taskTimes.values.fold<int>(0, (prev, time) => prev + (time as int));
-        int dailySubtasks = (dayData['subtasksCompleted'] as List?)?.length ?? 0;
-        int dailyCheckpoints = (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
+        int dailyTotalMinutes =
+            taskTimes.values.fold<int>(0, (prev, time) => prev + (time as int));
+        int dailySubtasks =
+            (dayData['subtasksCompleted'] as List?)?.length ?? 0;
+        int dailyCheckpoints =
+            (dayData['checkpointsCompleted'] as List?)?.length ?? 0;
         int dailyEmotions = (dayData['emotionLogs'] as List?)?.length ?? 0;
-        if (dailyTotalMinutes > 0 || dailySubtasks > 0 || dailyCheckpoints > 0 || dailyEmotions > 0) {
+        if (dailyTotalMinutes > 0 ||
+            dailySubtasks > 0 ||
+            dailyCheckpoints > 0 ||
+            dailyEmotions > 0) {
           olderDaysActivityCount++;
           String activityLine = "On $dateString: ${dailyTotalMinutes}m logged";
-          if (dailySubtasks > 0) activityLine += ", $dailySubtasks tasks completed";
-          if (dailyCheckpoints > 0) activityLine += ", $dailyCheckpoints checkpoints cleared";
-          if (dailyEmotions > 0) activityLine += ", $dailyEmotions emotion logs";
+          if (dailySubtasks > 0)
+            activityLine += ", $dailySubtasks tasks completed";
+          if (dailyCheckpoints > 0)
+            activityLine += ", $dailyCheckpoints checkpoints cleared";
+          if (dailyEmotions > 0)
+            activityLine += ", $dailyEmotions emotion logs";
           olderDaysSummaryLines.add("$activityLine.");
         }
       }
     }
-    if (olderDaysActivityCount == 0) return "No significant activity logged before the last 7 days.";
-    if (olderDaysSummaryLines.length > 21) return "${olderDaysSummaryLines.sublist(0, 21).join("\n")}\n... (older entries truncated)";
+    if (olderDaysActivityCount == 0)
+      return "No significant activity logged before the last 7 days.";
+    if (olderDaysSummaryLines.length > 21)
+      return "${olderDaysSummaryLines.sublist(0, 21).join("\n")}\n... (older entries truncated)";
     return olderDaysSummaryLines.join("\n");
   }
 
@@ -508,31 +583,38 @@ class GameProvider with ChangeNotifier {
     _playerLevel = 1;
     _xp = 0;
     _playerEnergy = calculatedMaxEnergy;
-    _gameLog = [..._gameLog, "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentOrange)}\">Player level and progress have been reset.</span>"];
+    _gameLog = [
+      ..._gameLog,
+      "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentOrange)}\">Player level and progress have been reset.</span>"
+    ];
     setProviderState(doNotify: true);
   }
 
   Future<void> resetAllSkills() async {
     if (_currentUser == null) return;
-    final newSkills = _skills.map((skill) => Skill(
-        id: skill.id, name: skill.name, description: skill.description,
-        iconName: skill.iconName, xp: 0, level: 1)).toList();
+    final newSkills = _skills.map((skill) {
+      skill.subskills.forEach((subskill) => subskill.xp = 0);
+      return skill;
+    }).toList();
     setProviderState(
       skills: newSkills,
-      gameLog: [..._gameLog, "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentOrange)}\">All skill progress has been reset.</span>"],
+      gameLog: [
+        ..._gameLog,
+        "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentOrange)}\">All skill progress has been reset.</span>"
+      ],
       doNotify: true,
     );
   }
 
-  Future<void> editSkill(String skillId, {String? newName, String? newIconName}) async {
+  Future<void> editSkill(String skillId,
+      {String? newName, String? newIconName}) async {
     final newSkills = _skills.map((skill) {
       if (skill.id == skillId) {
         return Skill(
           id: skill.id,
           name: newName ?? skill.name,
           iconName: newIconName ?? skill.iconName,
-          xp: skill.xp,
-          level: skill.level,
+          subskills: skill.subskills,
           description: skill.description,
         );
       }
@@ -540,7 +622,10 @@ class GameProvider with ChangeNotifier {
     }).toList();
     setProviderState(
       skills: newSkills,
-      gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Skill '${newName ?? '...'}' updated.</span>"],
+      gameLog: [
+        ..._gameLog,
+        "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Skill '${newName ?? '...'}' updated.</span>"
+      ],
       doNotify: true,
     );
   }
@@ -553,37 +638,33 @@ class GameProvider with ChangeNotifier {
         ...(dayData['checkpointsCompleted'] as List<dynamic>? ?? []),
       ];
       for (var log in logs) {
-        if (log is Map<String, dynamic> && log.containsKey('skillXp')) {
-          final skillXpMap = log['skillXp'] as Map<String, dynamic>? ?? {};
+        if (log is Map<String, dynamic> &&
+            (log.containsKey('subskillXp') || log.containsKey('skillXp'))) {
+          final skillXpMap =
+              (log['subskillXp'] ?? log['skillXp']) as Map<String, dynamic>? ??
+                  {};
           skillXpMap.forEach((skillId, xpValue) {
             if (xpValue is num) {
-              recalculatedXp[skillId] = (recalculatedXp[skillId] ?? 0) + xpValue;
+              recalculatedXp[skillId] =
+                  (recalculatedXp[skillId] ?? 0) + xpValue;
             }
           });
         }
       }
     });
 
-    final List<Skill> newSkills = [];
-    final existingThemes = _projects.map((p) => p.theme).toSet();
-
-    for (String theme in existingThemes) {
-      final double totalXp = recalculatedXp[theme] ?? 0.0;
-      int newLevel = 1;
-      while (totalXp >= helper.skillXpForLevel(newLevel + 1)) {
-        newLevel++;
+    for (var skill in _skills) {
+      for (var subskill in skill.subskills) {
+        subskill.xp = recalculatedXp[subskill.id] ?? 0;
       }
-      newSkills.add(Skill(
-        id: theme,
-        name: theme.replaceAll('_', ' ').split(' ').map((word) => word[0].toUpperCase() + word.substring(1)).join(' '),
-        description: "Skill related to $theme.", iconName: themeToIconName[theme] ?? 'default',
-        xp: totalXp, level: newLevel,
-      ));
     }
-    
+
     setProviderState(
-      skills: newSkills,
-      gameLog: [..._gameLog, "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentGreen)}\">Skills recalculated from historical logs.</span>"],
+      skills: _skills,
+      gameLog: [
+        ..._gameLog,
+        "<span style=\"color:${helper.colorToHex(AppTheme.fnAccentGreen)}\">Skills recalculated from historical logs.</span>"
+      ],
       doNotify: true,
     );
   }
@@ -591,22 +672,36 @@ class GameProvider with ChangeNotifier {
   List<EmotionLog> getEmotionLogsForDate(String date) {
     final dayData = _completedByDay[date] as Map<String, dynamic>?;
     if (dayData == null || dayData['emotionLogs'] == null) return [];
-    return (dayData['emotionLogs'] as List<dynamic>).map((logJson) => EmotionLog.fromJson(logJson as Map<String, dynamic>)).toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return (dayData['emotionLogs'] as List<dynamic>)
+        .map((logJson) => EmotionLog.fromJson(logJson as Map<String, dynamic>))
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 
   void logEmotion(String date, double rating, [DateTime? customTimestamp]) {
     final timestamp = customTimestamp ?? DateTime.now();
     final emotionLog = EmotionLog(timestamp: timestamp, rating: rating);
     final newCompletedByDay = Map<String, dynamic>.from(_completedByDay);
-    final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ?? {'taskTimes': <String, int>{}, 'subtasksCompleted': <Map<String, dynamic>>[], 'checkpointsCompleted': <Map<String, dynamic>>[], 'emotionLogs': <Map<String, dynamic>>[]});
-    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+    final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ??
+        {
+          'taskTimes': <String, int>{},
+          'subtasksCompleted': <Map<String, dynamic>>[],
+          'checkpointsCompleted': <Map<String, dynamic>>[],
+          'emotionLogs': <Map<String, dynamic>>[]
+        });
+    final emotionLogsList =
+        List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
     emotionLogsList.add(emotionLog.toJson());
-    emotionLogsList.sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
+    emotionLogsList.sort((a, b) =>
+        (a['timestamp'] as String).compareTo(b['timestamp'] as String));
     dayData['emotionLogs'] = emotionLogsList;
     newCompletedByDay[date] = dayData;
     setProviderState(
         completedByDay: newCompletedByDay,
-        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>Emotion logged: ${rating.toStringAsFixed(1)}/5 for $date.</span>"],
+        gameLog: [
+          ..._gameLog,
+          "<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>Emotion logged: ${rating.toStringAsFixed(1)}/5 for $date.</span>"
+        ],
         doNotify: true);
   }
 
@@ -615,13 +710,17 @@ class GameProvider with ChangeNotifier {
     if (currentLogs.isEmpty) return;
     final newCompletedByDay = Map<String, dynamic>.from(_completedByDay);
     final dayData = Map<String, dynamic>.from(newCompletedByDay[date] ?? {});
-    final emotionLogsList = List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
+    final emotionLogsList =
+        List<Map<String, dynamic>>.from(dayData['emotionLogs'] as List? ?? []);
     if (emotionLogsList.isNotEmpty) emotionLogsList.removeLast();
     dayData['emotionLogs'] = emotionLogsList;
     newCompletedByDay[date] = dayData;
     setProviderState(
         completedByDay: newCompletedByDay,
-        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Latest emotion log for $date deleted.</span>"],
+        gameLog: [
+          ..._gameLog,
+          "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Latest emotion log for $date deleted.</span>"
+        ],
         doNotify: true);
   }
 
@@ -634,22 +733,26 @@ class GameProvider with ChangeNotifier {
 
   List<DateTime> calculateNotificationTimes() {
     final now = DateTime.now();
-    final wakeupDateTime = DateTime(now.year, now.month, now.day, wakeupTime.hour, wakeupTime.minute);
+    final wakeupDateTime = DateTime(
+        now.year, now.month, now.day, wakeupTime.hour, wakeupTime.minute);
     const int loggingDurationMinutes = 16 * 60, numberOfLogs = 10;
-    final int intervalMinutes = (loggingDurationMinutes / (numberOfLogs - 1)).floor();
+    final int intervalMinutes =
+        (loggingDurationMinutes / (numberOfLogs - 1)).floor();
     List<DateTime> times = [];
     DateTime currentTime = wakeupDateTime;
     for (int i = 0; i < numberOfLogs; i++) {
       times.add(currentTime);
       currentTime = currentTime.add(Duration(minutes: intervalMinutes));
     }
-    if (now.day == wakeupDateTime.day) return times.where((t) => t.isAfter(now)).toList();
+    if (now.day == wakeupDateTime.day)
+      return times.where((t) => t.isAfter(now)).toList();
     return times;
   }
 
   void scheduleEmotionReminders() {
     if (kDebugMode) {
-      print("[GameProvider] Conceptual: Would schedule notifications for: ${calculateNotificationTimes().map((t) => DateFormat('HH:mm').format(t)).join(', ')}");
+      print(
+          "[GameProvider] Conceptual: Would schedule notifications for: ${calculateNotificationTimes().map((t) => DateFormat('HH:mm').format(t)).join(', ')}");
     }
   }
 
@@ -657,8 +760,10 @@ class GameProvider with ChangeNotifier {
     if (_isChatbotMemoryInitialized) return;
     if (_chatbotMemory.conversationHistory.isEmpty) {
       _chatbotMemory.conversationHistory.add(ChatbotMessage(
-          id: 'init_${DateTime.now().millisecondsSinceEpoch}', text: "Hello! I am Arcane Advisor. How can I assist you?",
-          sender: MessageSender.bot, timestamp: DateTime.now()));
+          id: 'init_${DateTime.now().millisecondsSinceEpoch}',
+          text: "Hello! I am Arcane Advisor. How can I assist you?",
+          sender: MessageSender.bot,
+          timestamp: DateTime.now()));
     }
     _isChatbotMemoryInitialized = true;
     notifyListeners();
@@ -666,26 +771,37 @@ class GameProvider with ChangeNotifier {
 
   Future<void> sendMessageToChatbot(String userMessageText) async {
     if (!_isChatbotMemoryInitialized) initializeChatbotMemory();
-    final userMessage = ChatbotMessage(id: 'user_${DateTime.now().millisecondsSinceEpoch}', text: userMessageText, sender: MessageSender.user, timestamp: DateTime.now());
+    final userMessage = ChatbotMessage(
+        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+        text: userMessageText,
+        sender: MessageSender.user,
+        timestamp: DateTime.now());
     _chatbotMemory.conversationHistory.add(userMessage);
     if (_chatbotMemory.conversationHistory.length > 20) {
       _chatbotMemory.conversationHistory.removeAt(0);
     }
     if (userMessageText.toLowerCase().startsWith("remember:")) {
-      final itemToRemember = userMessageText.substring("remember:".length).trim();
+      final itemToRemember =
+          userMessageText.substring("remember:".length).trim();
       if (itemToRemember.isNotEmpty) {
         _chatbotMemory.userRememberedItems.add(itemToRemember);
         if (_chatbotMemory.userRememberedItems.length > 10) {
           _chatbotMemory.userRememberedItems.removeAt(0);
         }
-        final botResponse = ChatbotMessage(id: 'bot_${DateTime.now().millisecondsSinceEpoch}', text: "Okay, I will remember: \"$itemToRemember\"", sender: MessageSender.bot, timestamp: DateTime.now());
+        final botResponse = ChatbotMessage(
+            id: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+            text: "Okay, I will remember: \"$itemToRemember\"",
+            sender: MessageSender.bot,
+            timestamp: DateTime.now());
         _chatbotMemory.conversationHistory.add(botResponse);
         setProviderState(chatbotMemory: _chatbotMemory);
         return;
       }
     }
-    if (userMessageText.toLowerCase().startsWith("forget last") || userMessageText.toLowerCase().startsWith("forget everything")) {
-      bool forgetEverything = userMessageText.toLowerCase().startsWith("forget everything");
+    if (userMessageText.toLowerCase().startsWith("forget last") ||
+        userMessageText.toLowerCase().startsWith("forget everything")) {
+      bool forgetEverything =
+          userMessageText.toLowerCase().startsWith("forget everything");
       String responseText;
       if (forgetEverything) {
         _chatbotMemory.userRememberedItems.clear();
@@ -696,7 +812,11 @@ class GameProvider with ChangeNotifier {
       } else {
         responseText = "I don't have any items to forget.";
       }
-      final botResponse = ChatbotMessage(id: 'bot_${DateTime.now().millisecondsSinceEpoch}', text: responseText, sender: MessageSender.bot, timestamp: DateTime.now());
+      final botResponse = ChatbotMessage(
+          id: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+          text: responseText,
+          sender: MessageSender.bot,
+          timestamp: DateTime.now());
       _chatbotMemory.conversationHistory.add(botResponse);
       setProviderState(chatbotMemory: _chatbotMemory);
       return;
@@ -713,49 +833,94 @@ class GameProvider with ChangeNotifier {
     String completedByDayJsonForAI = jsonEncode(completedByDayLast7DaysData);
     String olderDaysSummaryForAI = _generateSummaryForOlderDays();
     try {
-      final botResponseText = await _aiService.getChatbotResponse(memory: _chatbotMemory, userMessage: userMessageText,
-        completedByDayJsonLast7Days: completedByDayJsonForAI, olderDaysSummary: olderDaysSummaryForAI,
-        currentApiKeyIndex: _apiKeyIndex, onNewApiKeyIndex: (newIndex) => _apiKeyIndex = newIndex, onLog: (logMsg) => _gameLog.add(logMsg));
-      final botMessage = ChatbotMessage(id: 'bot_${DateTime.now().millisecondsSinceEpoch}', text: botResponseText, sender: MessageSender.bot, timestamp: DateTime.now());
+      final botResponseText = await _aiService.getChatbotResponse(
+          memory: _chatbotMemory,
+          userMessage: userMessageText,
+          completedByDayJsonLast7Days: completedByDayJsonForAI,
+          olderDaysSummary: olderDaysSummaryForAI,
+          currentApiKeyIndex: _apiKeyIndex,
+          onNewApiKeyIndex: (newIndex) => _apiKeyIndex = newIndex,
+          onLog: (logMsg) => _gameLog.add(logMsg));
+      final botMessage = ChatbotMessage(
+          id: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+          text: botResponseText,
+          sender: MessageSender.bot,
+          timestamp: DateTime.now());
       _chatbotMemory.conversationHistory.add(botMessage);
     } catch (e) {
-      final errorMessage = ChatbotMessage(id: 'error_${DateTime.now().millisecondsSinceEpoch}', text: "I'm having trouble connecting. Please try again later.", sender: MessageSender.bot, timestamp: DateTime.now());
+      final errorMessage = ChatbotMessage(
+          id: 'error_${DateTime.now().millisecondsSinceEpoch}',
+          text: "I'm having trouble connecting. Please try again later.",
+          sender: MessageSender.bot,
+          timestamp: DateTime.now());
       _chatbotMemory.conversationHistory.add(errorMessage);
     }
     setProviderState(chatbotMemory: _chatbotMemory);
   }
 
-  Future<void> triggerAIEnhanceTask(Project project, Task taskToEnhance, String userInput) =>
-    _aiGenerationActions.triggerAIEnhanceTask(project, taskToEnhance, userInput);
+  Future<void> triggerAIEnhanceTask(
+          Project project, Task taskToEnhance, String userInput) =>
+      _aiGenerationActions.triggerAIEnhanceTask(
+          project, taskToEnhance, userInput);
 
   Future<void> triggerAIGenerateTasks(Project project, String userInput) =>
-    _aiGenerationActions.triggerAIGenerateTasks(project, userInput);
+      _aiGenerationActions.triggerAIGenerateTasks(project, userInput);
 
-  void addProject({required String name, required String description, required String theme, required String colorHex}) =>
-      _taskActions.addProject(name: name, description: description, theme: theme, colorHex: colorHex);
-  void editProject(String projectId, {required String name, required String description, required String theme, required String colorHex}) =>
-      _taskActions.editProject(projectId, name: name, description: description, theme: theme, colorHex: colorHex);
+  void addProject(
+          {required String name,
+          required String description,
+          required String theme,
+          required String colorHex}) =>
+      _taskActions.addProject(
+          name: name,
+          description: description,
+          theme: theme,
+          colorHex: colorHex);
+  void editProject(String projectId,
+          {required String name,
+          required String description,
+          required String theme,
+          required String colorHex}) =>
+      _taskActions.editProject(projectId,
+          name: name,
+          description: description,
+          theme: theme,
+          colorHex: colorHex);
   void deleteProject(String projectId) => _taskActions.deleteProject(projectId);
   void logToDailySummary(String type, Map<String, dynamic> data) =>
       _taskActions.logToDailySummary(type, data);
-  String addTask(String projectId, Map<String, dynamic> taskData) => _taskActions.addTask(projectId, taskData);
-  void updateTask(String projectId, String taskId, Map<String, dynamic> updates) => _taskActions.updateTask(projectId, taskId, updates);
-  void replaceTask(String projectId, String oldTaskId, Task newTask) => _taskActions.replaceTask(projectId, oldTaskId, newTask);
-  bool completeTask(String projectId, String taskId) => _taskActions.completeTask(projectId, taskId);
-  void deleteTask(String projectId, String taskId) => _taskActions.deleteTask(projectId, taskId);
-  void duplicateCompletedTask(String projectId, String taskId) => _taskActions.duplicateCompletedTask(projectId, taskId);
-  void addCheckpoint(String projectId, String parentTaskId, Map<String, dynamic> checkpointData) =>
+  String addTask(String projectId, Map<String, dynamic> taskData) =>
+      _taskActions.addTask(projectId, taskData);
+  void updateTask(
+          String projectId, String taskId, Map<String, dynamic> updates) =>
+      _taskActions.updateTask(projectId, taskId, updates);
+  void replaceTask(String projectId, String oldTaskId, Task newTask) =>
+      _taskActions.replaceTask(projectId, oldTaskId, newTask);
+  bool completeTask(String projectId, String taskId) =>
+      _taskActions.completeTask(projectId, taskId);
+  void deleteTask(String projectId, String taskId) =>
+      _taskActions.deleteTask(projectId, taskId);
+  void duplicateCompletedTask(String projectId, String taskId) =>
+      _taskActions.duplicateCompletedTask(projectId, taskId);
+  void addCheckpoint(String projectId, String parentTaskId,
+          Map<String, dynamic> checkpointData) =>
       _taskActions.addCheckpoint(projectId, parentTaskId, checkpointData);
-  void duplicateCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
+  void duplicateCheckpoint(
+          String projectId, String parentTaskId, String checkpointId) =>
       _taskActions.duplicateCheckpoint(projectId, parentTaskId, checkpointId);
-  void updateCheckpoint(String projectId, String parentTaskId, String checkpointId, Map<String, dynamic> updates) =>
-      _taskActions.updateCheckpoint(projectId, parentTaskId, checkpointId, updates);
-  void completeCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
+  void updateCheckpoint(String projectId, String parentTaskId,
+          String checkpointId, Map<String, dynamic> updates) =>
+      _taskActions.updateCheckpoint(
+          projectId, parentTaskId, checkpointId, updates);
+  void completeCheckpoint(
+          String projectId, String parentTaskId, String checkpointId) =>
       _taskActions.completeCheckpoint(projectId, parentTaskId, checkpointId);
-  void deleteCheckpoint(String projectId, String parentTaskId, String checkpointId) =>
+  void deleteCheckpoint(
+          String projectId, String parentTaskId, String checkpointId) =>
       _taskActions.deleteCheckpoint(projectId, parentTaskId, checkpointId);
 
-  void startTimer(String id, String type, String projectId) => _timerActions.startTimer(id, type, projectId);
+  void startTimer(String id, String type, String projectId) =>
+      _timerActions.startTimer(id, type, projectId);
   void pauseTimer(String id) => _timerActions.pauseTimer(id);
   void logTimerAndReset(String id) => _timerActions.logTimerAndReset(id);
 
@@ -764,7 +929,11 @@ class GameProvider with ChangeNotifier {
       if (!_skills.any((s) => s.id == project.theme)) {
         _skills.add(Skill(
           id: project.theme,
-          name: project.theme.replaceAll('_', ' ').split(' ').map((word) => word[0].toUpperCase() + word.substring(1)).join(' '),
+          name: project.theme
+              .replaceAll('_', ' ')
+              .split(' ')
+              .map((word) => word[0].toUpperCase() + word.substring(1))
+              .join(' '),
           description: "Skill related to ${project.name}.",
           iconName: themeToIconName[project.theme] ?? 'default',
         ));
@@ -772,19 +941,72 @@ class GameProvider with ChangeNotifier {
     }
   }
 
-  void addSkillXp(String skillId, double amount) {
-    Skill? skill = _skills.firstWhereOrNull((s) => s.id == skillId);
-    if (skill != null) {
-      skill.xp += amount;
-      int newLevel = 1;
-      while (skill.xp >= helper.skillXpForLevel(newLevel + 1)) {
-        newLevel++;
-      }
-      skill.level = newLevel;
+  void addSubskillXp(String subskillId, double amount) {
+    final subskill = _skills
+        .expand((s) => s.subskills)
+        .firstWhereOrNull((ss) => ss.id == subskillId);
+    if (subskill != null) {
+      subskill.xp += amount;
       setProviderState(skills: _skills);
     }
   }
-  
+
+  void addNewSubskills(List<dynamic> newSubskillsData) {
+    final updatedSkills = List<Skill>.from(_skills);
+    bool wasChanged = false;
+
+    for (final subskillData in newSubskillsData) {
+      if (subskillData is Map<String, dynamic>) {
+        final parentId = subskillData['parentSkillId'] as String;
+        final subskillName = subskillData['name'] as String;
+
+        final parentSkill =
+            updatedSkills.firstWhereOrNull((s) => s.id == parentId);
+        if (parentSkill != null) {
+          final subskillId =
+              '${parentId}_${subskillName.toLowerCase().replaceAll(' ', '_')}';
+          if (!parentSkill.subskills.any((ss) => ss.id == subskillId)) {
+            final newSubskill = Subskill(
+                id: subskillId, name: subskillName, parentSkillId: parentId);
+            parentSkill.subskills.add(newSubskill);
+            wasChanged = true;
+            _gameLog.add(
+                "<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>New subskill unlocked: $subskillName for ${parentSkill.name}</span>");
+          }
+        }
+      }
+    }
+
+    if (wasChanged) {
+      setProviderState(skills: updatedSkills, gameLog: _gameLog);
+    }
+  }
+
+  void deleteSubskill(String subskillIdToDelete) {
+    final newProjects = List<Project>.from(_projects.map((p) {
+      p.tasks = p.tasks.map((t) {
+        t.subskillXp.remove(subskillIdToDelete);
+        t.checkpoints = t.checkpoints.map((cp) {
+          cp.subskillXp.remove(subskillIdToDelete);
+          return cp;
+        }).toList();
+        return t;
+      }).toList();
+      return p;
+    }));
+
+    final newSkills = List<Skill>.from(_skills.map((s) {
+      s.subskills.removeWhere((ss) => ss.id == subskillIdToDelete);
+      return s;
+    }));
+
+    setProviderState(
+      projects: newProjects,
+      skills: newSkills,
+      immediateSave: true,
+    );
+  }
+
   void takeBreak(int minutes) {
     double energyCost = minutes.toDouble();
     if (_playerEnergy >= energyCost) {
@@ -797,19 +1019,29 @@ class GameProvider with ChangeNotifier {
           _breakTimer?.cancel();
           _breakEndTime = null;
           _breakOriginalDurationMinutes = null;
-          _notificationService.showNotification('Break Over!', 'Time to get back to the mission.');
-           setProviderState(gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Break finished. Time to get back to the mission.</span>"], doNotify: true);
+          _notificationService.showNotification(
+              'Break Over!', 'Time to get back to the mission.');
+          setProviderState(gameLog: [
+            ..._gameLog,
+            "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Break finished. Time to get back to the mission.</span>"
+          ], doNotify: true);
         } else {
           notifyListeners();
         }
       });
       setProviderState(
         playerEnergy: _playerEnergy,
-        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>Took a $minutes minute break.</span>"],
+        gameLog: [
+          ..._gameLog,
+          "<span style='color:${helper.colorToHex(AppTheme.fortnitePurple)}'>Took a $minutes minute break.</span>"
+        ],
         doNotify: true,
       );
     } else {
-        setProviderState(gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Not enough energy for a $minutes minute break.</span>"]);
+      setProviderState(gameLog: [
+        ..._gameLog,
+        "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Not enough energy for a $minutes minute break.</span>"
+      ]);
     }
   }
 
@@ -820,9 +1052,15 @@ class GameProvider with ChangeNotifier {
     _breakTimer?.cancel();
     _breakEndTime = null;
     _breakOriginalDurationMinutes = null;
+
+    notificationService.showNotification('Started break!', 'hey');
     setProviderState(
-      playerEnergy: (_playerEnergy + energyRefund).clamp(0, calculatedMaxEnergy),
-      gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Break cancelled. Regained ${energyRefund.toStringAsFixed(0)} energy.</span>"],
+      playerEnergy:
+          (_playerEnergy + energyRefund).clamp(0, calculatedMaxEnergy),
+      gameLog: [
+        ..._gameLog,
+        "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Break cancelled. Regained ${energyRefund.toStringAsFixed(0)} energy.</span>"
+      ],
       doNotify: true,
     );
   }
@@ -832,45 +1070,110 @@ class GameProvider with ChangeNotifier {
     if (_coins >= totalCost) {
       setProviderState(
         coins: _coins - totalCost,
-        playerEnergy: (_playerEnergy + energyAmount).clamp(0, calculatedMaxEnergy),
-        gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Purchased $energyAmount energy for ${totalCost.toStringAsFixed(0)} coins.</span>"],
+        playerEnergy:
+            (_playerEnergy + energyAmount).clamp(0, calculatedMaxEnergy),
+        gameLog: [
+          ..._gameLog,
+          "<span style='color:${helper.colorToHex(AppTheme.fnAccentGreen)}'>Purchased $energyAmount energy for ${totalCost.toStringAsFixed(0)} coins.</span>"
+        ],
       );
     } else {
-       setProviderState(gameLog: [..._gameLog, "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Not enough coins to purchase $energyAmount energy.</span>"]);
+      setProviderState(gameLog: [
+        ..._gameLog,
+        "<span style='color:${helper.colorToHex(AppTheme.fnAccentOrange)}'>Not enough coins to purchase $energyAmount energy.</span>"
+      ]);
     }
   }
 
   void setProviderState({
-    String? lastLoginDate, double? coins, double? xp, double? playerEnergy,
-    List<Project>? projects, Map<String, dynamic>? completedByDay, List<String>? gameLog,
-    List<Skill>? skills, Map<String, ActiveTimerInfo>? activeTimers,
-    DateTime? lastSuccessfulSaveTimestamp, bool? isUsernameMissing, ChatbotMemory? chatbotMemory,
-    bool doNotify = true, bool immediateSave = false,
+    String? lastLoginDate,
+    double? coins,
+    double? xp,
+    double? playerEnergy,
+    List<Project>? projects,
+    Map<String, dynamic>? completedByDay,
+    List<String>? gameLog,
+    List<Skill>? skills,
+    Map<String, ActiveTimerInfo>? activeTimers,
+    DateTime? lastSuccessfulSaveTimestamp,
+    bool? isUsernameMissing,
+    ChatbotMemory? chatbotMemory,
+    bool doNotify = true,
+    bool immediateSave = false,
   }) {
     bool changed = false;
-    if (lastLoginDate != null && _lastLoginDate != lastLoginDate) { _lastLoginDate = lastLoginDate; changed = true; }
-    if (coins != null && _coins != coins) { _coins = coins; changed = true; }
-    if (xp != null && _xp != xp) { _xp = xp; _recalculatePlayerLevel(); changed = true; }
-    if (playerEnergy != null && _playerEnergy != playerEnergy) { _playerEnergy = playerEnergy.clamp(0, calculatedMaxEnergy); changed = true; }
-    if (projects != null && !listEquals(_projects, projects)) { _projects = List.from(projects); _ensureSkillsList(); changed = true; }
-    if (completedByDay != null && !mapEquals(_completedByDay, completedByDay)) { _completedByDay = Map.from(completedByDay); changed = true; }
-    if (gameLog != null && !listEquals(_gameLog, gameLog)) { _gameLog = List.from(gameLog); changed = true; }
-    if (skills != null && !listEquals(_skills, skills)) { _skills = List.from(skills); changed = true; }
-    if (activeTimers != null && !mapEquals(_activeTimers, activeTimers)) { _activeTimers = Map.from(activeTimers); changed = true; }
-    if (lastSuccessfulSaveTimestamp != null && _lastSuccessfulSaveTimestamp != lastSuccessfulSaveTimestamp) { _lastSuccessfulSaveTimestamp = lastSuccessfulSaveTimestamp; changed = true; }
-    if (isUsernameMissing != null && _isUsernameMissing != isUsernameMissing) { _isUsernameMissing = isUsernameMissing; changed = true; }
-    if (chatbotMemory != null && _chatbotMemory != chatbotMemory) { _chatbotMemory = chatbotMemory; changed = true; }
+    if (lastLoginDate != null && _lastLoginDate != lastLoginDate) {
+      _lastLoginDate = lastLoginDate;
+      changed = true;
+    }
+    if (coins != null && _coins != coins) {
+      _coins = coins;
+      changed = true;
+    }
+    if (xp != null && _xp != xp) {
+      _xp = xp;
+      _recalculatePlayerLevel();
+      changed = true;
+    }
+    if (playerEnergy != null && _playerEnergy != playerEnergy) {
+      _playerEnergy = playerEnergy.clamp(0, calculatedMaxEnergy);
+      changed = true;
+    }
+    if (projects != null && !listEquals(_projects, projects)) {
+      _projects = List.from(projects);
+      _ensureSkillsList();
+      changed = true;
+    }
+    if (completedByDay != null && !mapEquals(_completedByDay, completedByDay)) {
+      _completedByDay = Map.from(completedByDay);
+      changed = true;
+    }
+    if (gameLog != null && !listEquals(_gameLog, gameLog)) {
+      _gameLog = List.from(gameLog);
+      changed = true;
+    }
+    if (skills != null && !listEquals(_skills, skills)) {
+      _skills = List.from(skills);
+      changed = true;
+    }
+    if (activeTimers != null && !mapEquals(_activeTimers, activeTimers)) {
+      _activeTimers = Map.from(activeTimers);
+      changed = true;
+    }
+    if (lastSuccessfulSaveTimestamp != null &&
+        _lastSuccessfulSaveTimestamp != lastSuccessfulSaveTimestamp) {
+      _lastSuccessfulSaveTimestamp = lastSuccessfulSaveTimestamp;
+      changed = true;
+    }
+    if (isUsernameMissing != null && _isUsernameMissing != isUsernameMissing) {
+      _isUsernameMissing = isUsernameMissing;
+      changed = true;
+    }
+    if (chatbotMemory != null && _chatbotMemory != chatbotMemory) {
+      _chatbotMemory = chatbotMemory;
+      changed = true;
+    }
     if (changed) {
       _scheduleSave(immediate: immediateSave);
       if (doNotify) notifyListeners();
     }
   }
 
-  void setProviderAIGlobalLoading(bool isLoading, {double progress = 0.0, String statusMessage = ""}) {
+  void setProviderAIGlobalLoading(bool isLoading,
+      {double progress = 0.0, String statusMessage = ""}) {
     bool changed = false;
-    if (_isGeneratingGlobalContent != isLoading) { _isGeneratingGlobalContent = isLoading; changed = true; }
-    if (_aiGenerationProgress != progress) { _aiGenerationProgress = progress; changed = true; }
-    if (_aiGenerationStatusMessage != statusMessage) { _aiGenerationStatusMessage = statusMessage; changed = true; }
+    if (_isGeneratingGlobalContent != isLoading) {
+      _isGeneratingGlobalContent = isLoading;
+      changed = true;
+    }
+    if (_aiGenerationProgress != progress) {
+      _aiGenerationProgress = progress;
+      changed = true;
+    }
+    if (_aiGenerationStatusMessage != statusMessage) {
+      _aiGenerationStatusMessage = statusMessage;
+      changed = true;
+    }
     if (changed) notifyListeners();
   }
 
@@ -887,4 +1190,3 @@ class GameProvider with ChangeNotifier {
     }
   }
 }
- 

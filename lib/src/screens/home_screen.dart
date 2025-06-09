@@ -168,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: 'Skills Panel (Right)',
       content: 'Completing tasks and checkpoints earns you XP in related skills. Level up your skills to see your progress and unlock new potential! View your skills by tapping the atom icon.',
     );
-     await _showTutorialStep(
+    await _showTutorialStep(
       title: 'The Header',
       content: 'At the top, you\'ll find your vital stats: Coins, Energy, and your current Player Level & XP. Use energy for breaks and coins to replenish energy.',
     );
@@ -251,12 +251,12 @@ class _HomeScreenState extends State<HomeScreen> {
             // Layer 2: Main Content
             Column(
               children: [
-                if (gameProvider.breakEndTime != null) const BreakTimerBanner(),
                 Expanded(
                   child: SafeArea(
                     bottom: false,
                     child: Column(
                       children: [
+                        if (gameProvider.breakEndTime != null) const BreakTimerBanner(),
                         HeaderWidget(
                           currentViewLabel: viewLabels[_mobileSelectedIndex],
                           isMobile: !isLargeScreen,

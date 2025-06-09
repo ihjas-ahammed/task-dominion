@@ -219,9 +219,9 @@ class TaskActions {
     }).toList();
 
     _provider.setProviderState(projects: newProjects, xp: _provider.xp + finalXpReward, coins: _provider.coins + finalCoinReward);
-    updatedTaskForRewards.skillXp.forEach((skillId, xpAmount) => _provider.addSkillXp(skillId, xpAmount));
+    updatedTaskForRewards.subskillXp.forEach((subskillId, xpAmount) => _provider.addSubskillXp(subskillId, xpAmount));
     logToDailySummary('taskCompleted', {'projectId': project.id, 'name': updatedTaskForRewards.name, 'timeLogged': updatedTaskForRewards.currentTimeSpent,
-      'isCountable': updatedTaskForRewards.isCountable, 'currentCount': updatedTaskForRewards.currentCount, 'targetCount': updatedTaskForRewards.targetCount, 'skillXp': updatedTaskForRewards.skillXp});
+      'isCountable': updatedTaskForRewards.isCountable, 'currentCount': updatedTaskForRewards.currentCount, 'targetCount': updatedTaskForRewards.targetCount, 'subskillXp': updatedTaskForRewards.subskillXp});
     return true;
   }
 
@@ -257,11 +257,11 @@ class TaskActions {
       id: 'task_${DateTime.now().millisecondsSinceEpoch}_${(projectToUpdate.tasks.length + 1)}',
       name: taskToDuplicate.name, completed: false, currentTimeSpent: 0, completedDate: null,
       isCountable: taskToDuplicate.isCountable, targetCount: taskToDuplicate.targetCount, currentCount: 0,
-      skillXp: taskToDuplicate.skillXp,
+      subskillXp: taskToDuplicate.subskillXp,
       checkpoints: taskToDuplicate.checkpoints.map((cp) => Checkpoint(
             id: 'cp_${DateTime.now().millisecondsSinceEpoch}_${(taskToDuplicate.checkpoints.length + 1)}_${cp.name.hashCode}',
             name: cp.name, completed: false, isCountable: cp.isCountable, targetCount: cp.targetCount,
-            currentCount: 0, completionTimestamp: null, skillXp: cp.skillXp,
+            currentCount: 0, completionTimestamp: null, subskillXp: cp.subskillXp,
       )).toList(),
     );
     projectToUpdate.tasks.add(newTask);
@@ -298,7 +298,7 @@ class TaskActions {
             cp.targetCount = updates['targetCount'] as int? ?? cp.targetCount;
             cp.currentCount = updates['currentCount'] as int? ?? cp.currentCount;
             cp.completionTimestamp = updates['completionTimestamp'] as String? ?? cp.completionTimestamp;
-            cp.skillXp = (updates['skillXp'] as Map<String, double>?) ?? cp.skillXp;
+            cp.subskillXp = (updates['subskillXp'] as Map<String, double>?) ?? cp.subskillXp;
             if (cp.isCountable) cp.currentCount = cp.currentCount.clamp(0, cp.targetCount);
           }
           return cp;
@@ -335,11 +335,11 @@ class TaskActions {
 
     if (checkpointCompletedSuccessfully && completedCheckpointInstanceForLog != null) {
       _provider.setProviderState(projects: newProjects, xp: _provider.xp + xpReward, coins: _provider.coins + coinReward);
-      completedCheckpointInstanceForLog.skillXp.forEach((skillId, xpAmount) => _provider.addSkillXp(skillId, xpAmount));
+      completedCheckpointInstanceForLog.subskillXp.forEach((subskillId, xpAmount) => _provider.addSubskillXp(subskillId, xpAmount));
       logToDailySummary('checkpointCompleted', {
         'projectId': projectId, 'parentTaskId': parentTaskId, 'checkpointId': checkpointId, 'name': completedCheckpointInstanceForLog.name,
         'isCountable': completedCheckpointInstanceForLog.isCountable, 'currentCount': completedCheckpointInstanceForLog.currentCount, 'targetCount': completedCheckpointInstanceForLog.targetCount,
-        'completionTimestamp': completedCheckpointInstanceForLog.completionTimestamp, 'skillXp': completedCheckpointInstanceForLog.skillXp,
+        'completionTimestamp': completedCheckpointInstanceForLog.completionTimestamp, 'subskillXp': completedCheckpointInstanceForLog.subskillXp,
         'parentTaskName': task?.name ?? 'N/A', 'projectName': project?.name ?? 'N/A'
       });
     }
@@ -371,7 +371,7 @@ class TaskActions {
       targetCount: checkpointToDuplicate.targetCount,
       currentCount: 0,
       completionTimestamp: null,
-      skillXp: checkpointToDuplicate.skillXp,
+      subskillXp: checkpointToDuplicate.subskillXp,
     );
 
     final newProjects = _provider.projects.map((p) {

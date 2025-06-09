@@ -43,6 +43,7 @@ class _BreakTimerBannerState extends State<BreakTimerBanner> {
     _uiTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         _updateRemainingTime();
+        
       } else {
         timer.cancel();
       }
@@ -65,6 +66,8 @@ class _BreakTimerBannerState extends State<BreakTimerBanner> {
         _uiTimer?.cancel();
       }
     }
+
+
   }
 
   @override
